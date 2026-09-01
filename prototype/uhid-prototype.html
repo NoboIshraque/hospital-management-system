@@ -1,0 +1,1868 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UHID Clinical Console</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<style>
+/* ============================================================
+   UHID — National Hospital Management System
+   Frontend prototype. All data is mock data held in JS objects.
+   Week 2 note: every render function below is the same one that
+   will later receive real JSON from the API. Only the data source
+   changes, not the rendering.
+   ============================================================ */
+
+:root {
+  --ground:      #EEF2F4;
+  --surface:     #FFFFFF;
+  --surface-2:   #F5F8F9;
+  --surface-3:   #E7EDF0;
+  --rail:        #0C2B3A;
+  --rail-hover:  #16394C;
+  --rail-ink:    #A9C2CE;
+  --rail-ink-2:  #6C8B9B;
+  --ink:         #0E1B22;
+  --ink-2:       #47606D;
+  --ink-3:       #78909D;
+  --line:        #D3DEE3;
+  --line-2:      #BACAD1;
+  --brand:       #0E6E8C;
+  --brand-ink:   #0A5570;
+  --brand-soft:  #DDEDF3;
+  --on-brand:    #FFFFFF;
+  --ok:          #17753F;
+  --ok-soft:     #DCF0E4;
+  --warn:        #96550A;
+  --warn-soft:   #FBEEDA;
+  --crit:        #A81F2D;
+  --crit-soft:   #FBE4E6;
+  --info:        #4A3E9E;
+  --info-soft:   #E7E4F7;
+  --shadow-sm: 0 1px 2px rgba(14,27,34,.06);
+  --shadow:    0 1px 3px rgba(14,27,34,.07), 0 12px 28px -18px rgba(14,27,34,.35);
+  --shadow-lg: 0 24px 60px -24px rgba(14,27,34,.42);
+  --r: 5px;
+  --f-ui:    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --f-mono:  "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --f-brand: "IBM Plex Serif", Georgia, serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:     #0A1116;
+    --surface:    #101B22;
+    --surface-2:  #16242C;
+    --surface-3:  #1D2E38;
+    --rail:       #081920;
+    --rail-hover: #12303E;
+    --rail-ink:   #9FBAC7;
+    --rail-ink-2: #5F7C8B;
+    --ink:        #E4EDF1;
+    --ink-2:      #9EB4BF;
+    --ink-3:      #718895;
+    --line:       #22343E;
+    --line-2:     #334B57;
+    --brand:      #3FA8CB;
+    --brand-ink:  #74C7E3;
+    --brand-soft: #10333F;
+    --on-brand:   #04161D;
+    --ok:         #4CBF7C;
+    --ok-soft:    #10301F;
+    --warn:       #D9A65A;
+    --warn-soft:  #302311;
+    --crit:       #EE7C87;
+    --crit-soft:  #351A1E;
+    --info:       #9C92E8;
+    --info-soft:  #221F3D;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
+    --shadow:    0 1px 3px rgba(0,0,0,.5), 0 12px 28px -18px rgba(0,0,0,.9);
+    --shadow-lg: 0 24px 60px -24px rgba(0,0,0,.95);
+  }
+}
+:root[data-theme="dark"] {
+  --ground:     #0A1116;
+  --surface:    #101B22;
+  --surface-2:  #16242C;
+  --surface-3:  #1D2E38;
+  --rail:       #081920;
+  --rail-hover: #12303E;
+  --rail-ink:   #9FBAC7;
+  --rail-ink-2: #5F7C8B;
+  --ink:        #E4EDF1;
+  --ink-2:      #9EB4BF;
+  --ink-3:      #718895;
+  --line:       #22343E;
+  --line-2:     #334B57;
+  --brand:      #3FA8CB;
+  --brand-ink:  #74C7E3;
+  --brand-soft: #10333F;
+  --on-brand:   #04161D;
+  --ok:         #4CBF7C;
+  --ok-soft:    #10301F;
+  --warn:       #D9A65A;
+  --warn-soft:  #302311;
+  --crit:       #EE7C87;
+  --crit-soft:  #351A1E;
+  --info:       #9C92E8;
+  --info-soft:  #221F3D;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
+  --shadow:    0 1px 3px rgba(0,0,0,.5), 0 12px 28px -18px rgba(0,0,0,.9);
+  --shadow-lg: 0 24px 60px -24px rgba(0,0,0,.95);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--f-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* ---------------- shared atoms ---------------- */
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 15px; border-radius: var(--r);
+  border: 1px solid var(--line-2); background: var(--surface);
+  color: var(--ink); font-size: 13.5px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: background .12s, border-color .12s;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--ink-3); }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.btn.primary:hover { background: var(--brand-ink); border-color: var(--brand-ink); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
+.btn.ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn.sm { padding: 5px 11px; font-size: 12.5px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+  padding: 2px 8px; border-radius: 100px; white-space: nowrap;
+}
+.pill.ok   { background: var(--ok-soft);   color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.crit { background: var(--crit-soft); color: var(--crit); }
+.pill.info { background: var(--info-soft); color: var(--info); }
+.pill.mute { background: var(--surface-3); color: var(--ink-3); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+}
+.label {
+  display: block;
+  font-size: 11px; font-weight: 600; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 5px;
+}
+.field {
+  width: 100%; padding: 8px 11px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line-2); border-radius: var(--r);
+  font-size: 14px;
+}
+.field::placeholder { color: var(--ink-3); }
+.field:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px var(--brand-soft); }
+
+/* ---------------- login ---------------- */
+#login {
+  min-height: 100vh;
+  display: grid; place-items: center;
+  padding: 40px 20px;
+  background:
+    radial-gradient(900px 500px at 15% -10%, var(--brand-soft), transparent 65%),
+    var(--ground);
+}
+.login-box { width: 100%; max-width: 660px; }
+.brand { display: flex; align-items: center; gap: 13px; margin-bottom: 8px; }
+.brand-mark {
+  width: 42px; height: 42px; flex: none;
+  display: grid; place-items: center;
+  background: var(--brand); color: var(--on-brand);
+  border-radius: 9px;
+  font-family: var(--f-brand); font-size: 21px; font-weight: 600;
+}
+.brand h1 {
+  font-family: var(--f-brand);
+  font-size: 25px; font-weight: 600; letter-spacing: -.015em;
+  margin: 0; line-height: 1.15;
+}
+.brand p { margin: 1px 0 0; font-size: 12.5px; color: var(--ink-3); letter-spacing: .02em; }
+.login-lead { color: var(--ink-2); margin: 18px 0 22px; max-width: 52ch; }
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px,1fr)); gap: 10px; }
+.role-card {
+  text-align: left; cursor: pointer;
+  padding: 15px 16px 16px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r); box-shadow: var(--shadow-sm);
+  transition: border-color .12s, transform .12s, box-shadow .12s;
+}
+.role-card:hover { border-color: var(--brand); transform: translateY(-2px); box-shadow: var(--shadow); }
+@media (prefers-reduced-motion: reduce) { .role-card:hover { transform: none; } }
+.role-card b { display: block; font-size: 14.5px; margin-bottom: 3px; }
+.role-card span { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.45; }
+.role-card .who { font-family: var(--f-mono); font-size: 11px; color: var(--brand); margin-top: 9px; }
+.login-foot { margin-top: 22px; font-size: 12px; color: var(--ink-3); }
+
+/* ---------------- app shell ---------------- */
+#app { display: grid; grid-template-columns: 218px 1fr; min-height: 100vh; }
+.rail {
+  background: var(--rail); color: var(--rail-ink);
+  display: flex; flex-direction: column;
+  padding: 16px 12px;
+  position: sticky; top: 0; height: 100vh;
+}
+.rail .brand { margin-bottom: 22px; padding: 0 4px; }
+.rail .brand h1 { color: #fff; font-size: 17px; }
+.rail .brand p { color: var(--rail-ink-2); font-size: 11px; }
+.rail .brand-mark { width: 32px; height: 32px; font-size: 16px; border-radius: 7px; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-h {
+  font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--rail-ink-2); padding: 14px 10px 5px;
+}
+.nav button {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 8px 10px; border: 0; border-radius: var(--r);
+  background: transparent; color: var(--rail-ink);
+  font-size: 13.5px; cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.nav button:hover { background: var(--rail-hover); color: #fff; }
+.nav button.on { background: var(--brand); color: var(--on-brand); font-weight: 500; }
+.nav .ic { width: 15px; flex: none; opacity: .9; }
+.rail-foot { margin-top: auto; border-top: 1px solid rgba(255,255,255,.09); padding-top: 12px; }
+.whoami { display: flex; align-items: center; gap: 9px; padding: 4px; }
+.avatar {
+  width: 30px; height: 30px; flex: none; border-radius: 50%;
+  background: var(--rail-hover); color: #fff;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 600;
+}
+.whoami b { display: block; font-size: 12.5px; color: #fff; font-weight: 500; }
+.whoami span { display: block; font-size: 11px; color: var(--rail-ink-2); }
+.signout {
+  width: 100%; margin-top: 8px; padding: 6px;
+  background: transparent; border: 1px solid rgba(255,255,255,.13);
+  border-radius: var(--r); color: var(--rail-ink);
+  font-size: 12px; cursor: pointer;
+}
+.signout:hover { background: var(--rail-hover); color: #fff; }
+
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 11px 26px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 20;
+}
+.crumb { font-size: 12.5px; color: var(--ink-3); }
+.crumb b { color: var(--ink); font-weight: 600; }
+.gsearch { margin-left: auto; position: relative; width: min(320px, 40vw); }
+.gsearch .field { padding-left: 32px; font-size: 13px; }
+.gsearch svg { position: absolute; left: 10px; top: 9px; color: var(--ink-3); }
+.hosp {
+  font-size: 12.5px; color: var(--ink-2);
+  padding: 5px 11px; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 100px;
+}
+.content { padding: 26px; max-width: 1240px; width: 100%; }
+
+.page-h { margin-bottom: 20px; }
+.page-h h2 {
+  font-size: 21px; font-weight: 600; letter-spacing: -.015em;
+  margin: 0 0 3px;
+}
+.page-h p { margin: 0; color: var(--ink-2); font-size: 13.5px; max-width: 68ch; }
+
+/* ---------------- registration ---------------- */
+.reg-grid { display: grid; grid-template-columns: 1fr 356px; gap: 18px; align-items: start; }
+.form-card { padding: 20px 22px 22px; }
+.form-sec + .form-sec { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.form-sec > h3 {
+  font-size: 12.5px; font-weight: 600; margin: 0 0 13px;
+  color: var(--brand); letter-spacing: .02em;
+}
+.row { display: grid; gap: 13px; margin-bottom: 13px; }
+.row.c2 { grid-template-columns: 1fr 1fr; }
+.row.c3 { grid-template-columns: 1fr 1fr 1fr; }
+.hint { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; }
+.form-actions { display: flex; gap: 9px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+
+.match-panel { position: sticky; top: 84px; }
+.match-head { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.match-head h3 { margin: 0 0 3px; font-size: 13.5px; }
+.match-head p { margin: 0; font-size: 12px; color: var(--ink-3); }
+.match-body { padding: 12px; display: flex; flex-direction: column; gap: 9px; min-height: 130px; }
+.match-empty {
+  display: grid; place-items: center; text-align: center;
+  min-height: 130px; padding: 20px;
+  color: var(--ink-3); font-size: 12.5px; line-height: 1.5;
+}
+.cand {
+  border: 1px solid var(--line); border-radius: var(--r);
+  padding: 11px 13px; background: var(--surface-2);
+}
+.cand.strong { border-color: var(--crit); background: var(--crit-soft); }
+.cand-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+.cand-top b { font-size: 13.5px; }
+.cand-meta { font-size: 11.5px; color: var(--ink-2); line-height: 1.6; }
+.cand-meta .k { color: var(--ink-3); }
+.cand-acts { display: flex; gap: 6px; margin-top: 9px; }
+.score { font-family: var(--f-mono); font-size: 11px; }
+
+.banner {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 12px 15px; border-radius: var(--r);
+  font-size: 13px; margin-bottom: 16px;
+}
+.banner.crit { background: var(--crit-soft); color: var(--crit); border: 1px solid currentColor; }
+.banner.ok   { background: var(--ok-soft);   color: var(--ok);   border: 1px solid currentColor; }
+.banner b { display: block; margin-bottom: 1px; }
+.banner .txt { color: var(--ink); }
+.banner.crit .txt, .banner.ok .txt { color: inherit; }
+
+/* ---------------- patient record ---------------- */
+.pt-head { display: flex; gap: 18px; align-items: flex-start; padding: 18px 22px; margin-bottom: 16px; flex-wrap: wrap; }
+.pt-av {
+  width: 54px; height: 54px; flex: none; border-radius: 9px;
+  background: var(--brand-soft); color: var(--brand-ink);
+  display: grid; place-items: center;
+  font-size: 19px; font-weight: 600;
+}
+.pt-id { flex: 1; min-width: 220px; }
+.pt-id h2 { margin: 0 0 3px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.uhid {
+  font-family: var(--f-mono); font-size: 13px; font-weight: 500;
+  color: var(--brand-ink); background: var(--brand-soft);
+  padding: 2px 8px; border-radius: 3px; letter-spacing: .02em;
+}
+.pt-facts { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 9px; font-size: 12.5px; }
+.pt-facts div { color: var(--ink); }
+.pt-facts .k { color: var(--ink-3); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.tabs button {
+  padding: 9px 15px; border: 0; background: transparent;
+  color: var(--ink-2); font-size: 13.5px; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button.on { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+
+.timeline { position: relative; padding-left: 22px; }
+.timeline::before {
+  content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px;
+  width: 1px; background: var(--line);
+}
+.enc { position: relative; margin-bottom: 12px; }
+.enc::before {
+  content: ""; position: absolute; left: -21px; top: 17px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--surface); border: 2px solid var(--line-2);
+}
+.enc.here::before { background: var(--brand); border-color: var(--brand); }
+.enc-card { padding: 14px 17px; }
+.enc-top { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 7px; }
+.enc-date { font-family: var(--f-mono); font-size: 12px; color: var(--ink-2); }
+.enc-hosp { font-size: 13px; font-weight: 600; }
+.enc-body { font-size: 13px; color: var(--ink-2); }
+.enc-body .dx { color: var(--ink); font-weight: 500; }
+.enc-rx { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line); font-size: 12.5px; color: var(--ink-2); }
+.enc-rx .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); display: block; margin-bottom: 3px; }
+.enc-rx li { margin-bottom: 2px; }
+.enc-rx ul { margin: 0; padding-left: 17px; }
+
+/* ---------------- doctor search + booking ---------------- */
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 11px; padding: 15px 17px; margin-bottom: 16px; }
+.doc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px,1fr)); gap: 12px; }
+.doc { padding: 15px 17px; display: flex; flex-direction: column; gap: 11px; }
+.doc-top { display: flex; gap: 12px; }
+.doc-av {
+  width: 42px; height: 42px; flex: none; border-radius: 50%;
+  background: var(--surface-3); color: var(--ink-2);
+  display: grid; place-items: center; font-size: 14px; font-weight: 600;
+}
+.doc-id { min-width: 0; }
+.doc-id b { display: block; font-size: 14.5px; }
+.doc-id .spec { font-size: 12.5px; color: var(--brand-ink); }
+.doc-id .qual { font-size: 11.5px; color: var(--ink-3); }
+.doc-where { font-size: 12.5px; color: var(--ink-2); display: flex; align-items: flex-start; gap: 7px; }
+.doc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 11px; border-top: 1px solid var(--line); }
+.next-free { font-size: 12px; color: var(--ink-2); }
+.next-free b { color: var(--ok); font-weight: 600; }
+.fee { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); }
+
+.slot-day { margin-bottom: 18px; }
+.slot-day h4 {
+  font-size: 12.5px; margin: 0 0 9px; font-weight: 600;
+  display: flex; align-items: baseline; gap: 9px;
+}
+.slot-day h4 span { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); font-weight: 400; }
+.slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px,1fr)); gap: 7px; }
+.slot {
+  padding: 8px 4px; border-radius: var(--r);
+  border: 1px solid var(--line-2); background: var(--surface);
+  font-family: var(--f-mono); font-size: 12.5px;
+  cursor: pointer; text-align: center;
+  transition: background .1s, border-color .1s;
+}
+.slot:hover:not(:disabled) { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-ink); }
+.slot.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); font-weight: 600; }
+.slot:disabled {
+  background: var(--surface-2); color: var(--ink-3);
+  border-color: var(--line); cursor: not-allowed;
+  text-decoration: line-through; text-decoration-thickness: 1px;
+}
+
+/* ---------------- ward board ---------------- */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 11px; margin-bottom: 18px; }
+.stat { padding: 14px 16px; }
+.stat .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); margin-bottom: 5px; }
+.stat .v { font-family: var(--f-mono); font-size: 25px; font-weight: 600; letter-spacing: -.02em; line-height: 1; }
+.stat .sub { font-size: 11.5px; color: var(--ink-3); margin-top: 5px; }
+.stat.ok .v   { color: var(--ok); }
+.stat.warn .v { color: var(--warn); }
+.stat.crit .v { color: var(--crit); }
+
+.ward { margin-bottom: 18px; }
+.ward-h {
+  display: flex; align-items: center; gap: 11px; flex-wrap: wrap;
+  padding: 12px 17px; border-bottom: 1px solid var(--line);
+}
+.ward-h b { font-size: 14px; }
+.ward-h .cap { font-family: var(--f-mono); font-size: 12px; color: var(--ink-3); margin-left: auto; }
+.meter { width: 96px; height: 5px; border-radius: 100px; background: var(--surface-3); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--ok); }
+.meter i.warn { background: var(--warn); }
+.meter i.crit { background: var(--crit); }
+.beds { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px,1fr)); gap: 7px; padding: 14px 17px 17px; }
+.bed {
+  aspect-ratio: 1.28;
+  border-radius: var(--r); border: 1px solid var(--line-2);
+  background: var(--surface-2); color: var(--ink-3);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  cursor: pointer; padding: 4px;
+  transition: transform .1s, box-shadow .1s;
+}
+.bed:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+@media (prefers-reduced-motion: reduce) { .bed:hover { transform: none; } }
+.bed .no { font-family: var(--f-mono); font-size: 12.5px; font-weight: 600; }
+.bed .st { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; }
+.bed.free     { border-color: var(--ok);   background: var(--ok-soft);   color: var(--ok); }
+.bed.occupied { border-color: var(--crit); background: var(--crit-soft); color: var(--crit); }
+.bed.reserved { border-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
+.bed.cleaning { border-color: var(--line-2); background: var(--surface-3); color: var(--ink-3); }
+.bed-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-bottom: 14px; }
+.bed-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 11px; height: 11px; border-radius: 3px; border: 1px solid; }
+.sw.free { border-color: var(--ok); background: var(--ok-soft); }
+.sw.occupied { border-color: var(--crit); background: var(--crit-soft); }
+.sw.reserved { border-color: var(--warn); background: var(--warn-soft); }
+.sw.cleaning { border-color: var(--line-2); background: var(--surface-3); }
+
+/* ---------------- modal + toast ---------------- */
+.scrim {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(8,20,26,.5);
+  display: grid; place-items: center; padding: 22px;
+  backdrop-filter: blur(2px);
+}
+.modal {
+  width: 100%; max-width: 470px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 7px; box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.modal-h { padding: 16px 20px 14px; border-bottom: 1px solid var(--line); }
+.modal-h h3 { margin: 0 0 2px; font-size: 15.5px; }
+.modal-h p { margin: 0; font-size: 12.5px; color: var(--ink-3); }
+.modal-b { padding: 18px 20px; }
+.modal-f { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; gap: 9px; justify-content: flex-end; background: var(--surface-2); }
+.kv { display: grid; grid-template-columns: 118px 1fr; gap: 8px 14px; font-size: 13px; }
+.kv dt { color: var(--ink-3); }
+.kv dd { margin: 0; font-weight: 500; }
+
+.toasts { position: fixed; right: 20px; bottom: 20px; z-index: 80; display: flex; flex-direction: column; gap: 9px; }
+.toast {
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--ok);
+  border-radius: var(--r); box-shadow: var(--shadow-lg);
+  padding: 12px 16px; max-width: 340px; font-size: 13px;
+}
+.toast.err { border-left-color: var(--crit); }
+.toast b { display: block; margin-bottom: 2px; }
+.toast span { color: var(--ink-2); font-size: 12.5px; }
+
+@media (max-width: 1000px) {
+  .reg-grid { grid-template-columns: 1fr; }
+  .match-panel { position: static; }
+}
+@media (max-width: 780px) {
+  #app { grid-template-columns: 1fr; }
+  .rail { position: static; height: auto; flex-direction: column; }
+  .nav { flex-direction: row; flex-wrap: wrap; }
+  .nav-h { display: none; }
+  .rail-foot { margin-top: 14px; }
+  .content { padding: 18px; }
+  .row.c2, .row.c3 { grid-template-columns: 1fr; }
+  .gsearch { width: 100%; order: 3; margin-left: 0; }
+  .topbar { flex-wrap: wrap; }
+}
+
+/* ---------------- login form ---------------- */
+.login-box { max-width: 780px; }
+.login-grid { display: grid; grid-template-columns: 1fr 322px; gap: 14px; align-items: start; }
+.login-form { padding: 20px 22px 22px; }
+.login-form h3 { margin: 0 0 15px; font-size: 15px; }
+.login-form .row { margin-bottom: 14px; }
+.pw-wrap { position: relative; }
+.pw-toggle {
+  position: absolute; right: 7px; top: 7px;
+  background: none; border: 0; color: var(--ink-3);
+  font-size: 11.5px; cursor: pointer; padding: 2px 7px; border-radius: 3px;
+}
+.pw-toggle:hover { color: var(--brand); background: var(--surface-2); }
+.login-err {
+  background: var(--crit-soft); color: var(--crit);
+  border: 1px solid currentColor; border-radius: var(--r);
+  padding: 9px 12px; font-size: 12.5px; margin-bottom: 14px;
+}
+.demo-card { padding: 16px 18px 18px; }
+.demo-card h3 { margin: 0 0 3px; font-size: 13.5px; }
+.demo-card > p { margin: 0 0 12px; font-size: 12px; color: var(--ink-3); line-height: 1.45; }
+.demo-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 8px 10px; margin-bottom: 6px;
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface-2); cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.demo-row:hover { border-color: var(--brand); background: var(--brand-soft); }
+.demo-row .av {
+  width: 26px; height: 26px; flex: none; border-radius: 50%;
+  background: var(--surface-3); color: var(--ink-2);
+  display: grid; place-items: center; font-size: 11px; font-weight: 600;
+}
+.demo-row b { display: block; font-size: 12.5px; }
+.demo-row span { display: block; font-size: 11px; color: var(--ink-3); }
+.demo-row .u { font-family: var(--f-mono); font-size: 11px; color: var(--brand-ink); margin-left: auto; }
+
+/* ---------------- empty states + misc ---------------- */
+.empty-state {
+  padding: 40px 26px; text-align: center;
+  color: var(--ink-3); font-size: 13px; line-height: 1.55;
+}
+.empty-state b { display: block; color: var(--ink-2); margin-bottom: 4px; font-size: 14px; }
+.badge-new {
+  background: var(--ok-soft); color: var(--ok);
+  font-size: 10.5px; font-weight: 600; letter-spacing: .03em;
+  padding: 1px 8px; border-radius: 100px; white-space: nowrap;
+}
+.linkbtn {
+  background: none; border: 0; color: var(--ink-3);
+  text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer; font-size: 12px; padding: 0; font-family: inherit;
+}
+.linkbtn:hover { color: var(--crit); }
+.rail-foot .linkbtn { color: var(--rail-ink-2); display: block; margin-top: 9px; }
+.rail-foot .linkbtn:hover { color: #fff; }
+
+@media (max-width: 700px) { .login-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<!-- ============================ LOGIN ============================ -->
+<div id="login">
+  <div class="login-box">
+    <div class="brand">
+      <div class="brand-mark">U</div>
+      <div>
+        <h1>UHID Clinical Console</h1>
+        <p>National Hospital Management System &middot; Bangladesh</p>
+      </div>
+    </div>
+    <p class="login-lead">One health record per citizen, recognised at every connected hospital. Sign in with your hospital account.</p>
+
+    <div class="login-grid">
+      <form class="card login-form" id="login-form" autocomplete="off">
+        <h3>Sign in</h3>
+        <div class="login-err" id="login-err" hidden></div>
+        <div class="row">
+          <label class="label" for="l-user">Username</label>
+          <input class="field mono" id="l-user" placeholder="rezaul" autocomplete="username">
+        </div>
+        <div class="row">
+          <label class="label" for="l-pass">Password</label>
+          <div class="pw-wrap">
+            <input class="field mono" id="l-pass" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password">
+            <button type="button" class="pw-toggle" id="pw-toggle">show</button>
+          </div>
+        </div>
+        <button type="submit" class="btn primary" style="width:100%;justify-content:center">Sign in</button>
+      </form>
+
+      <div class="card demo-card">
+        <h3>Demo accounts</h3>
+        <p>Click any account to fill the form. Password for all four: <span class="mono">demo1234</span></p>
+        <div id="demo-list"></div>
+      </div>
+    </div>
+
+    <p class="login-foot">
+      Prototype build &middot; sample data only &middot; no real patient information &nbsp;&middot;&nbsp;
+      <button class="linkbtn" id="reset-demo">Reset demo data</button>
+    </p>
+  </div>
+</div>
+
+<!-- ============================ APP SHELL ============================ -->
+<div id="app" hidden>
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark">U</div>
+      <div>
+        <h1>UHID</h1>
+        <p>Clinical Console</p>
+      </div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="rail-foot">
+      <div class="whoami">
+        <div class="avatar" id="me-av">&ndash;</div>
+        <div>
+          <b id="me-name">&ndash;</b>
+          <span id="me-role">&ndash;</span>
+        </div>
+      </div>
+      <button class="signout" id="signout">Sign out</button>
+      <button class="linkbtn" id="reset-demo-2">Reset demo data</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb"></div>
+      <div class="gsearch">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.7"/><path d="M10.5 10.5L14 14"/></svg>
+        <input class="field" id="gsearch" placeholder="Search UHID, phone or NID&hellip;" aria-label="Global patient search">
+      </div>
+      <span class="hosp" id="hosp">&ndash;</span>
+    </div>
+    <div class="content" id="view"></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ============================================================
+   UHID — National Hospital Management System
+   Frontend prototype.
+
+   WEEK 4 NOTE: every render function below takes a plain data
+   object. When the API exists, only the *source* changes —
+     const p = await (await fetch('/api/patients/' + uhid)).json();
+   replaces a call to store.find(). The rendering code stays.
+   That is the whole reason we froze the API contract first.
+
+   PERSISTENCE: browser localStorage stands in for MySQL. It has
+   the same shape as the future `patient` table, so swapping it
+   for real endpoints is mechanical.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. REFERENCE DATA (becomes lookup tables in MySQL)
+   ------------------------------------------------------------ */
+
+const HOSPITALS = [
+  { id: 1, name: 'Dhaka Medical College Hospital',      div: 'Dhaka',      dist: 'Dhaka',      tier: 'Medical College' },
+  { id: 2, name: 'Upazila Health Complex, Savar',       div: 'Dhaka',      dist: 'Dhaka',      tier: 'Upazila' },
+  { id: 3, name: 'Chattogram Medical College Hospital', div: 'Chattogram', dist: 'Chattogram', tier: 'Medical College' },
+  { id: 4, name: 'Sylhet MAG Osmani Medical College',   div: 'Sylhet',     dist: 'Sylhet',     tier: 'Medical College' },
+  { id: 5, name: 'Rajshahi Medical College Hospital',   div: 'Rajshahi',   dist: 'Rajshahi',   tier: 'Medical College' },
+  { id: 6, name: 'Khulna Medical College Hospital',     div: 'Khulna',     dist: 'Khulna',     tier: 'Medical College' },
+  { id: 7, name: 'Square Hospital, Dhaka',              div: 'Dhaka',      dist: 'Dhaka',      tier: 'Private' },
+  { id: 8, name: 'Rangpur Medical College Hospital',    div: 'Rangpur',    dist: 'Rangpur',    tier: 'Medical College' }
+];
+
+const DEPARTMENTS = ['Cardiology','Medicine','Orthopaedics','Paediatrics','Gynae & Obstetrics','Neurology','Nephrology','ENT','Dermatology','Emergency'];
+const DIVISIONS   = ['Dhaka','Chattogram','Sylhet','Rajshahi','Khulna','Rangpur','Barishal','Mymensingh'];
+const BLOODS      = ['Unknown','A+','A-','B+','B-','AB+','AB-','O+','O-'];
+
+const DOCTORS = [
+  { id: 1,  name: 'Dr. Anisur Rahman',    dept: 'Cardiology',         qual: 'MBBS, FCPS (Medicine), MD (Cardiology)',  hospitalId: 1, fee: 800,  bmdc: 'A-42817' },
+  { id: 2,  name: 'Dr. Farzana Haque',    dept: 'Gynae & Obstetrics', qual: 'MBBS, FCPS (Gynae & Obs)',                hospitalId: 1, fee: 700,  bmdc: 'A-51902' },
+  { id: 3,  name: 'Dr. Shamsul Alam',     dept: 'Orthopaedics',       qual: 'MBBS, MS (Orthopaedics)',                 hospitalId: 3, fee: 900,  bmdc: 'A-38104' },
+  { id: 4,  name: 'Dr. Nusrat Jahan',     dept: 'Paediatrics',        qual: 'MBBS, DCH, FCPS (Paediatrics)',           hospitalId: 1, fee: 600,  bmdc: 'A-60233' },
+  { id: 5,  name: 'Dr. Kamrul Hasan',     dept: 'Medicine',           qual: 'MBBS, FCPS (Medicine)',                   hospitalId: 2, fee: 400,  bmdc: 'A-47755' },
+  { id: 6,  name: 'Dr. Tahmina Akter',    dept: 'Cardiology',         qual: 'MBBS, MD (Cardiology)',                   hospitalId: 7, fee: 1500, bmdc: 'A-52611' },
+  { id: 7,  name: 'Dr. Mizanur Rahman',   dept: 'Neurology',          qual: 'MBBS, FCPS, MD (Neurology)',              hospitalId: 4, fee: 1000, bmdc: 'A-40988' },
+  { id: 8,  name: 'Dr. Sabrina Chowdhury',dept: 'Dermatology',        qual: 'MBBS, DDV',                               hospitalId: 3, fee: 650,  bmdc: 'A-58420' },
+  { id: 9,  name: 'Dr. Rafiqul Islam',    dept: 'Nephrology',         qual: 'MBBS, FCPS (Medicine), MD (Nephrology)',  hospitalId: 5, fee: 850,  bmdc: 'A-44301' },
+  { id: 10, name: 'Dr. Ayesha Siddika',   dept: 'Medicine',           qual: 'MBBS, FCPS (Medicine)',                   hospitalId: 6, fee: 500,  bmdc: 'A-63177' }
+];
+
+/* Staff logins. In week 4 these live in `user_account`, the
+   password is a bcrypt hash, and the check happens on the SERVER —
+   never in JavaScript the user can read. This is a prototype
+   stand-in, and you should say so if anyone asks. */
+const ACCOUNTS = [
+  { user: 'rezaul', pass: 'demo1234', role: 'receptionist' },
+  { user: 'anisur', pass: 'demo1234', role: 'doctor' },
+  { user: 'rahim',  pass: 'demo1234', role: 'patient' },
+  { user: 'nasima', pass: 'demo1234', role: 'admin' }
+];
+
+const ROLES = {
+  receptionist: {
+    label: 'Receptionist', who: 'Rezaul Karim', hospital: 1,
+    blurb: 'Registers patients, issues UHIDs, books appointments, admits to beds.',
+    nav: [['register','Register patient'], ['search','Find patient'], ['book','Book appointment'], ['wards','Wards &amp; beds']]
+  },
+  doctor: {
+    label: 'Doctor', who: 'Dr. Anisur Rahman', hospital: 1,
+    blurb: 'Reads the national record, records encounters, prescribes, refers, discharges.',
+    nav: [['search','Find patient'], ['record','Patient record'], ['wards','Wards &amp; beds']]
+  },
+  patient: {
+    label: 'Patient', who: 'Md. Rahim Uddin', hospital: null,
+    blurb: 'Books appointments at any connected hospital, views their own history.',
+    nav: [['book','Find a doctor'], ['record','My health record']]
+  },
+  admin: {
+    label: 'Hospital Admin', who: 'Nasima Sultana', hospital: 1,
+    blurb: 'Manages doctors, departments, schedules, wards and beds.',
+    nav: [['wards','Wards &amp; beds'], ['search','Find patient'], ['book','Appointments']]
+  }
+};
+
+/* ------------------------------------------------------------
+   2. SEED PATIENTS — one shape for every patient.
+   Note rows 1 and 3: the same human with two UHIDs, one of them
+   missing an NID and carrying a stranded 2018 visit. That is the
+   duplicate the registration screen exists to prevent, and the
+   reason sp_merge_patients is on the week 6 list.
+   ------------------------------------------------------------ */
+
+const SEED_PATIENTS = [
+  {
+    uhid: 'BD-2019-04821-7', name: 'Md. Rahim Uddin', dob: '1978-04-12', sex: 'Male', blood: 'B+',
+    phone: '01711-482031', nid: '1978419923041', district: 'Dhaka',
+    address: 'House 42, Road 7, Mirpur-2, Dhaka', kin: 'Salma Rahim (wife) · 01911-330218',
+    registeredAt: '2019-02-11', registeredHospitalId: 1, identityVerified: true,
+    allergies: [
+      { agent: 'Penicillin',  severity: 'Severe',   note: 'Anaphylaxis, 2019' },
+      { agent: 'Sulfa drugs', severity: 'Moderate', note: 'Rash' }
+    ],
+    encounters: [
+      { date: '2026-08-08', hospitalId: 7, type: 'OPD', doctor: 'Dr. Tahmina Akter', dept: 'Cardiology',
+        dx: 'Essential hypertension — review',
+        notes: 'BP 148/94. Advised salt restriction and weight loss. Review in 3 months.',
+        rx: ['Amlodipine 5 mg — 1 tablet at night — 90 days', 'Atorvastatin 10 mg — 1 tablet at night — 90 days'] },
+      { date: '2025-06-19', hospitalId: 3, type: 'OPD', doctor: 'Dr. Shamsul Alam', dept: 'Orthopaedics',
+        dx: 'Chronic low back pain',
+        notes: 'X-ray L-S spine shows mild degenerative change. Physiotherapy advised.',
+        rx: ['Naproxen 500 mg — twice daily after meals — 10 days'] },
+      { date: '2024-11-02', hospitalId: 1, type: 'Emergency', doctor: 'Dr. Shamsul Alam', dept: 'Emergency',
+        dx: 'Closed fracture, left radius (distal)',
+        notes: 'Fall from motorcycle. Below-elbow cast applied. Follow-up at 6 weeks.',
+        rx: ['Paracetamol 500 mg — as required, max 8 daily — 7 days', 'Calcium + Vitamin D3 — once daily — 60 days'] },
+      { date: '2024-03-14', hospitalId: 2, type: 'OPD', doctor: 'Dr. Kamrul Hasan', dept: 'Medicine',
+        dx: 'Acute gastroenteritis',
+        notes: 'Mild dehydration. Oral rehydration advised. Recovered on review.',
+        rx: ['ORS sachet — after each loose stool — 3 days', 'Metronidazole 400 mg — three times daily — 5 days'] }
+    ]
+  },
+  {
+    uhid: 'BD-2021-11904-3', name: 'Fatema Begum', dob: '1991-09-30', sex: 'Female', blood: 'O+',
+    phone: '01819-330442', nid: '1991773310448', district: 'Chattogram',
+    address: 'Flat 3B, Nasirabad, Chattogram', kin: 'Nurul Islam (husband) · 01712-884410',
+    registeredAt: '2021-05-04', registeredHospitalId: 3, identityVerified: true,
+    allergies: [],
+    encounters: [
+      { date: '2026-05-22', hospitalId: 3, type: 'OPD', doctor: 'Dr. Farzana Haque', dept: 'Gynae & Obstetrics',
+        dx: 'Antenatal check — 28 weeks',
+        notes: 'Singleton pregnancy, growth appropriate. Haemoglobin 10.4 g/dL.',
+        rx: ['Ferrous sulphate + folic acid — once daily — 90 days', 'Calcium 500 mg — twice daily — 90 days'] },
+      { date: '2024-01-09', hospitalId: 3, type: 'OPD', doctor: 'Dr. Sabrina Chowdhury', dept: 'Dermatology',
+        dx: 'Contact dermatitis',
+        notes: 'Localised to both hands. Likely detergent exposure. Barrier cream advised.',
+        rx: ['Hydrocortisone 1% cream — twice daily — 14 days'] }
+    ]
+  },
+  {
+    uhid: 'BD-2018-00723-1', name: 'Md. Rahim Uddin', dob: '1978-04-12', sex: 'Male', blood: 'B+',
+    phone: '01552-908114', nid: '', district: 'Manikganj',
+    address: 'Village Baliati, Saturia, Manikganj', kin: 'Abdul Uddin (father) · —',
+    registeredAt: '2018-08-30', registeredHospitalId: 2, identityVerified: false,
+    allergies: [],
+    encounters: [
+      { date: '2018-08-30', hospitalId: 2, type: 'OPD', doctor: 'Dr. Kamrul Hasan', dept: 'Medicine',
+        dx: 'Enteric fever',
+        notes: 'Registered without NID. Treated as outpatient, recovered.',
+        rx: ['Ciprofloxacin 500 mg — twice daily — 10 days'] }
+    ]
+  },
+  {
+    uhid: 'BD-2023-38104-9', name: 'Abdul Karim Mia', dob: '1965-01-22', sex: 'Male', blood: 'A-',
+    phone: '01922-771030', nid: '1965110220317', district: 'Rangpur',
+    address: 'Ward 4, Mithapukur, Rangpur', kin: 'Rehana Karim (daughter) · 01755-201933',
+    registeredAt: '2023-03-17', registeredHospitalId: 8, identityVerified: true,
+    allergies: [{ agent: 'Aspirin', severity: 'Moderate', note: 'Gastric bleeding, 2022' }],
+    encounters: [
+      { date: '2026-02-14', hospitalId: 5, type: 'OPD', doctor: 'Dr. Rafiqul Islam', dept: 'Nephrology',
+        dx: 'Chronic kidney disease, stage 3',
+        notes: 'eGFR 42. Blood pressure control emphasised. Six-monthly review.',
+        rx: ['Losartan 50 mg — once daily — 180 days'] },
+      { date: '2023-03-17', hospitalId: 8, type: 'Emergency', doctor: 'Dr. Ayesha Siddika', dept: 'Emergency',
+        dx: 'Acute gastritis',
+        notes: 'Following aspirin use. Aspirin stopped and recorded as an allergy.',
+        rx: ['Omeprazole 20 mg — once daily before food — 28 days'] }
+    ]
+  },
+  {
+    uhid: 'BD-2020-27615-4', name: 'Shirin Akter', dob: '1996-11-05', sex: 'Female', blood: 'AB+',
+    phone: '01733-119284', nid: '1996884411052', district: 'Sylhet',
+    address: 'Shibganj, Sylhet', kin: 'Mokbul Hossain (father) · 01717-443021',
+    registeredAt: '2020-12-01', registeredHospitalId: 4, identityVerified: true,
+    allergies: [],
+    encounters: [
+      { date: '2025-10-03', hospitalId: 4, type: 'OPD', doctor: 'Dr. Mizanur Rahman', dept: 'Neurology',
+        dx: 'Migraine without aura',
+        notes: 'Two to three episodes monthly. Trigger diary advised.',
+        rx: ['Propranolol 40 mg — twice daily — 60 days'] }
+    ]
+  }
+];
+
+const ACCESS_LOG = [
+  { when: '30 Aug 2026 · 11:42', who: 'Dr. Anisur Rahman',        where: 'Dhaka Medical College Hospital',      basis: 'Consent',                 kind: 'ok' },
+  { when: '08 Aug 2026 · 09:15', who: 'Dr. Tahmina Akter',        where: 'Square Hospital, Dhaka',              basis: 'Consent',                 kind: 'ok' },
+  { when: '02 Nov 2024 · 23:07', who: 'Dr. Shamsul Alam',         where: 'Dhaka Medical College Hospital',      basis: 'Break-glass — emergency', kind: 'crit' },
+  { when: '19 Jun 2025 · 16:30', who: 'Rezaul Karim (Reception)', where: 'Chattogram Medical College Hospital', basis: 'Demographics only',       kind: 'info' }
+];
+
+/* ------------------------------------------------------------
+   3. STORE — localStorage standing in for the `patient` table.
+   Every read and write is wrapped in try/catch because private
+   browsing mode makes localStorage throw rather than return null.
+   ------------------------------------------------------------ */
+
+const PATIENT_KEY = 'uhid.patients.v1';
+const SESSION_KEY = 'uhid.session.v1';
+
+const store = {
+  all() {
+    try {
+      const raw = localStorage.getItem(PATIENT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+    } catch (e) { /* storage unavailable — fall through to seed */ }
+    return SEED_PATIENTS.slice();
+  },
+  write(list) {
+    try { localStorage.setItem(PATIENT_KEY, JSON.stringify(list)); }
+    catch (e) { toast('Not saved', 'This browser is blocking local storage, so new patients will not survive a refresh.', 'err'); }
+  },
+  add(patient) {
+    const list = store.all();
+    list.unshift(patient);
+    store.write(list);
+    return patient;
+  },
+  find(uhid) {
+    return store.all().find(p => p.uhid === uhid) || null;
+  },
+  reset() {
+    try { localStorage.removeItem(PATIENT_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) {}
+  }
+};
+
+const session = {
+  get() {
+    try { const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; }
+    catch (e) { return null; }
+  },
+  set(role) { try { localStorage.setItem(SESSION_KEY, JSON.stringify({ role })); } catch (e) {} },
+  clear()   { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} }
+};
+
+/* ------------------------------------------------------------
+   4. STATE + HELPERS
+   ------------------------------------------------------------ */
+
+const S = { role: null, page: null, patient: null, doctor: null, slot: null, tab: 'timeline' };
+
+const $  = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+/* Escape everything that came from data before it goes into HTML.
+   With a real API this is what stops a patient named <script> from
+   breaking your page. */
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[c]));
+
+const hospital = id => HOSPITALS.find(h => h.id === id) || { name: '—', div: '—', dist: '—', tier: '—' };
+
+const initials = name => String(name || '?')
+  .replace(/^Dr\.\s*/, '').split(/\s+/).filter(w => /^[A-Za-z]/.test(w))
+  .slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+
+const fmtDate = iso => {
+  const d = new Date(iso);
+  return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+function ageFrom(dob) {
+  const d = new Date(dob);
+  if (isNaN(d)) return '—';
+  const now = new Date();
+  let a = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
+  return a;
+}
+
+function toast(title, msg, kind) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind === 'err' ? ' err' : '');
+  el.innerHTML = `<b>${esc(title)}</b><span>${esc(msg)}</span>`;
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), 4600);
+}
+
+function modal(html) {
+  const scrim = document.createElement('div');
+  scrim.className = 'scrim';
+  scrim.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+  scrim.addEventListener('click', e => { if (e.target === scrim) scrim.remove(); });
+  const onKey = e => { if (e.key === 'Escape') { scrim.remove(); document.removeEventListener('keydown', onKey); } };
+  document.addEventListener('keydown', onKey);
+  $$('[data-close]', scrim).forEach(b => b.addEventListener('click', () => scrim.remove()));
+  document.body.appendChild(scrim);
+  return scrim;
+}
+
+function icon(id) {
+  const paths = {
+    register: '<path d="M8 1.5v13M1.5 8h13"/>',
+    search:   '<circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4L14.2 14.2"/>',
+    book:     '<rect x="1.8" y="3" width="12.4" height="11.2" rx="1.6"/><path d="M1.8 6.6h12.4M5.2 1.6v2.6M10.8 1.6v2.6"/>',
+    record:   '<path d="M3.5 1.8h9v12.4h-9z"/><path d="M6 5.2h4M6 8h4M6 10.8h2.4"/>',
+    wards:    '<path d="M1.6 12.4V6.6l6.4-4.2 6.4 4.2v5.8"/><path d="M1.6 12.4h12.8M5.6 12.4V9h4.8v3.4"/>'
+  };
+  return `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${paths[id] || ''}</svg>`;
+}
+
+const pinIcon = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+  stroke-width="1.5" style="flex:none;margin-top:2px"><path d="M8 14.5s5.2-4.4 5.2-8a5.2 5.2 0 10-10.4 0c0 3.6 5.2 8 5.2 8z"/><circle cx="8" cy="6.4" r="1.9"/></svg>`;
+
+const warnIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+  stroke-width="1.7" style="flex:none;margin-top:1px"><path d="M8 1.6L15 14H1z"/><path d="M8 6v3.4M8 11.6v.1"/></svg>`;
+
+/* ------------------------------------------------------------
+   5. LOGIN
+   ------------------------------------------------------------ */
+
+$('#demo-list').innerHTML = ACCOUNTS.map(a => {
+  const r = ROLES[a.role];
+  return `
+    <button type="button" class="demo-row" data-user="${a.user}">
+      <span class="av">${initials(r.who)}</span>
+      <span><b>${esc(r.who)}</b><span>${esc(r.label)}</span></span>
+      <span class="u">${a.user}</span>
+    </button>`;
+}).join('');
+
+$('#demo-list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-user]');
+  if (!btn) return;
+  $('#l-user').value = btn.dataset.user;
+  $('#l-pass').value = 'demo1234';
+  $('#login-err').hidden = true;
+  $('#l-pass').focus();
+});
+
+$('#pw-toggle').addEventListener('click', () => {
+  const f = $('#l-pass');
+  const showing = f.type === 'text';
+  f.type = showing ? 'password' : 'text';
+  $('#pw-toggle').textContent = showing ? 'show' : 'hide';
+});
+
+$('#login-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const user = $('#l-user').value.trim().toLowerCase();
+  const pass = $('#l-pass').value;
+  const err  = $('#login-err');
+
+  if (!user || !pass) {
+    err.textContent = 'Enter both a username and a password.';
+    err.hidden = false;
+    return;
+  }
+  const match = ACCOUNTS.find(a => a.user === user && a.pass === pass);
+  if (!match) {
+    err.textContent = 'No account matches those details. Check the demo accounts on the right.';
+    err.hidden = false;
+    $('#l-pass').value = '';
+    return;
+  }
+  err.hidden = true;
+  $('#login-form').reset();
+  $('#pw-toggle').textContent = 'show';
+  $('#l-pass').type = 'password';
+  session.set(match.role);
+  signIn(match.role);
+});
+
+function signIn(role) {
+  S.role = role;
+  const r = ROLES[role];
+
+  /* A patient only ever sees their own record. Staff start with
+     nobody selected and must search first — which is the correct
+     behaviour, not an inconvenience. */
+  S.patient = role === 'patient' ? store.find('BD-2019-04821-7') : null;
+
+  $('#login').hidden = true;
+  $('#app').hidden = false;
+  $('#me-name').textContent = r.who;
+  $('#me-role').textContent = r.label;
+  $('#me-av').textContent = initials(r.who);
+  $('#hosp').textContent = r.hospital ? hospital(r.hospital).name : 'National access';
+  $('#nav').innerHTML = r.nav.map(([id, label]) =>
+    `<button data-page="${id}"><span class="ic">${icon(id)}</span>${label}</button>`).join('');
+  go(r.nav[0][0]);
+  window.scrollTo(0, 0);
+}
+
+function signOut() {
+  session.clear();
+  S.role = null;
+  S.patient = null;
+  $('#app').hidden = true;
+  $('#login').hidden = false;
+  window.scrollTo(0, 0);
+}
+
+$('#signout').addEventListener('click', signOut);
+$('#nav').addEventListener('click', e => {
+  const btn = e.target.closest('[data-page]');
+  if (btn) go(btn.dataset.page);
+});
+
+function resetDemo() {
+  const sc = modal(`
+    <div class="modal-h"><h3>Reset demo data</h3><p>Removes every patient you registered and signs you out.</p></div>
+    <div class="modal-b">The five sample patients come back, and anyone you added in this browser is discarded. Useful right before a presentation.</div>
+    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Reset</button></div>`);
+  $('[data-ok]', sc).addEventListener('click', () => {
+    store.reset();
+    sc.remove();
+    signOut();
+    toast('Demo data reset', 'Back to the five sample patients.');
+  });
+}
+$('#reset-demo').addEventListener('click', resetDemo);
+$('#reset-demo-2').addEventListener('click', resetDemo);
+
+/* ------------------------------------------------------------
+   6. ROUTER
+   ------------------------------------------------------------ */
+
+const PAGES = {
+  register: { crumb: 'Registration',     render: renderRegister },
+  search:   { crumb: 'Patient search',   render: renderSearch },
+  record:   { crumb: 'Patient record',   render: renderRecord },
+  book:     { crumb: 'Appointments',     render: renderBook },
+  wards:    { crumb: 'Wards &amp; beds', render: renderWards }
+};
+
+function go(page) {
+  S.page = page;
+  $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.page === page));
+  $('#crumb').innerHTML = `${esc(ROLES[S.role].label)} &nbsp;/&nbsp; <b>${PAGES[page].crumb}</b>`;
+  $('#view').innerHTML = '';
+  PAGES[page].render($('#view'));
+  window.scrollTo(0, 0);
+}
+
+function openPatient(uhid) {
+  const p = store.find(uhid);
+  if (!p) { toast('Not found', 'No patient holds ' + uhid + '.', 'err'); return; }
+  S.patient = p;
+  go('record');
+}
+
+/* ------------------------------------------------------------
+   7. REGISTRATION — duplicate detection, then a real save
+   ------------------------------------------------------------ */
+
+function renderRegister(root) {
+  root.innerHTML = `
+    <div class="page-h">
+      <h2>Register a new patient</h2>
+      <p>Search before you create. A patient must never end up with two UHIDs &mdash; the panel on the right re-checks the national register on every keystroke.</p>
+    </div>
+    <div class="reg-grid">
+      <form class="card form-card" id="reg-form" autocomplete="off">
+        <div class="form-sec">
+          <h3>Identity</h3>
+          <div class="row c2">
+            <div>
+              <label class="label" for="f-nid">National ID / birth registration no.</label>
+              <input class="field mono" id="f-nid" placeholder="1978419923041">
+              <p class="hint">Leave blank only if the patient genuinely has neither.</p>
+            </div>
+            <div>
+              <label class="label" for="f-name">Full name</label>
+              <input class="field" id="f-name" placeholder="Md. Rahim Uddin">
+            </div>
+          </div>
+          <div class="row c3">
+            <div><label class="label" for="f-dob">Date of birth</label><input class="field mono" id="f-dob" type="date"></div>
+            <div><label class="label" for="f-sex">Sex</label><select class="field" id="f-sex"><option>Male</option><option>Female</option><option>Other</option></select></div>
+            <div><label class="label" for="f-phone">Mobile</label><input class="field mono" id="f-phone" placeholder="01711-482031"></div>
+          </div>
+        </div>
+        <div class="form-sec">
+          <h3>Clinical &amp; contact</h3>
+          <div class="row c3">
+            <div><label class="label" for="f-blood">Blood group</label><select class="field" id="f-blood">${BLOODS.map(b => `<option>${b}</option>`).join('')}</select></div>
+            <div><label class="label" for="f-div">Division</label><select class="field" id="f-div">${DIVISIONS.map(d => `<option>${d}</option>`).join('')}</select></div>
+            <div><label class="label" for="f-dist">District</label><input class="field" id="f-dist" placeholder="Dhaka"></div>
+          </div>
+          <div class="row"><div><label class="label" for="f-addr">Address</label><input class="field" id="f-addr" placeholder="House, road, area"></div></div>
+          <div class="row c2">
+            <div><label class="label" for="f-kin">Next of kin</label><input class="field" id="f-kin" placeholder="Name and relationship"></div>
+            <div><label class="label" for="f-kinphone">Kin mobile</label><input class="field mono" id="f-kinphone" placeholder="01911-330218"></div>
+          </div>
+          <div class="row"><div>
+            <label class="label" for="f-allergy">Known drug allergies</label>
+            <input class="field" id="f-allergy" placeholder="Penicillin, Aspirin — comma separated, leave blank if none">
+          </div></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Issue UHID &amp; create record</button>
+          <button type="button" class="btn ghost" id="clear-btn">Clear</button>
+        </div>
+      </form>
+      <div class="card match-panel">
+        <div class="match-head">
+          <h3>Possible existing records</h3>
+          <p>Matched on NID, name + date of birth, and mobile number.</p>
+        </div>
+        <div class="match-body" id="matches"></div>
+      </div>
+    </div>`;
+
+  ['f-nid','f-name','f-dob','f-phone'].forEach(id => $('#' + id).addEventListener('input', runMatch));
+  $('#clear-btn').addEventListener('click', () => { $('#reg-form').reset(); runMatch(); });
+  $('#reg-form').addEventListener('submit', submitRegistration);
+  runMatch();
+}
+
+/* Deliberately simple and readable. In week 4 this becomes a
+   MySQL query inside sp_register_patient — same three criteria. */
+function currentMatches() {
+  const val = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };
+  const nid   = val('f-nid');
+  const name  = val('f-name').toLowerCase();
+  const dob   = val('f-dob');
+  const phone = val('f-phone').replace(/\D/g, '');
+
+  return store.all().map(p => {
+    let score = 0;
+    if (nid && p.nid && p.nid === nid)                            score += 100;
+    if (name.length > 2 && p.name.toLowerCase().includes(name))   score += 40;
+    if (dob && p.dob === dob)                                     score += 35;
+    if (phone.length > 4 && p.phone.replace(/\D/g, '') === phone) score += 45;
+    return { p, score };
+  }).filter(m => m.score >= 35).sort((a, b) => b.score - a.score);
+}
+
+function runMatch() {
+  const box = $('#matches');
+  if (!box) return;
+  const matches = currentMatches();
+
+  if (matches.length === 0) {
+    box.innerHTML = `<div class="match-empty">No existing record matches yet.<br>Keep typing &mdash; the check runs on every field.</div>`;
+    return;
+  }
+
+  box.innerHTML = matches.map(m => {
+    const exact = m.score >= 90;
+    return `
+      <div class="cand${exact ? ' strong' : ''}">
+        <div class="cand-top">
+          <b>${esc(m.p.name)}</b>
+          <span class="pill ${exact ? 'crit' : 'warn'}"><i class="dot"></i>${exact ? 'Exact' : 'Possible'}</span>
+        </div>
+        <div class="cand-meta">
+          <span class="k">UHID</span> <span class="mono">${esc(m.p.uhid)}</span><br>
+          <span class="k">DOB</span> ${esc(m.p.dob)} &nbsp;&middot;&nbsp; ${esc(m.p.sex)} &nbsp;&middot;&nbsp; ${esc(m.p.blood)}<br>
+          <span class="k">Mobile</span> <span class="mono">${esc(m.p.phone)}</span><br>
+          <span class="k">District</span> ${esc(m.p.district)}
+        </div>
+        <div class="cand-acts">
+          <button class="btn sm primary" data-use="${esc(m.p.uhid)}">Use this record</button>
+          <span class="score" style="align-self:center;color:var(--ink-3)">match ${m.score}</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  $$('[data-use]', box).forEach(b => b.addEventListener('click', () => {
+    toast('Existing record opened', 'No new UHID issued — ' + b.dataset.use + ' reused.');
+    openPatient(b.dataset.use);
+  }));
+}
+
+/* UHID format: BD - year issued - serial - check digit.
+   The check digit is the serial's digits summed mod 10, so a
+   mistyped UHID can be caught before it hits the database. */
+function issueUhid() {
+  const year   = new Date().getFullYear();
+  const serial = String(Math.floor(Math.random() * 90000) + 10000);
+  const check  = serial.split('').reduce((a, d) => a + Number(d), 0) % 10;
+  return `BD-${year}-${serial}-${check}`;
+}
+
+function submitRegistration(e) {
+  e.preventDefault();
+
+  const v = id => $('#' + id).value.trim();
+  const name = v('f-name');
+  const dob  = v('f-dob');
+  const nid  = v('f-nid');
+
+  if (!name) { toast('Name required', 'Enter the full name before issuing a UHID.', 'err'); $('#f-name').focus(); return; }
+  if (!dob)  { toast('Date of birth required', 'Age drives dosing and ward allocation — it is not optional.', 'err'); $('#f-dob').focus(); return; }
+
+  if (currentMatches().some(m => m.score >= 90)) {
+    toast('Blocked — exact match', 'This NID already holds a UHID. Open the existing record instead of creating a second one.', 'err');
+    return;
+  }
+
+  const patient = {
+    uhid: issueUhid(),
+    name,
+    dob,
+    sex:   $('#f-sex').value,
+    blood: $('#f-blood').value,
+    phone: v('f-phone') || '—',
+    nid,
+    district: v('f-dist') || $('#f-div').value,
+    address:  v('f-addr') || '—',
+    kin:      v('f-kin') ? v('f-kin') + (v('f-kinphone') ? ' · ' + v('f-kinphone') : '') : '—',
+    registeredAt: new Date().toISOString().slice(0, 10),
+    registeredHospitalId: ROLES[S.role].hospital || 1,
+    identityVerified: Boolean(nid),
+    allergies: v('f-allergy')
+      ? v('f-allergy').split(',').map(s => s.trim()).filter(Boolean)
+          .map(agent => ({ agent, severity: 'Recorded at registration', note: 'reported by patient' }))
+      : [],
+    encounters: []
+  };
+
+  store.add(patient);
+  S.patient = patient;
+
+  const sc = modal(`
+    <div class="modal-h">
+      <h3>UHID issued</h3>
+      <p>Saved. This identifier now follows the patient to every connected hospital.</p>
+    </div>
+    <div class="modal-b">
+      <div style="text-align:center;padding:12px 0 20px">
+        <span class="uhid" style="font-size:19px;padding:8px 16px;display:inline-block">${esc(patient.uhid)}</span>
+      </div>
+      <dl class="kv">
+        <dt>Name</dt><dd>${esc(patient.name)}</dd>
+        <dt>Date of birth</dt><dd>${esc(patient.dob)} &middot; age ${ageFrom(patient.dob)}</dd>
+        <dt>Registered at</dt><dd>${esc(hospital(patient.registeredHospitalId).name)}</dd>
+        <dt>Identity check</dt><dd>${patient.identityVerified
+          ? 'NID verified'
+          : '<span style="color:var(--warn)">Unverified &mdash; NID pending</span>'}</dd>
+      </dl>
+    </div>
+    <div class="modal-f">
+      <button class="btn" data-close>Register another</button>
+      <button class="btn primary" data-open>Open record</button>
+    </div>`);
+
+  $('[data-close]', sc).addEventListener('click', () => { $('#reg-form').reset(); runMatch(); });
+  $('[data-open]', sc).addEventListener('click', () => { sc.remove(); go('record'); });
+
+  toast('Patient saved', patient.name + ' is now searchable nationally.');
+  runMatch();
+}
+
+/* ------------------------------------------------------------
+   8. PATIENT SEARCH
+   ------------------------------------------------------------ */
+
+function renderSearch(root) {
+  root.innerHTML = `
+    <div class="page-h">
+      <h2>Find a patient</h2>
+      <p>One lookup searches every connected hospital in the country. Try <b>Rahim</b>, <b>BD-2019</b> or <b>01711</b> &mdash; anyone you register also appears here.</p>
+    </div>
+    <div class="card" style="padding:15px 17px;margin-bottom:16px">
+      <label class="label" for="ps">UHID, name, mobile or NID</label>
+      <input class="field" id="ps" placeholder="Start typing&hellip;">
+    </div>
+    <div id="ps-out"></div>`;
+  $('#ps').addEventListener('input', runSearch);
+  runSearch();
+}
+
+function runSearch() {
+  const q = $('#ps').value.trim().toLowerCase();
+  const digits = q.replace(/\D/g, '');
+  const out = $('#ps-out');
+  const all = store.all();
+
+  const hits = q.length < 2 ? all : all.filter(p =>
+    p.name.toLowerCase().includes(q) ||
+    p.uhid.toLowerCase().includes(q) ||
+    (digits.length > 2 && p.phone.replace(/\D/g, '').includes(digits)) ||
+    (digits.length > 2 && p.nid && p.nid.includes(digits))
+  );
+
+  if (hits.length === 0) {
+    out.innerHTML = `<div class="card empty-state"><b>No match</b>No patient record matches &ldquo;${esc(q)}&rdquo;.</div>`;
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  out.innerHTML = `
+    <p style="font-size:12.5px;color:var(--ink-3);margin:0 0 10px">
+      ${hits.length} record${hits.length > 1 ? 's' : ''}${q.length < 2 ? ' on file' : ' found nationally'}
+    </p>
+    <div class="doc-list">${hits.map(p => `
+      <div class="card doc">
+        <div class="doc-top">
+          <div class="doc-av">${initials(p.name)}</div>
+          <div class="doc-id">
+            <b>${esc(p.name)} ${p.registeredAt === today ? '<span class="badge-new">new</span>' : ''}</b>
+            <span class="spec mono" style="font-size:12px">${esc(p.uhid)}</span>
+            <span class="qual">${esc(p.dob)} &middot; ${esc(p.sex)} &middot; ${esc(p.blood)} &middot; ${esc(p.district)}</span>
+          </div>
+        </div>
+        <div class="doc-foot">
+          <span class="next-free">
+            <span class="mono">${esc(p.phone)}</span><br>
+            <span style="font-size:11.5px;color:var(--ink-3)">${p.encounters.length} encounter${p.encounters.length === 1 ? '' : 's'}</span>
+          </span>
+          <button class="btn sm primary" data-open="${esc(p.uhid)}">Open record</button>
+        </div>
+      </div>`).join('')}</div>`;
+
+  $$('[data-open]', out).forEach(b => b.addEventListener('click', () => openPatient(b.dataset.open)));
+}
+
+/* ------------------------------------------------------------
+   9. PATIENT RECORD
+   ------------------------------------------------------------ */
+
+function renderRecord(root) {
+  const p = S.patient;
+
+  if (!p) {
+    root.innerHTML = `
+      <div class="card empty-state">
+        <b>No patient selected</b>
+        Find a patient first &mdash; a national record store never opens on somebody by default.
+        <div style="margin-top:16px"><button class="btn primary" id="to-search">Go to patient search</button></div>
+      </div>`;
+    $('#to-search').addEventListener('click', () => go('search'));
+    return;
+  }
+
+  const isSelf = S.role === 'patient';
+  const hasAllergies = p.allergies && p.allergies.length > 0;
+
+  const allergyBanner = hasAllergies
+    ? `<div class="banner crit">${warnIcon}<div><b>Drug allergies on file</b>${
+        p.allergies.map(a => `${esc(a.agent)} — ${esc(String(a.severity).toLowerCase())} (${esc(a.note)})`).join(' &nbsp;&middot;&nbsp; ')
+      }</div></div>`
+    : `<div class="banner ok">${warnIcon}<div><b>No known drug allergies</b>Nothing recorded. Confirm with the patient before prescribing.</div></div>`;
+
+  root.innerHTML = `
+    <div class="card pt-head">
+      <div class="pt-av">${initials(p.name)}</div>
+      <div class="pt-id">
+        <h2>${esc(p.name)}</h2>
+        <span class="uhid">${esc(p.uhid)}</span>
+        ${p.identityVerified ? '' : '<span class="pill warn" style="margin-left:8px"><i class="dot"></i>Identity unverified</span>'}
+        <div class="pt-facts">
+          <div><span class="k">Age / sex</span>${ageFrom(p.dob)} &middot; ${esc(p.sex)}</div>
+          <div><span class="k">Blood</span>${esc(p.blood)}</div>
+          <div><span class="k">Mobile</span><span class="mono">${esc(p.phone)}</span></div>
+          <div><span class="k">NID</span><span class="mono">${esc(p.nid || '—')}</span></div>
+          <div><span class="k">Next of kin</span>${esc(p.kin)}</div>
+          <div><span class="k">Registered</span>${fmtDate(p.registeredAt)}, ${esc(hospital(p.registeredHospitalId).name)}</div>
+        </div>
+      </div>
+      ${isSelf ? '' : '<button class="btn" id="consent-btn">Access basis: consent</button>'}
+    </div>
+
+    ${allergyBanner}
+
+    <div class="tabs" id="rec-tabs">
+      <button data-tab="timeline" class="on">Encounter timeline</button>
+      <button data-tab="rx">Prescriptions</button>
+      <button data-tab="access">Who has viewed this</button>
+    </div>
+    <div id="rec-body"></div>`;
+
+  $('#rec-tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]');
+    if (!b) return;
+    $$('#rec-tabs button').forEach(x => x.classList.toggle('on', x === b));
+    S.tab = b.dataset.tab;
+    renderRecordBody();
+  });
+
+  const consentBtn = $('#consent-btn');
+  if (consentBtn) consentBtn.addEventListener('click', showConsent);
+
+  S.tab = 'timeline';
+  renderRecordBody();
+}
+
+function showConsent() {
+  modal(`
+    <div class="modal-h">
+      <h3>Why you can see this record</h3>
+      <p>Every clinical read is checked against a grant, and logged.</p>
+    </div>
+    <div class="modal-b">
+      <dl class="kv">
+        <dt>Viewer</dt><dd>${esc(ROLES[S.role].who)}</dd>
+        <dt>Role</dt><dd>${esc(ROLES[S.role].label)}</dd>
+        <dt>Patient</dt><dd>${esc(S.patient.name)}</dd>
+        <dt>Basis</dt><dd>Active consent grant</dd>
+        <dt>Expires</dt><dd>08 Nov 2026</dd>
+        <dt>Scope</dt><dd>Full clinical history</dd>
+        <dt>This view</dt><dd>Written to <span class="mono">access_log</span></dd>
+      </dl>
+    </div>
+    <div class="modal-f"><button class="btn primary" data-close>Understood</button></div>`);
+}
+
+function renderRecordBody() {
+  const p = S.patient;
+  const box = $('#rec-body');
+
+  if (S.tab === 'timeline') {
+    if (!p.encounters.length) {
+      box.innerHTML = `<div class="card empty-state">
+        <b>No encounters yet</b>
+        This patient was registered on ${fmtDate(p.registeredAt)} and has not been seen by a doctor.
+        Their timeline fills in as they are treated &mdash; at any hospital in the country.
+      </div>`;
+      return;
+    }
+    const hospitalCount = new Set(p.encounters.map(e => e.hospitalId)).size;
+    const divisionCount = new Set(p.encounters.map(e => hospital(e.hospitalId).div)).size;
+    box.innerHTML = `
+      <p style="font-size:12.5px;color:var(--ink-3);margin:0 0 14px">
+        ${p.encounters.length} encounter${p.encounters.length === 1 ? '' : 's'} across ${hospitalCount} hospital${hospitalCount === 1 ? '' : 's'} in ${divisionCount} division${divisionCount === 1 ? '' : 's'} &mdash; one record, no transfers, no paper.
+      </p>
+      <div class="timeline">${p.encounters.map((e, i) => {
+        const h = hospital(e.hospitalId);
+        return `
+        <div class="enc${i === 0 ? ' here' : ''}">
+          <div class="card enc-card">
+            <div class="enc-top">
+              <span class="enc-date">${fmtDate(e.date)}</span>
+              <span class="enc-hosp">${esc(h.name)}</span>
+              <span class="pill ${e.type === 'Emergency' ? 'crit' : 'info'}">${esc(e.type)}</span>
+              <span class="pill mute">${esc(h.div)}</span>
+            </div>
+            <div class="enc-body">
+              <span class="dx">${esc(e.dx)}</span> &mdash; ${esc(e.notes)}
+              <div style="margin-top:5px;color:var(--ink-3);font-size:12px">${esc(e.doctor)} &middot; ${esc(e.dept)}</div>
+            </div>
+            ${e.rx.length ? `<div class="enc-rx"><span class="k">Prescribed</span><ul>${
+              e.rx.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}</div>`;
+
+  } else if (S.tab === 'rx') {
+    const all = p.encounters.flatMap(e => e.rx.map(r => ({ r, e })));
+    if (!all.length) {
+      box.innerHTML = `<div class="card empty-state"><b>Nothing prescribed</b>No medication has been prescribed to this patient at any hospital.</div>`;
+      return;
+    }
+    box.innerHTML = `<div class="card" style="padding:6px 0">${all.map(x => `
+      <div style="padding:11px 18px;border-bottom:1px solid var(--line);display:flex;gap:14px;flex-wrap:wrap;align-items:baseline">
+        <span class="mono" style="font-size:12px;color:var(--ink-3);min-width:96px">${fmtDate(x.e.date)}</span>
+        <span style="flex:1;min-width:220px">${esc(x.r)}</span>
+        <span style="font-size:12px;color:var(--ink-3)">${esc(hospital(x.e.hospitalId).name)}</span>
+      </div>`).join('')}</div>`;
+
+  } else {
+    const rows = p.encounters.length ? ACCESS_LOG : [
+      { when: fmtDate(p.registeredAt) + ' · registration', who: 'Rezaul Karim (Reception)',
+        where: hospital(p.registeredHospitalId).name, basis: 'Created record', kind: 'ok' }
+    ];
+    box.innerHTML = `
+      <p style="font-size:12.5px;color:var(--ink-3);margin:0 0 12px">
+        Written automatically by a database trigger on every read. The patient can see this list too.
+      </p>
+      <div class="card" style="padding:6px 0">${rows.map(r => `
+        <div style="padding:11px 18px;border-bottom:1px solid var(--line);display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+          <span class="mono" style="font-size:12px;color:var(--ink-3);min-width:150px">${esc(r.when)}</span>
+          <span style="min-width:170px;font-weight:500">${esc(r.who)}</span>
+          <span style="flex:1;min-width:200px;font-size:12.5px;color:var(--ink-2)">${esc(r.where)}</span>
+          <span class="pill ${r.kind}">${esc(r.basis)}</span>
+        </div>`).join('')}</div>`;
+  }
+}
+
+/* ------------------------------------------------------------
+   10. FIND A DOCTOR + BOOK
+   ------------------------------------------------------------ */
+
+function buildSlots() {
+  const labels = ['Mon 31 Aug', 'Tue 1 Sep', 'Wed 2 Sep'];
+  const times  = ['09:00','09:20','09:40','10:00','10:20','10:40','11:00','11:20','11:40','12:00'];
+  const taken  = [[1,2,5,6,9], [0,3,4], [2,7]];
+  return labels.map((label, di) => ({
+    label,
+    slots: times.map((time, ti) => ({ time, taken: taken[di].includes(ti) }))
+  }));
+}
+
+function renderBook(root) {
+  const divs = [...new Set(HOSPITALS.map(h => h.div))];
+  root.innerHTML = `
+    <div class="page-h">
+      <h2>Find an available doctor</h2>
+      <p>Search every connected hospital in the country, not just this one. Availability is computed from each doctor&rsquo;s weekly schedule, their leave, and the slots already booked.</p>
+    </div>
+    <div class="card filters">
+      <div><label class="label" for="fl-div">Division</label>
+        <select class="field" id="fl-div"><option value="">All divisions</option>${divs.map(d => `<option>${d}</option>`).join('')}</select></div>
+      <div><label class="label" for="fl-dept">Department</label>
+        <select class="field" id="fl-dept"><option value="">All departments</option>${DEPARTMENTS.map(d => `<option>${d}</option>`).join('')}</select></div>
+      <div><label class="label" for="fl-hosp">Hospital</label>
+        <select class="field" id="fl-hosp"><option value="">All hospitals</option>${HOSPITALS.map(h => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select></div>
+      <div><label class="label" for="fl-q">Doctor name</label>
+        <input class="field" id="fl-q" placeholder="Search&hellip;"></div>
+    </div>
+    <div id="doc-out"></div>`;
+
+  ['fl-div','fl-dept','fl-hosp','fl-q'].forEach(id => $('#' + id).addEventListener('input', runDoctorFilter));
+  runDoctorFilter();
+}
+
+function runDoctorFilter() {
+  const dv = $('#fl-div').value, dp = $('#fl-dept').value, hp = $('#fl-hosp').value;
+  const q  = $('#fl-q').value.trim().toLowerCase();
+  const out = $('#doc-out');
+
+  const list = DOCTORS.filter(d => {
+    const h = hospital(d.hospitalId);
+    return (!dv || h.div === dv) && (!dp || d.dept === dp)
+        && (!hp || d.hospitalId === Number(hp)) && (!q || d.name.toLowerCase().includes(q));
+  });
+
+  if (list.length === 0) {
+    out.innerHTML = `<div class="card empty-state"><b>No doctor found</b>No doctor matches these filters. Try widening the division or department.</div>`;
+    return;
+  }
+
+  const nexts = ['today 11:20','today 14:00','tomorrow 09:40','tomorrow 10:00','Tue 09:20','Tue 16:30'];
+  out.innerHTML = `
+    <p style="font-size:12.5px;color:var(--ink-3);margin:0 0 11px">${list.length} doctors available nationally</p>
+    <div class="doc-list">${list.map((d, i) => {
+      const h = hospital(d.hospitalId);
+      return `
+      <div class="card doc">
+        <div class="doc-top">
+          <div class="doc-av">${initials(d.name)}</div>
+          <div class="doc-id"><b>${esc(d.name)}</b><span class="spec">${esc(d.dept)}</span><span class="qual">${esc(d.qual)}</span></div>
+        </div>
+        <div class="doc-where">${pinIcon}
+          <span>${esc(h.name)}<br><span style="color:var(--ink-3);font-size:11.5px">${esc(h.dist)}, ${esc(h.div)} &middot; ${esc(h.tier)}</span></span>
+        </div>
+        <div class="doc-foot">
+          <span class="next-free">Next free &middot; <b>${nexts[i % nexts.length]}</b><br><span class="fee">&#2547;${d.fee} consultation</span></span>
+          <button class="btn primary sm" data-doc="${d.id}">See slots</button>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+
+  $$('[data-doc]', out).forEach(b => b.addEventListener('click', () => openSlots(Number(b.dataset.doc))));
+}
+
+function openSlots(docId) {
+  const d = DOCTORS.find(x => x.id === docId);
+  const h = hospital(d.hospitalId);
+  const days = buildSlots();
+  S.doctor = d;
+  S.slot = null;
+
+  const root = $('#view');
+  root.innerHTML = `
+    <button class="btn ghost sm" id="back" style="margin-bottom:14px">&larr; Back to doctors</button>
+    <div class="card pt-head" style="margin-bottom:18px">
+      <div class="pt-av">${initials(d.name)}</div>
+      <div class="pt-id">
+        <h2>${esc(d.name)}</h2>
+        <div style="color:var(--brand-ink);font-size:13.5px">${esc(d.dept)}</div>
+        <div class="pt-facts">
+          <div><span class="k">Hospital</span>${esc(h.name)}</div>
+          <div><span class="k">BMDC reg.</span><span class="mono">${esc(d.bmdc)}</span></div>
+          <div><span class="k">Fee</span><span class="mono">&#2547;${d.fee}</span></div>
+          <div><span class="k">Slot length</span>20 minutes</div>
+        </div>
+      </div>
+    </div>
+    <div class="page-h">
+      <h2 style="font-size:16px">Choose a time</h2>
+      <p>Struck-through slots are already booked. In the finished system this grid is a live query, and the booking runs inside a transaction so two patients can never take the same slot.</p>
+    </div>
+    ${days.map(day => `
+      <div class="slot-day">
+        <h4>${esc(day.label)} <span>${day.slots.filter(s => !s.taken).length} of ${day.slots.length} free</span></h4>
+        <div class="slots">${day.slots.map(s =>
+          `<button class="slot" data-t="${esc(day.label + ' · ' + s.time)}"${s.taken ? ' disabled' : ''}>${s.time}</button>`
+        ).join('')}</div>
+      </div>`).join('')}
+    <div class="form-actions" style="border:0;padding-top:4px">
+      <button class="btn primary" id="confirm" disabled>Confirm appointment</button>
+      <span id="picked" style="align-self:center;font-size:13px;color:var(--ink-3)">No slot selected</span>
+    </div>`;
+
+  $('#back').addEventListener('click', () => go('book'));
+  $$('.slot', root).forEach(b => b.addEventListener('click', () => {
+    $$('.slot', root).forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    S.slot = b.dataset.t;
+    $('#picked').textContent = 'Selected · ' + S.slot;
+    $('#confirm').disabled = false;
+  }));
+  $('#confirm').addEventListener('click', () => confirmBooking(d, h));
+}
+
+function confirmBooking(d, h) {
+  const p = S.patient;
+  const who = p
+    ? `${esc(p.name)} <span class="mono" style="color:var(--ink-3);font-size:12px">${esc(p.uhid)}</span>`
+    : '<span style="color:var(--warn)">No patient selected — search for one first</span>';
+
+  const sc = modal(`
+    <div class="modal-h"><h3>Confirm appointment</h3><p>Booked against the national appointment register.</p></div>
+    <div class="modal-b">
+      <dl class="kv">
+        <dt>Patient</dt><dd>${who}</dd>
+        <dt>Doctor</dt><dd>${esc(d.name)}</dd>
+        <dt>Department</dt><dd>${esc(d.dept)}</dd>
+        <dt>Hospital</dt><dd>${esc(h.name)}</dd>
+        <dt>When</dt><dd>${esc(S.slot)}</dd>
+        <dt>Fee</dt><dd class="mono">&#2547;${d.fee}</dd>
+      </dl>
+    </div>
+    <div class="modal-f">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" data-ok${p ? '' : ' disabled'}>Confirm booking</button>
+    </div>`);
+
+  const ok = $('[data-ok]', sc);
+  if (p) ok.addEventListener('click', () => {
+    sc.remove();
+    toast('Appointment booked', S.slot + ' with ' + d.name + ' at ' + h.name + '.');
+    go('book');
+  });
+}
+
+/* ------------------------------------------------------------
+   11. WARD & BED BOARD
+   ------------------------------------------------------------ */
+
+function bedRow(prefix, states) {
+  const map   = { O: 'occupied', F: 'free', R: 'reserved', C: 'cleaning' };
+  const names = ['Md. Rahim Uddin','Fatema Begum','Abdul Karim Mia','Shirin Akter','Jashim Uddin','Rokeya Khatun','Sujon Mia','Nasrin Sultana','Habibur Rahman','Momena Begum'];
+  const dxs   = ['Pneumonia','Acute MI','Dengue fever','Post-op recovery','CKD stage 4','Cellulitis','Typhoid fever','COPD exacerbation'];
+  return states.split('').map((ch, i) => {
+    const status = map[ch] || 'free';
+    const occ = status === 'occupied';
+    return {
+      no: prefix + '-' + String(i + 1).padStart(2, '0'),
+      status,
+      patient: occ ? names[i % names.length] : null,
+      uhid:    occ ? 'BD-20' + (18 + (i % 8)) + '-' + String(10000 + i * 137).slice(0, 5) + '-' + (i % 9) : null,
+      dx:      occ ? dxs[i % dxs.length] : null,
+      days:    occ ? (i % 9) + 1 : null
+    };
+  });
+}
+
+const WARDS = [
+  { name: 'General Medicine — Male',   type: 'General', beds: bedRow('GM',  'OOOFOOCOOFOROOOFOOOO') },
+  { name: 'General Medicine — Female', type: 'General', beds: bedRow('GF',  'OFOOOFOOROOFOOCF') },
+  { name: 'Intensive Care Unit',       type: 'ICU',     beds: bedRow('ICU', 'OOOOOOFC') },
+  { name: 'Paediatric Ward',           type: 'Paeds',   beds: bedRow('PD',  'FOOFOFFOOFFO') }
+];
+
+function renderWards(root) {
+  const all = WARDS.flatMap(w => w.beds);
+  const count = status => all.filter(b => b.status === status).length;
+  const occPct = Math.round(count('occupied') / all.length * 100);
+  const hosp = hospital(ROLES[S.role].hospital || 1);
+
+  root.innerHTML = `
+    <div class="page-h">
+      <h2>Wards &amp; beds</h2>
+      <p>${esc(hosp.name)} &middot; live occupancy. Bed status is maintained by a database trigger when a patient is admitted, transferred or discharged &mdash; never by the application.</p>
+    </div>
+    <div class="stats">
+      <div class="card stat"><div class="k">Total beds</div><div class="v">${all.length}</div><div class="sub">across ${WARDS.length} wards</div></div>
+      <div class="card stat crit"><div class="k">Occupied</div><div class="v">${count('occupied')}</div><div class="sub">${occPct}% occupancy</div></div>
+      <div class="card stat ok"><div class="k">Free now</div><div class="v">${count('free')}</div><div class="sub">ready for admission</div></div>
+      <div class="card stat warn"><div class="k">Reserved</div><div class="v">${count('reserved')}</div><div class="sub">held for scheduled admissions</div></div>
+      <div class="card stat"><div class="k">Cleaning</div><div class="v">${count('cleaning')}</div><div class="sub">turnaround in progress</div></div>
+    </div>
+    <div class="bed-legend">
+      <span><i class="sw free"></i>Free</span><span><i class="sw occupied"></i>Occupied</span>
+      <span><i class="sw reserved"></i>Reserved</span><span><i class="sw cleaning"></i>Cleaning</span>
+    </div>
+    ${WARDS.map((w, wi) => {
+      const occ = w.beds.filter(b => b.status === 'occupied').length;
+      const pct = Math.round(occ / w.beds.length * 100);
+      const cls = pct >= 85 ? 'crit' : pct >= 65 ? 'warn' : '';
+      return `
+      <div class="card ward">
+        <div class="ward-h">
+          <b>${esc(w.name)}</b>
+          <span class="pill mute">${esc(w.type)}</span>
+          <span class="meter"><i class="${cls}" style="width:${pct}%"></i></span>
+          <span class="cap">${occ} / ${w.beds.length} &middot; ${pct}%</span>
+        </div>
+        <div class="beds">${w.beds.map((b, bi) => `
+          <button class="bed ${b.status}" data-w="${wi}" data-b="${bi}">
+            <span class="no">${esc(b.no)}</span><span class="st">${b.status}</span>
+          </button>`).join('')}</div>
+      </div>`;
+    }).join('')}`;
+
+  $$('.bed', root).forEach(btn =>
+    btn.addEventListener('click', () => openBed(Number(btn.dataset.w), Number(btn.dataset.b))));
+}
+
+function openBed(wi, bi) {
+  const w = WARDS[wi];
+  const b = w.beds[bi];
+
+  if (b.status === 'occupied') {
+    const sc = modal(`
+      <div class="modal-h"><h3>${esc(b.no)}</h3><p>${esc(w.name)}</p></div>
+      <div class="modal-b"><dl class="kv">
+        <dt>Patient</dt><dd>${esc(b.patient)}</dd>
+        <dt>UHID</dt><dd class="mono">${esc(b.uhid)}</dd>
+        <dt>Diagnosis</dt><dd>${esc(b.dx)}</dd>
+        <dt>Day of stay</dt><dd>Day ${b.days}</dd>
+        <dt>Status</dt><dd><span class="pill crit"><i class="dot"></i>Occupied</span></dd>
+      </dl></div>
+      <div class="modal-f">
+        <button class="btn" data-close>Close</button>
+        <button class="btn primary" data-discharge>Discharge</button>
+      </div>`);
+    $('[data-discharge]', sc).addEventListener('click', () => {
+      b.status = 'cleaning'; b.patient = null; b.uhid = null; b.dx = null; b.days = null;
+      sc.remove();
+      toast('Patient discharged', b.no + ' released and sent for cleaning.');
+      renderWards($('#view'));
+    });
+    return;
+  }
+
+  if (b.status !== 'free') {
+    toast('Bed unavailable', b.no + ' is ' + b.status + '.', 'err');
+    return;
+  }
+
+  const options = store.all()
+    .map(p => `<option value="${esc(p.uhid)}">${esc(p.name)} — ${esc(p.uhid)}</option>`).join('');
+
+  const sc = modal(`
+    <div class="modal-h"><h3>Admit to ${esc(b.no)}</h3><p>${esc(w.name)}</p></div>
+    <div class="modal-b">
+      <div class="row"><div>
+        <label class="label" for="ad-uhid">Patient</label>
+        <select class="field" id="ad-uhid">${options}</select>
+      </div></div>
+      <div class="row"><div>
+        <label class="label" for="ad-dx">Admitting diagnosis</label>
+        <input class="field" id="ad-dx" placeholder="e.g. Pneumonia" value="Pneumonia">
+      </div></div>
+      <p class="hint">Allocating the bed and opening the admission happen in one transaction &mdash; both succeed, or neither does.</p>
+    </div>
+    <div class="modal-f">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" data-ok>Admit patient</button>
+    </div>`);
+
+  $('[data-ok]', sc).addEventListener('click', () => {
+    const chosen = store.find($('#ad-uhid').value);
+    b.status  = 'occupied';
+    b.patient = chosen ? chosen.name : 'Unknown';
+    b.uhid    = chosen ? chosen.uhid : '—';
+    b.dx      = $('#ad-dx').value.trim() || 'Under investigation';
+    b.days    = 1;
+    sc.remove();
+    toast('Patient admitted', b.patient + ' into ' + b.no + ', ' + w.name + '.');
+    renderWards($('#view'));
+  });
+}
+
+/* Global search jumps to the first match. */
+$('#gsearch').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const q = e.target.value.trim().toLowerCase();
+  if (!q) return;
+  const digits = q.replace(/\D/g, '');
+  const hit = store.all().find(p =>
+    p.name.toLowerCase().includes(q) || p.uhid.toLowerCase().includes(q) ||
+    (digits.length > 2 && p.phone.replace(/\D/g, '').includes(digits)) ||
+    (digits.length > 2 && p.nid && p.nid.includes(digits)));
+  e.target.value = '';
+  if (hit) openPatient(hit.uhid);
+  else toast('No match', 'Nobody on file matches that.', 'err');
+});
+
+/* Restore a signed-in session on reload. */
+(function restore() {
+  const s = session.get();
+  if (s && ROLES[s.role]) signIn(s.role);
+})();
+
+</script>
+</body>
+</html>
