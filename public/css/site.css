@@ -163,13 +163,13 @@ a.btn { text-decoration: none; }
 }
 
 /* ---- ambient lights -----------------------------------------
-   Five soft circles drifting behind the hero. The layer is clipped
-   to the hero and takes no pointer events, so it can never push the
+   Soft circles wandering behind the hero. The layer is clipped to
+   the hero and takes no pointer events, so it can never push the
    page sideways or swallow a click; everything above it is lifted
    one step in the stack.
 
    Only transform and opacity animate — both composited, so this
-   costs no layout work on any frame.
+   costs no layout work on any frame, however far the lights travel.
    -------------------------------------------------------------- */
 
 .glows { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
@@ -181,15 +181,37 @@ a.btn { text-decoration: none; }
   border-radius: 50%;
   background: radial-gradient(circle at 50% 50%, var(--tint), transparent 68%);
   opacity: var(--o);
-  animation: glowDrift var(--t) ease-in-out var(--d) infinite alternate;
+  animation: glowDrift var(--t) ease-in-out var(--d) infinite;
 }
 .glow.brand { --tint: var(--brand); }
 .glow.deep  { --tint: var(--brand-ink); }
 .glow.pale  { --tint: var(--brand-soft); }
 
+/* A loop, not a slide: four waypoints, ending where it began so it
+   runs continuously rather than reversing. Each light brightens and
+   swells on the way out and dims as it falls back, which is what
+   makes it read as a light and not a moving shape. */
 @keyframes glowDrift {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to   { transform: translate3d(var(--dx), var(--dy), 0) scale(1.15); }
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: var(--o);
+  }
+  25% {
+    transform: translate3d(var(--dx), var(--dy), 0) scale(1.28);
+    opacity: calc(var(--o) * 1.7);
+  }
+  50% {
+    transform: translate3d(var(--ex), var(--ey), 0) scale(.86);
+    opacity: calc(var(--o) * .65);
+  }
+  75% {
+    transform: translate3d(calc(var(--dx) * -.55), calc(var(--dy) * .7), 0) scale(1.18);
+    opacity: calc(var(--o) * 1.4);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: var(--o);
+  }
 }
 
 .hero-in {
