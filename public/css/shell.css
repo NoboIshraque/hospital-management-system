@@ -74,3 +74,10 @@
   margin: 0 0 3px;
 }
 .page-h p { margin: 0; color: var(--ink-2); font-size: 13.5px; max-width: 68ch; }
+
+/* The mark in the rail goes back to the public site — the one
+   convention every visitor already knows. Added after the split;
+   in the prototype there was no public site to return to. */
+.rail-brand { text-decoration: none; color: inherit; border-radius: var(--r); }
+.rail-brand:hover .brand-mark { background: var(--brand-ink); }
+.rail-brand:hover h1 { color: var(--rail-ink); }

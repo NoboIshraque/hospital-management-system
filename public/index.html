@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0E6E8C">
 <title>UHID &middot; National Health Record, Bangladesh</title>
 <meta name="description" content="One health record per citizen, recognised at every connected hospital in Bangladesh. Browse hospitals, doctors and services — no account needed.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
@@ -15,6 +17,35 @@
 <link rel="stylesheet" href="css/responsive.css">
 </head>
 <body data-page="home">
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!-- ============================ AMBIENT LIGHTS ============================
+     Fixed to the viewport and sitting behind every section, so the
+     lights are there wherever you have scrolled to. Decorative only:
+     no content, no pointer events, and they hold still for anyone
+     who asks for reduced motion. Filled by home.js.
+     ======================================================================== -->
+<div class="glows" id="glows" aria-hidden="true"></div>
+
+<!-- ============================ UTILITY BAR ============================
+     The strip an official portal carries above its navigation. Ours
+     says plainly what this is: a health-record system that overstates
+     its own standing is the wrong first impression, and a marker that
+     reads "prototype" is worth more than one that pretends otherwise.
+     ==================================================================== -->
+<div class="util-bar">
+  <div class="util-in">
+    <p class="util-note">
+      <span class="util-tag">Prototype</span>
+      A Database Management System course project &mdash; not a live government service. Sample data only.
+    </p>
+    <p class="util-nums">
+      <a href="#emergency">Emergency <b class="mono">999</b></a>
+      <a href="#emergency">Health line <b class="mono">16263</b></a>
+    </p>
+  </div>
+</div>
 
 <!-- ============================ NAV BAR ============================
      The links, the dropdown and the sign-in button are all rendered
@@ -39,7 +70,7 @@
   </div>
 </header>
 
-<main>
+<main id="main" tabindex="-1">
 
 <!-- ============================ HERO ============================ -->
 <section class="hero">
@@ -141,6 +172,22 @@
   <div class="rules" id="rules"></div>
 </section>
 
+<!-- ============================ FAQ ============================ -->
+<section class="sec alt" id="faq">
+  <div class="sec-h">
+    <span class="sec-eyebrow">Questions</span>
+    <h2>Questions people ask</h2>
+    <p>The ones that come up first are usually about who else can see the record. They are answered honestly below, including the parts that are uncomfortable.</p>
+  </div>
+  <!-- The wrapper is the one that takes the section's centred
+       column; the list narrows to a readable measure inside it, so
+       it starts flush with the heading above rather than floating
+       out on its own. -->
+  <div class="faq-wrap">
+    <div class="faq" id="faq-list"></div>
+  </div>
+</section>
+
 <!-- ============================ EMERGENCY ============================ -->
 <section class="emg" id="emergency">
   <div class="emg-in">
@@ -175,6 +222,11 @@
   </div>
   <div class="foot-bar">
     <span>&copy; 2026 UHID prototype &middot; Nobo Ishraque</span>
+    <nav class="foot-legal" aria-label="Site information">
+      <a href="privacy.html">How this prototype handles data</a>
+      <a href="#faq">Questions</a>
+      <a href="login.html">Sign in</a>
+    </nav>
     <span class="mono">Emergency 999 &middot; Health line 16263</span>
   </div>
 </footer>

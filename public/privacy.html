@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0E6E8C">
+<title>How this prototype handles data &middot; UHID</title>
+<meta name="description" content="What the UHID prototype stores, where it stores it, what leaves your browser, and what the real system will do differently.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/site.css">
+<!-- responsive.css last: its media queries override at equal specificity -->
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body data-page="doc">
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!-- A document page, so the header is a brand and a way back, not
+     the full site navigation. No scripts run on this page at all. -->
+<header class="site-nav scrolled">
+  <div class="nav-in">
+    <a class="brand nav-brand" href="index.html">
+      <div class="brand-mark">U</div>
+      <div>
+        <div class="brand-name">UHID</div>
+        <p>National Health Record</p>
+      </div>
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a class="nav-link" href="index.html">&larr; Back to the site</a>
+      <a class="btn primary nav-cta" href="login.html">Sign in</a>
+    </nav>
+  </div>
+</header>
+
+<main class="doc-page" id="main" tabindex="-1">
+  <span class="sec-eyebrow">Data handling</span>
+  <h1>How this prototype handles data</h1>
+  <p class="doc-lead">
+    A system built to hold health records should be able to say exactly what it does with
+    them. This page is that statement for the prototype as it stands today, and for the
+    system it is being built into.
+  </p>
+
+  <h2>This is a prototype, and there is no database yet</h2>
+  <p>
+    What you are looking at is the frontend of a Database Management System course project.
+    There is no server and no database behind it. Every hospital, doctor and patient you can
+    see is <strong>invented sample data</strong> written into the JavaScript files. No
+    information about any real person is present anywhere in it.
+  </p>
+
+  <h2>What is stored, and where</h2>
+  <p>
+    Anything you do in the prototype is written to your own browser&rsquo;s local storage and
+    stays on the device you are using. Specifically:
+  </p>
+  <ul>
+    <li>patients registered through the registration screen;</li>
+    <li>ward bed state, so an admission survives moving between screens;</li>
+    <li>which demo role you signed in as.</li>
+  </ul>
+  <p>
+    None of it is transmitted anywhere, because there is nowhere for it to go. Clearing your
+    browser data removes all of it, and so does <strong>Reset demo data</strong> on the sign-in
+    page.
+  </p>
+
+  <h2>What leaves your browser</h2>
+  <p>
+    One thing: the IBM Plex typefaces are requested from Google Fonts, so Google receives the
+    request for those font files as it would on any site that loads them. There is no
+    analytics, no tracking, no advertising, and no cookies of any kind.
+  </p>
+
+  <h2>The demo passwords are not security</h2>
+  <p>
+    The four demo accounts and their shared password sit in client-side JavaScript that anyone
+    can read. That is a stand-in for a sign-in screen, and nothing more. In the finished system
+    accounts live in a <span class="mono">user_account</span> table, the password is stored as
+    a bcrypt hash, and the check happens on the server where the browser cannot reach it.
+  </p>
+
+  <h2>What the real system will do</h2>
+  <p>
+    The rules below are the point of the project rather than an afterthought to it, and they
+    are enforced by the database rather than by application code that could forget to run:
+  </p>
+  <ul>
+    <li><strong>Consent with an expiry.</strong> A hospital is granted access to a record for a
+      period, by the patient, and the grant lapses on its own.</li>
+    <li><strong>An access log written by a trigger.</strong> Every clinical read is recorded —
+      who, where, when, and on what basis — by the database itself, so it cannot be bypassed
+      by a code path that neglects to write it.</li>
+    <li><strong>Break-glass access, flagged.</strong> Emergency staff can open a record without
+      prior consent, because a patient arriving unconscious cannot give one. That read is
+      allowed, recorded, and marked for review afterwards.</li>
+    <li><strong>Role-based permission.</strong> Reception sees the demographics needed to
+      register someone. It does not see their diagnoses.</li>
+  </ul>
+
+  <h2>Questions</h2>
+  <p>
+    This is coursework by Nobo Ishraque, Department of Information and Communication
+    Technology, Bangladesh University of Professionals. Questions about it belong with the
+    department.
+  </p>
+
+  <p class="doc-updated">Last reviewed 6 September 2026 &middot; prototype build</p>
+</main>
+
+<footer class="site-foot">
+  <div class="foot-bar" style="border-top:0">
+    <span>&copy; 2026 UHID prototype &middot; Nobo Ishraque</span>
+    <nav class="foot-legal" aria-label="Site information">
+      <a href="index.html">Home</a>
+      <a href="index.html#faq">Questions</a>
+      <a href="login.html">Sign in</a>
+    </nav>
+    <span class="mono">Emergency 999 &middot; Health line 16263</span>
+  </div>
+</footer>
+
+</body>
+</html>

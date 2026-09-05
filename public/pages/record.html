@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0E6E8C">
 <title>Patient record &middot; UHID</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
 <link rel="stylesheet" href="../css/tokens.css">
@@ -16,15 +18,17 @@
 </head>
 <body data-page="record">
 
+<a class="skip-link" href="#main">Skip to content</a>
+
 <div id="app" hidden>
   <aside class="rail">
-    <div class="brand">
+    <a class="brand rail-brand" href="../index.html">
       <div class="brand-mark">U</div>
       <div>
         <h1>UHID</h1>
         <p>Clinical Console</p>
       </div>
-    </div>
+    </a>
     <nav class="nav" id="nav"></nav>
     <div class="rail-foot">
       <div class="whoami">
@@ -39,7 +43,7 @@
     </div>
   </aside>
 
-  <div class="main">
+  <div class="main" id="main" tabindex="-1">
     <div class="topbar">
       <div class="crumb" id="crumb"></div>
       <div class="gsearch">

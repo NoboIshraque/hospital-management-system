@@ -15,6 +15,27 @@ html { scroll-behavior: smooth; }
 .sec, .hero, .emg, .svc { scroll-margin-top: 84px; }
 
 /* ------------------------------------------------------------
+   UTILITY BAR
+   Scrolls away with the page — only the nav below it is sticky.
+   ------------------------------------------------------------ */
+
+.util-bar { background: var(--rail); color: var(--rail-ink-2); font-size: 11.5px; }
+.util-in {
+  max-width: 1180px; margin: 0 auto; padding: 6px 26px;
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+}
+.util-note, .util-nums { margin: 0; display: flex; align-items: center; gap: 9px; }
+.util-tag {
+  padding: 1px 7px; border-radius: 3px;
+  background: var(--rail-hover); color: var(--rail-ink);
+  font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
+}
+.util-nums { gap: 16px; }
+.util-nums a { color: var(--rail-ink-2); text-decoration: none; white-space: nowrap; transition: color .12s; }
+.util-nums a:hover { color: #fff; }
+.util-nums b { color: var(--rail-ink); font-weight: 600; }
+
+/* ------------------------------------------------------------
    NAV BAR
    ------------------------------------------------------------ */
 
@@ -467,6 +488,40 @@ a.btn { text-decoration: none; }
 }
 
 /* ------------------------------------------------------------
+   FAQ
+   The panel animates on grid-template-rows rather than max-height,
+   so it opens to exactly the height of its answer instead of to a
+   guessed maximum that is either too short or slow to close.
+   ------------------------------------------------------------ */
+
+/* .faq-wrap takes the section's centred column; .faq narrows to a
+   readable measure inside it. Capping .faq directly would either
+   centre it away from its own heading or push it to the padding
+   edge, depending on which margin you fight. */
+.faq { max-width: 860px; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--surface); }
+.faq-item + .faq-item { border-top: 1px solid var(--line); }
+.faq-q { margin: 0; }
+.faq-btn {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  width: 100%; padding: 15px 18px;
+  background: transparent; border: 0; cursor: pointer; text-align: left;
+  font-size: 14.5px; font-weight: 600; color: var(--ink);
+  transition: background .12s;
+}
+.faq-btn:hover { background: var(--surface-2); }
+.faq-btn .chev { flex: none; margin-top: 4px; color: var(--ink-3); transition: transform .22s ease, color .12s; }
+.faq-item.open .faq-btn { color: var(--brand-ink); }
+.faq-item.open .chev { transform: rotate(180deg); color: var(--brand); }
+
+.faq-a { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .24s ease; }
+.faq-item.open .faq-a { grid-template-rows: 1fr; }
+.faq-a-in { overflow: hidden; }
+.faq-a p {
+  margin: 0; padding: 0 54px 17px 18px;
+  font-size: 13.5px; line-height: 1.6; color: var(--ink-2);
+}
+
+/* ------------------------------------------------------------
    EMERGENCY BAND
    ------------------------------------------------------------ */
 
@@ -521,9 +576,31 @@ a.btn { text-decoration: none; }
   max-width: 1180px; margin: 0 auto;
   border-top: 1px solid rgba(255,255,255,.09);
   padding: 14px 0 18px;
-  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px;
   font-size: 11.5px; color: var(--rail-ink-2);
 }
+.foot-legal { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.foot-legal a { color: var(--rail-ink-2); text-decoration: none; transition: color .12s; }
+.foot-legal a:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ------------------------------------------------------------
+   DOCUMENT PAGE
+   privacy.html — one column of prose, no application chrome.
+   ------------------------------------------------------------ */
+
+.doc-page { max-width: 740px; margin: 0 auto; padding: 52px 26px 72px; }
+.doc-page h1 { margin: 0 0 12px; font-size: clamp(26px, 4vw, 36px); font-weight: 600; letter-spacing: -.025em; }
+.doc-lead { margin: 0 0 8px; font-size: 15.5px; line-height: 1.6; color: var(--ink-2); }
+.doc-page h2 {
+  margin: 36px 0 10px; padding-top: 22px; border-top: 1px solid var(--line);
+  font-size: 17px; font-weight: 600; letter-spacing: -.01em;
+}
+.doc-page p, .doc-page li { font-size: 14px; line-height: 1.68; color: var(--ink-2); }
+.doc-page p { margin: 0 0 12px; }
+.doc-page ul { margin: 0 0 12px; padding-left: 20px; }
+.doc-page li { margin-bottom: 6px; }
+.doc-page strong { color: var(--ink); font-weight: 600; }
+.doc-updated { margin-top: 40px; font-size: 12px; color: var(--ink-3); }
 
 /* ------------------------------------------------------------
    MOTION

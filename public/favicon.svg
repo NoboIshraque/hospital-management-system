@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="UHID">
+  <!-- The one place a raw hex is unavoidable: an icon file is loaded
+       by the browser on its own, with no access to the page's CSS
+       custom properties. #0E6E8C is --brand; keep the two in step. -->
+  <rect width="32" height="32" rx="7" fill="#0E6E8C"/>
+  <path d="M10.5 8v9a5.5 5.5 0 0 0 11 0V8"
+        fill="none" stroke="#FFFFFF" stroke-width="3.2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

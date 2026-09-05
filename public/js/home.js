@@ -116,6 +116,55 @@ const RULES = [
     d: 'Two patients, one slot, one instant — the database decides, not luck.' }
 ];
 
+/* The lights drifting behind the hero.
+
+   x/y place the centre and s is the diameter. Each light then
+   wanders through two waypoints — dx/dy and ex/ey — rather than
+   sliding along one line and back, which is what stops eight
+   circles from looking like eight metronomes.
+
+   t is how long a full loop takes; d is where in that loop it
+   starts, negative so they are already scattered on the first
+   frame instead of pulsing together like a heartbeat.
+
+   Brand tones only: --ok, --warn and --crit mean bed status,
+   allergy severity and appointment state in this system, and
+   decoration must not borrow a colour that carries meaning. */
+const GLOWS = [
+  { tone: 'brand', x: 12, y: 22, s: 420, dx:  150, dy:   80, ex:   60, ey:  190, t: 15, d:  0, o: .16 },
+  { tone: 'deep',  x: 54, y:  8, s: 340, dx: -120, dy:  140, ex:  100, ey:   60, t: 13, d: -5, o: .13 },
+  { tone: 'brand', x: 86, y: 42, s: 460, dx: -170, dy: -110, ex:  -70, ey:  120, t: 18, d: -9, o: .14 },
+  { tone: 'pale',  x: 30, y: 86, s: 380, dx:  160, dy:  -90, ex:  -80, ey:  -60, t: 20, d: -6, o: .20 },
+  { tone: 'deep',  x: 72, y: 78, s: 300, dx:  110, dy:  120, ex:  -90, ey:   70, t: 12, d: -2, o: .12 },
+  { tone: 'brand', x: 44, y: 52, s: 200, dx: -140, dy:   90, ex:  130, ey:  -80, t: 10, d: -7, o: .20 },
+  { tone: 'deep',  x: 24, y: 62, s: 160, dx:  120, dy: -130, ex:  -60, ey:  110, t:  9, d: -3, o: .22 },
+  { tone: 'brand', x: 64, y: 26, s: 180, dx: -100, dy:  120, ex:   90, ey:   90, t: 11, d: -8, o: .18 }
+];
+
+/* The questions a visitor actually arrives with. Every answer is
+   one of the design decisions stated in plain words — which is the
+   honest way round: the decision came first, the answer follows
+   from it. */
+const FAQS = [
+  ['Do I have to apply for a UHID?',
+   'No. One is issued the first time you present at any connected hospital. Reception verifies your identity against your national ID and the system checks that you do not already hold a UHID before it issues one.'],
+
+  ['I have been treated at several hospitals already. Will I end up with several UHIDs?',
+   'That is the exact failure the system exists to prevent. Registration duplicate-checks on national ID, on name with date of birth, and on mobile number. Where a match is found, the existing record is opened instead of a second one being created.'],
+
+  ['Can any doctor read my whole history?',
+   'No. Access is granted, not assumed. A hospital holds access for a period, on your consent, and only staff whose role requires it — a receptionist sees the demographics needed to register you, not your diagnoses.'],
+
+  ['What happens if I arrive unconscious?',
+   'A casualty doctor can open your record immediately under break-glass access, without waiting for a consent that you are in no position to give. Every such read is written to the access log by a database trigger and flagged for review afterwards.'],
+
+  ['Can I see who has opened my record?',
+   'Yes. The access log shows who opened it, at which hospital, when, and on what basis — consent, role, or emergency. It is written by the database itself rather than by the application, so it cannot be skipped.'],
+
+  ['Is anything ever deleted?',
+   'Clinical history is not deleted. A record that can be quietly edited is not evidence of anything, so corrections are recorded as corrections and the original entry stays visible alongside them.']
+];
+
 const EMERGENCY_NUMBERS = [
   { n: '999',   k: 'National emergency', s: 'Police, fire and ambulance' },
   { n: '16263', k: 'Shastho Batayon',    s: 'Government health advice line, 24 hours' }
@@ -271,6 +320,17 @@ function wireNavToggle() {
    ------------------------------------------------------------ */
 
 function renderHero() {
+  /* Every value goes through Number() before it reaches a style
+     attribute. These are authored constants today, but a style
+     attribute is a place where a string from anywhere else could
+     do real damage, and the habit is worth keeping. */
+  $('#glows').innerHTML = GLOWS.map(g =>
+    `<span class="glow ${esc(g.tone)}" style="` +
+    `--x:${Number(g.x)}%;--y:${Number(g.y)}%;--s:${Number(g.s)}px;` +
+    `--dx:${Number(g.dx)}px;--dy:${Number(g.dy)}px;` +
+    `--ex:${Number(g.ex)}px;--ey:${Number(g.ey)}px;` +
+    `--t:${Number(g.t)}s;--d:${Number(g.d)}s;--o:${Number(g.o)}"></span>`).join('');
+
   /* The thread. One unbroken line down the four steps — the line is
      the record, and the pulse running down it is what makes the
      figure read as a sequence rather than a list. */
@@ -425,6 +485,33 @@ function runDoctorList() {
    APPOINTMENTS, RULES, EMERGENCY, FOOTER
    ------------------------------------------------------------ */
 
+/* The FAQ list. Buttons rather than <details>, so the open and shut
+   states can animate; aria-expanded and aria-controls carry the
+   same information to a screen reader that the chevron carries to
+   everyone else. The first answer starts open so the section reads
+   as content rather than as a row of closed bars. */
+function renderFaq() {
+  $('#faq-list').innerHTML = FAQS.map(([q, a], i) => `
+    <div class="faq-item${i === 0 ? ' open' : ''}">
+      <h3 class="faq-q">
+        <button type="button" class="faq-btn" id="faq-b-${i}"
+                aria-expanded="${i === 0}" aria-controls="faq-p-${i}">
+          <span>${esc(q)}</span>
+          ${chevron}
+        </button>
+      </h3>
+      <div class="faq-a" id="faq-p-${i}" role="region" aria-labelledby="faq-b-${i}">
+        <div class="faq-a-in"><p>${esc(a)}</p></div>
+      </div>
+    </div>`).join('');
+
+  $$('#faq-list .faq-btn').forEach(btn => btn.addEventListener('click', () => {
+    const item = btn.closest('.faq-item');
+    const open = item.classList.toggle('open');
+    btn.setAttribute('aria-expanded', String(open));
+  }));
+}
+
 function renderRest() {
   $('#appt-steps').innerHTML = APPT_STEPS.map(([t, b], i) => `
     <li class="step">
@@ -467,7 +554,21 @@ renderHero();
 renderServices();
 renderHospitals();
 renderDoctors();
+renderFaq();
 renderRest();
+
+/* A fragment in the URL is resolved by the browser while this page
+   is still an empty shell. Every section then grows as it renders,
+   so someone opening a shared link to #doctors lands somewhere near
+   the top instead. Now that everything is on the page, go there
+   again. querySelector throws on a fragment that is not a valid
+   selector, and a stray link is not worth an exception. */
+if (location.hash) {
+  try {
+    const target = document.querySelector(location.hash);
+    if (target) target.scrollIntoView();
+  } catch (e) { /* not a selector — leave the page where it is */ }
+}
 
 /* Anything the page we came from handed over — a sign-out message
    arrives this way if the user lands here rather than on login. */
