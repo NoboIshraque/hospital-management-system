@@ -3,59 +3,185 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UHID Clinical Console</title>
+<title>UHID &middot; National Health Record, Bangladesh</title>
+<meta name="description" content="One health record per citizen, recognised at every connected hospital in Bangladesh. Browse hospitals, doctors and services — no account needed.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/components.css">
-<link rel="stylesheet" href="css/login.css">
+<link rel="stylesheet" href="css/cards.css">
+<link rel="stylesheet" href="css/site.css">
+<!-- responsive.css last: its media queries override at equal specificity -->
 <link rel="stylesheet" href="css/responsive.css">
 </head>
-<body data-page="login">
+<body data-page="home">
 
-<!-- ============================ LOGIN ============================ -->
-<div id="login">
-  <div class="login-box">
-    <div class="brand">
+<!-- ============================ NAV BAR ============================
+     The links, the dropdown and the sign-in button are all rendered
+     by home.js from one array, so a new service appears in the menu
+     and in the services grid from a single edit.
+     ================================================================ -->
+<header class="site-nav" id="site-nav">
+  <div class="nav-in">
+    <a class="brand nav-brand" href="index.html">
       <div class="brand-mark">U</div>
       <div>
-        <h1>UHID Clinical Console</h1>
-        <p>National Hospital Management System &middot; Bangladesh</p>
+        <div class="brand-name">UHID</div>
+        <p>National Health Record</p>
       </div>
-    </div>
-    <p class="login-lead">One health record per citizen, recognised at every connected hospital. Sign in with your hospital account.</p>
+    </a>
 
-    <div class="login-grid">
-      <form class="card login-form" id="login-form" autocomplete="off">
-        <h3>Sign in</h3>
-        <div class="login-err" id="login-err" hidden></div>
-        <div class="row">
-          <label class="label" for="l-user">Username</label>
-          <input class="field mono" id="l-user" placeholder="rezaul" autocomplete="username">
-        </div>
-        <div class="row">
-          <label class="label" for="l-pass">Password</label>
-          <div class="pw-wrap">
-            <input class="field mono" id="l-pass" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password">
-            <button type="button" class="pw-toggle" id="pw-toggle">show</button>
-          </div>
-        </div>
-        <button type="submit" class="btn primary" style="width:100%;justify-content:center">Sign in</button>
-      </form>
+    <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
 
-      <div class="card demo-card">
-        <h3>Demo accounts</h3>
-        <p>Click any account to fill the form. Password for all four: <span class="mono">demo1234</span></p>
-        <div id="demo-list"></div>
-      </div>
-    </div>
-
-    <p class="login-foot">
-      Prototype build &middot; sample data only &middot; no real patient information &nbsp;&middot;&nbsp;
-      <button class="linkbtn" id="reset-demo">Reset demo data</button>
-    </p>
+    <nav class="nav-links" id="nav-links" aria-label="Main"></nav>
   </div>
-</div>
+</header>
+
+<main>
+
+<!-- ============================ HERO ============================ -->
+<section class="hero">
+  <div class="hero-in">
+    <div class="hero-copy">
+      <span class="eyebrow"><span class="dot"></span> Pilot network &middot; 8 hospitals connected</span>
+      <h1 class="hero-title">One patient.<br>One record.<br>Every hospital.</h1>
+      <p class="hero-lead">
+        A citizen gets a <b>Unified Health ID</b> the first time they present at any connected
+        hospital in Bangladesh. That number follows them for life &mdash; so a doctor in
+        Chattogram sees the allergy recorded in Sylhet and the prescription written in Savar.
+      </p>
+      <div class="hero-cta">
+        <a class="btn primary lg" href="#doctors">Find a doctor</a>
+        <a class="btn lg" href="#how">How UHID works</a>
+      </div>
+      <p class="hero-note">
+        Hospitals, doctors and services are open to everyone. Signing in is only needed to
+        open a clinical record.
+      </p>
+    </div>
+
+    <!-- What a UHID actually is. The legend is rendered from data. -->
+    <aside class="card spec-card">
+      <div class="spec-top">
+        <span class="label">Unified Health ID</span>
+        <span class="pill ok"><span class="dot"></span> Verified against NID</span>
+      </div>
+      <div class="spec-num mono">BD-2019-04821-7</div>
+      <dl class="spec-legend" id="spec-legend"></dl>
+      <p class="spec-lock" id="spec-lock"></p>
+    </aside>
+  </div>
+
+  <div class="stats" id="stats"></div>
+</section>
+
+<!-- ============================ SERVICES ============================ -->
+<section class="sec" id="services">
+  <div class="sec-h">
+    <span class="sec-eyebrow">Services</span>
+    <h2>What runs on the national record</h2>
+    <p>Every service below reads from and writes to the same patient identity, so nothing has to be collected twice at the counter.</p>
+  </div>
+  <div class="svc-grid" id="svc-grid"></div>
+</section>
+
+<!-- ============================ HOSPITALS ============================ -->
+<section class="sec alt" id="hospitals">
+  <div class="sec-h">
+    <span class="sec-eyebrow">Network</span>
+    <h2>Connected hospitals</h2>
+    <p>Medical colleges, upazila health complexes and private hospitals on one record. A patient registered at any of them is known to all of them.</p>
+  </div>
+  <div class="chips" id="div-chips"></div>
+  <div class="hosp-grid" id="hosp-grid"></div>
+</section>
+
+<!-- ============================ DOCTORS ============================ -->
+<section class="sec" id="doctors">
+  <div class="sec-h">
+    <span class="sec-eyebrow">Directory</span>
+    <h2>Doctors across the network</h2>
+    <p>Search the whole country, not one hospital. Fees are listed up front; free slots are computed from each doctor&rsquo;s schedule once you sign in to book.</p>
+  </div>
+  <div class="card doc-filter">
+    <div>
+      <label class="label" for="d-q">Doctor name</label>
+      <input class="field" id="d-q" placeholder="Search by name&hellip;">
+    </div>
+    <div>
+      <label class="label" for="d-dept">Department</label>
+      <select class="field" id="d-dept"></select>
+    </div>
+  </div>
+  <div id="doc-out"></div>
+</section>
+
+<!-- ============================ APPOINTMENTS ============================ -->
+<section class="sec alt" id="appointments">
+  <div class="sec-h">
+    <span class="sec-eyebrow">Appointments</span>
+    <h2>Booking, without the queue</h2>
+    <p>Free slots are worked out from the doctor&rsquo;s weekly schedule, minus their leave, minus what is already booked &mdash; so a slot you are shown is a slot that exists.</p>
+  </div>
+  <ol class="steps" id="appt-steps"></ol>
+  <div class="cta-band">
+    <div>
+      <b>Ready to book?</b>
+      <span>Sign in with your UHID or hospital account to see live slots and confirm an appointment.</span>
+    </div>
+    <a class="btn primary lg" href="login.html">Sign in to book</a>
+  </div>
+</section>
+
+<!-- ============================ HOW IT WORKS ============================ -->
+<section class="sec" id="how">
+  <div class="sec-h">
+    <span class="sec-eyebrow">How it works</span>
+    <h2>Four rules the whole system rests on</h2>
+    <p>These are design decisions, not features. Each one exists to stop a specific failure that would split a national health record in half.</p>
+  </div>
+  <div class="rules" id="rules"></div>
+</section>
+
+<!-- ============================ EMERGENCY ============================ -->
+<section class="emg" id="emergency">
+  <div class="emg-in">
+    <div class="emg-copy">
+      <h2>In an emergency, do not wait for a login</h2>
+      <p>Call first. A casualty doctor can open a record under break-glass access without prior consent &mdash; every such read is written to the access log by a database trigger and flagged for review.</p>
+    </div>
+    <div class="emg-nums" id="emg-nums"></div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================ FOOTER ============================ -->
+<footer class="site-foot">
+  <div class="foot-in">
+    <div class="foot-brand">
+      <div class="brand">
+        <div class="brand-mark">U</div>
+        <div>
+          <div class="brand-name">UHID</div>
+          <p>National Health Record</p>
+        </div>
+      </div>
+      <p class="foot-note">
+        A Database Management System course project &mdash; Department of ICT, Bangladesh
+        University of Professionals. Prototype build, sample data only, no real patient
+        information.
+      </p>
+    </div>
+    <div class="foot-cols" id="foot-cols"></div>
+  </div>
+  <div class="foot-bar">
+    <span>&copy; 2026 UHID prototype &middot; Nobo Ishraque</span>
+    <span class="mono">Emergency 999 &middot; Health line 16263</span>
+  </div>
+</footer>
 
 <div class="toasts" id="toasts"></div>
 
@@ -63,6 +189,6 @@
 <script src="js/seed.js"></script>
 <script src="js/store.js"></script>
 <script src="js/util.js"></script>
-<script src="js/auth.js"></script>
+<script src="js/home.js"></script>
 </body>
 </html>

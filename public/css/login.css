@@ -68,3 +68,11 @@
 .demo-row span { display: block; font-size: 11px; color: var(--ink-3); }
 .demo-row .u { font-family: var(--f-mono); font-size: 11px; color: var(--brand-ink); margin-left: auto; }
 
+/* Login is no longer the front door — index.html is — so there has
+   to be a way back to the public site. */
+.back-link {
+  display: inline-block; margin-bottom: 16px;
+  color: var(--ink-3); text-decoration: none; font-size: 12.5px;
+  transition: color .12s;
+}
+.back-link:hover { color: var(--brand); }

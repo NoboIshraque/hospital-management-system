@@ -6,6 +6,50 @@
    Extracted verbatim from prototype/uhid-prototype.html
    ============================================================ */
 
+/* ---- public site (index.html) ---- */
+
+@media (max-width: 1020px) {
+  .hero-in { grid-template-columns: 1fr; gap: 34px; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .foot-in { grid-template-columns: 1fr; gap: 28px; }
+}
+
+/* Below this the nav bar collapses behind the hamburger and the
+   dropdown stops floating — it becomes part of the stacked menu,
+   which is why its animated state is replaced by display here. */
+@media (max-width: 860px) {
+  .nav-in { flex-wrap: wrap; gap: 12px; }
+  .nav-toggle { display: flex; margin-left: auto; }
+  .nav-links { display: none; width: 100%; margin-left: 0; flex-direction: column; align-items: stretch; gap: 2px; padding-bottom: 10px; }
+  .nav-links.open { display: flex; }
+  .nav-link { padding: 10px 12px; }
+  .nav-link::after { display: none; }
+  .nav-cta { margin: 8px 0 0; justify-content: center; }
+  .dd { width: 100%; }
+  .dd-btn { width: 100%; justify-content: space-between; }
+  .dd-panel {
+    position: static; width: auto; padding: 5px;
+    display: none; opacity: 1; visibility: visible; transform: none;
+    box-shadow: none; background: var(--surface-2);
+  }
+  .dd.open .dd-panel { display: block; transform: none; }
+  .dd-grid { grid-template-columns: 1fr; }
+  .hero { padding: 32px 20px 0; }
+  .sec { padding: 46px 20px; }
+  .emg { padding: 34px 20px; }
+  .doc-filter { grid-template-columns: 1fr; }
+  .foot-cols { grid-template-columns: 1fr 1fr; }
+  .site-foot { padding: 34px 20px 0; }
+}
+
+@media (max-width: 520px) {
+  .stats { grid-template-columns: 1fr; }
+  .emg-num { flex: 1 1 100%; }
+  .cta-band .btn { width: 100%; justify-content: center; }
+}
+
+/* ---- clinical console ---- */
+
 @media (max-width: 1000px) {
   .reg-grid { grid-template-columns: 1fr; }
   .match-panel { position: static; }

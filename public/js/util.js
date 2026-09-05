@@ -73,11 +73,13 @@ const warnIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" st
   stroke-width="1.7" style="flex:none;margin-top:1px"><path d="M8 1.6L15 14H1z"/><path d="M8 6v3.4M8 11.6v.1"/></svg>`;
 
 /* ------------------------------------------------------------
-   Where the login page is from here. index.html sits at the root,
-   every clinical screen sits one level down in pages/.
+   Where the login page is from here. The public landing page
+   (index.html) and login.html sit at the root; every clinical
+   screen sits one level down in pages/.
    ------------------------------------------------------------ */
 
-const LOGIN_HREF = document.body.dataset.page === 'login' ? 'index.html' : '../index.html';
+const AT_ROOT = ['home', 'login'].includes(document.body.dataset.page);
+const LOGIN_HREF = (AT_ROOT ? '' : '../') + 'login.html';
 
 /* Hand any toast still on screen to the next page, so a message
    raised just before a navigation is not thrown away with the

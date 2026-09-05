@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UHID Clinical Console</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/login.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body data-page="login">
+
+<!-- ============================ LOGIN ============================ -->
+<div id="login">
+  <div class="login-box">
+    <a class="back-link" href="index.html">&larr; Back to the public site</a>
+
+    <div class="brand">
+      <div class="brand-mark">U</div>
+      <div>
+        <h1>UHID Clinical Console</h1>
+        <p>National Hospital Management System &middot; Bangladesh</p>
+      </div>
+    </div>
+    <p class="login-lead">One health record per citizen, recognised at every connected hospital. Sign in with your hospital account.</p>
+
+    <div class="login-grid">
+      <form class="card login-form" id="login-form" autocomplete="off">
+        <h3>Sign in</h3>
+        <div class="login-err" id="login-err" hidden></div>
+        <div class="row">
+          <label class="label" for="l-user">Username</label>
+          <input class="field mono" id="l-user" placeholder="rezaul" autocomplete="username">
+        </div>
+        <div class="row">
+          <label class="label" for="l-pass">Password</label>
+          <div class="pw-wrap">
+            <input class="field mono" id="l-pass" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password">
+            <button type="button" class="pw-toggle" id="pw-toggle">show</button>
+          </div>
+        </div>
+        <button type="submit" class="btn primary" style="width:100%;justify-content:center">Sign in</button>
+      </form>
+
+      <div class="card demo-card">
+        <h3>Demo accounts</h3>
+        <p>Click any account to fill the form. Password for all four: <span class="mono">demo1234</span></p>
+        <div id="demo-list"></div>
+      </div>
+    </div>
+
+    <p class="login-foot">
+      Prototype build &middot; sample data only &middot; no real patient information &nbsp;&middot;&nbsp;
+      <button class="linkbtn" id="reset-demo">Reset demo data</button>
+    </p>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="js/data.js"></script>
+<script src="js/seed.js"></script>
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>
