@@ -155,12 +155,45 @@ a.btn { text-decoration: none; }
    ------------------------------------------------------------ */
 
 .hero {
+  position: relative;
   padding: 56px 26px 0;
   background:
     radial-gradient(820px 460px at 12% -20%, var(--brand-soft), transparent 62%),
     var(--ground);
 }
+
+/* ---- ambient lights -----------------------------------------
+   Five soft circles drifting behind the hero. The layer is clipped
+   to the hero and takes no pointer events, so it can never push the
+   page sideways or swallow a click; everything above it is lifted
+   one step in the stack.
+
+   Only transform and opacity animate — both composited, so this
+   costs no layout work on any frame.
+   -------------------------------------------------------------- */
+
+.glows { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.glow {
+  position: absolute;
+  left: var(--x); top: var(--y);
+  width: var(--s); height: var(--s);
+  margin: calc(var(--s) / -2);   /* centre the circle on x/y */
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, var(--tint), transparent 68%);
+  opacity: var(--o);
+  animation: glowDrift var(--t) ease-in-out var(--d) infinite alternate;
+}
+.glow.brand { --tint: var(--brand); }
+.glow.deep  { --tint: var(--brand-ink); }
+.glow.pale  { --tint: var(--brand-soft); }
+
+@keyframes glowDrift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(var(--dx), var(--dy), 0) scale(1.15); }
+}
+
 .hero-in {
+  position: relative; z-index: 1;
   max-width: 1180px; margin: 0 auto;
   display: grid; grid-template-columns: 1.12fr .88fr; gap: 48px;
   align-items: center;
@@ -253,6 +286,7 @@ a.btn { text-decoration: none; }
 .art-cap svg { flex: none; margin-top: 1px; color: var(--ok); }
 
 .stats {
+  position: relative; z-index: 1;
   max-width: 1180px; margin: 54px auto 0; padding-bottom: 4px;
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
 }
@@ -454,6 +488,7 @@ a.btn { text-decoration: none; }
   html { scroll-behavior: auto; }
   .dd-panel, .dd .chev, .nav-link::after, .svc, .nav-toggle span { transition: none; }
   .dd.open .dd-item { animation: none; }
+  .glow { animation: none; }
   .thread::after { display: none; }
   .svc:hover { transform: none; }
 }
