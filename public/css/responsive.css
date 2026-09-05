@@ -1,0 +1,25 @@
+/* ============================================================
+   UHID — responsive
+   MUST be the last stylesheet on every page. These media queries
+   override earlier rules at equal specificity, so they win on source
+   order alone — link them anywhere but last and the layout breaks.
+   Extracted verbatim from prototype/uhid-prototype.html
+   ============================================================ */
+
+@media (max-width: 1000px) {
+  .reg-grid { grid-template-columns: 1fr; }
+  .match-panel { position: static; }
+}
+@media (max-width: 780px) {
+  #app { grid-template-columns: 1fr; }
+  .rail { position: static; height: auto; flex-direction: column; }
+  .nav { flex-direction: row; flex-wrap: wrap; }
+  .nav-h { display: none; }
+  .rail-foot { margin-top: 14px; }
+  .content { padding: 18px; }
+  .row.c2, .row.c3 { grid-template-columns: 1fr; }
+  .gsearch { width: 100%; order: 3; margin-left: 0; }
+  .topbar { flex-wrap: wrap; }
+}
+
+@media (max-width: 700px) { .login-grid { grid-template-columns: 1fr; } }

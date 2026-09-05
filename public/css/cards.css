@@ -1,0 +1,39 @@
+/* ============================================================
+   UHID — composite cards
+   Two cards that each appear on two screens:
+     .pt-*  patient header  — record.html and book.html (slot picker)
+     .doc-* directory card  — search.html and book.html
+   Extracted verbatim from prototype/uhid-prototype.html
+   ============================================================ */
+
+.pt-head { display: flex; gap: 18px; align-items: flex-start; padding: 18px 22px; margin-bottom: 16px; flex-wrap: wrap; }
+.pt-av {
+  width: 54px; height: 54px; flex: none; border-radius: 9px;
+  background: var(--brand-soft); color: var(--brand-ink);
+  display: grid; place-items: center;
+  font-size: 19px; font-weight: 600;
+}
+.pt-id { flex: 1; min-width: 220px; }
+.pt-id h2 { margin: 0 0 3px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+
+.pt-facts { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 9px; font-size: 12.5px; }
+.pt-facts div { color: var(--ink); }
+.pt-facts .k { color: var(--ink-3); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
+
+.doc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px,1fr)); gap: 12px; }
+.doc { padding: 15px 17px; display: flex; flex-direction: column; gap: 11px; }
+.doc-top { display: flex; gap: 12px; }
+.doc-av {
+  width: 42px; height: 42px; flex: none; border-radius: 50%;
+  background: var(--surface-3); color: var(--ink-2);
+  display: grid; place-items: center; font-size: 14px; font-weight: 600;
+}
+.doc-id { min-width: 0; }
+.doc-id b { display: block; font-size: 14.5px; }
+.doc-id .spec { font-size: 12.5px; color: var(--brand-ink); }
+.doc-id .qual { font-size: 11.5px; color: var(--ink-3); }
+.doc-where { font-size: 12.5px; color: var(--ink-2); display: flex; align-items: flex-start; gap: 7px; }
+.doc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 11px; border-top: 1px solid var(--line); }
+.next-free { font-size: 12px; color: var(--ink-2); }
+.next-free b { color: var(--ok); font-weight: 600; }
+.fee { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); }

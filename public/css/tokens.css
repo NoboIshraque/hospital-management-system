@@ -1,0 +1,103 @@
+/* ============================================================
+   UHID — design tokens
+   Colour, type and shape for both themes. Never write a raw hex
+   anywhere else — always use the token, so the dark theme keeps working.
+   Extracted verbatim from prototype/uhid-prototype.html
+   ============================================================ */
+
+:root {
+  --ground:      #EEF2F4;
+  --surface:     #FFFFFF;
+  --surface-2:   #F5F8F9;
+  --surface-3:   #E7EDF0;
+  --rail:        #0C2B3A;
+  --rail-hover:  #16394C;
+  --rail-ink:    #A9C2CE;
+  --rail-ink-2:  #6C8B9B;
+  --ink:         #0E1B22;
+  --ink-2:       #47606D;
+  --ink-3:       #78909D;
+  --line:        #D3DEE3;
+  --line-2:      #BACAD1;
+  --brand:       #0E6E8C;
+  --brand-ink:   #0A5570;
+  --brand-soft:  #DDEDF3;
+  --on-brand:    #FFFFFF;
+  --ok:          #17753F;
+  --ok-soft:     #DCF0E4;
+  --warn:        #96550A;
+  --warn-soft:   #FBEEDA;
+  --crit:        #A81F2D;
+  --crit-soft:   #FBE4E6;
+  --info:        #4A3E9E;
+  --info-soft:   #E7E4F7;
+  --shadow-sm: 0 1px 2px rgba(14,27,34,.06);
+  --shadow:    0 1px 3px rgba(14,27,34,.07), 0 12px 28px -18px rgba(14,27,34,.35);
+  --shadow-lg: 0 24px 60px -24px rgba(14,27,34,.42);
+  --r: 5px;
+  --f-ui:    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --f-mono:  "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --f-brand: "IBM Plex Serif", Georgia, serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:     #0A1116;
+    --surface:    #101B22;
+    --surface-2:  #16242C;
+    --surface-3:  #1D2E38;
+    --rail:       #081920;
+    --rail-hover: #12303E;
+    --rail-ink:   #9FBAC7;
+    --rail-ink-2: #5F7C8B;
+    --ink:        #E4EDF1;
+    --ink-2:      #9EB4BF;
+    --ink-3:      #718895;
+    --line:       #22343E;
+    --line-2:     #334B57;
+    --brand:      #3FA8CB;
+    --brand-ink:  #74C7E3;
+    --brand-soft: #10333F;
+    --on-brand:   #04161D;
+    --ok:         #4CBF7C;
+    --ok-soft:    #10301F;
+    --warn:       #D9A65A;
+    --warn-soft:  #302311;
+    --crit:       #EE7C87;
+    --crit-soft:  #351A1E;
+    --info:       #9C92E8;
+    --info-soft:  #221F3D;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
+    --shadow:    0 1px 3px rgba(0,0,0,.5), 0 12px 28px -18px rgba(0,0,0,.9);
+    --shadow-lg: 0 24px 60px -24px rgba(0,0,0,.95);
+  }
+}
+:root[data-theme="dark"] {
+  --ground:     #0A1116;
+  --surface:    #101B22;
+  --surface-2:  #16242C;
+  --surface-3:  #1D2E38;
+  --rail:       #081920;
+  --rail-hover: #12303E;
+  --rail-ink:   #9FBAC7;
+  --rail-ink-2: #5F7C8B;
+  --ink:        #E4EDF1;
+  --ink-2:      #9EB4BF;
+  --ink-3:      #718895;
+  --line:       #22343E;
+  --line-2:     #334B57;
+  --brand:      #3FA8CB;
+  --brand-ink:  #74C7E3;
+  --brand-soft: #10333F;
+  --on-brand:   #04161D;
+  --ok:         #4CBF7C;
+  --ok-soft:    #10301F;
+  --warn:       #D9A65A;
+  --warn-soft:  #302311;
+  --crit:       #EE7C87;
+  --crit-soft:  #351A1E;
+  --info:       #9C92E8;
+  --info-soft:  #221F3D;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
+  --shadow:    0 1px 3px rgba(0,0,0,.5), 0 12px 28px -18px rgba(0,0,0,.9);
+  --shadow-lg: 0 24px 60px -24px rgba(0,0,0,.95);
+}
