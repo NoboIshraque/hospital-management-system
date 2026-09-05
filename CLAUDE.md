@@ -1,0 +1,158 @@
+# CLAUDE.md — UHID National Hospital Management System
+
+Context for anyone (human or Claude) working in this repo. Read this before writing code.
+
+## What this is
+
+A **Database Management System course project** — a nationwide hospital management and
+health-record system. Every patient gets one **UHID** on first contact with any hospital,
+and their record follows them to every other connected hospital in the country.
+
+Author: Nobo Ishraque, Dept. of ICT, Bangladesh University of Professionals.
+Final deadline: **25 October 2026.** Frontend must be presentable **immediately** — it is
+being shown to the course teacher.
+
+**This is a DBMS course, not a web development course.** The database carries the marks.
+The frontend exists to demonstrate the database. Do not let UI polish crowd out schema work.
+
+## Stack — do not change these
+
+| Layer | Technology |
+|---|---|
+| Database | MySQL 8 |
+| Backend | Node.js + Express + `mysql2` (not yet built) |
+| Frontend | **Vanilla HTML, CSS, JavaScript** |
+
+**No frameworks.** No React, no Vue, no Tailwind, no build step, no bundler, no TypeScript.
+The course requires plain HTML/CSS/JS and the author is learning these. Adding a framework
+would be actively harmful. Libraries in general need a real justification.
+
+## Architecture — the decision that shapes everything
+
+**Static HTML pages that call a REST API with `fetch()`, served as static files by Express.**
+Not EJS, not server-side rendering.
+
+Why: the frontend had to be built *before* the backend existed. Pages fetch from local mock
+JSON now; in Week 4 the URLs change to real API endpoints and nothing else does.
+
+**The consequence that matters:** mock JSON in `mock/` must have exactly the shape the real
+API will return. If you invent a different shape per screen, Week 4 becomes a rewrite.
+
+## Repository layout
+
+```
+docs/         Use cases, ER diagram, data dictionary, normalization write-up
+database/     schema.sql, seed.sql, queries.sql, views, triggers, procedures
+server/       Express app — routes/ controllers/ services/ db/
+public/       Frontend served as static files — css/ js/ pages/
+mock/         Mock JSON standing in for the API
+prototype/    uhid-prototype.html — single-file working prototype (see below)
+```
+
+## The prototype is the reference implementation
+
+`prototype/uhid-prototype.html` is a complete, working, single-file build. **Read it before
+writing any frontend code.** It already contains:
+
+- A design system (CSS custom properties, light + dark themes)
+- Login with username/password and four demo accounts
+- Patient registration with live duplicate detection
+- Patient search across all hospitals
+- Patient record with encounter timeline, prescriptions, access log
+- Doctor directory with filters, availability slot grid, booking flow
+- Ward bed board with admission and discharge
+- localStorage persistence for registered patients
+
+Work in `public/` splits this into proper files. **Match its conventions exactly** — do not
+invent a second visual language or a second way of rendering.
+
+### Design tokens (from the prototype's `:root`)
+
+Light theme; dark theme redefines the same names. Always use the token, never a raw hex.
+
+```
+--ground #EEF2F4   --surface #FFFFFF   --surface-2 #F5F8F9   --surface-3 #E7EDF0
+--rail   #0C2B3A   (dark sidebar)      --rail-ink #A9C2CE
+--ink    #0E1B22   --ink-2 #47606D     --ink-3 #78909D
+--line   #D3DEE3   --line-2 #BACAD1
+--brand  #0E6E8C   --brand-ink #0A5570 --brand-soft #DDEDF3  --on-brand #FFFFFF
+--ok     #17753F   --warn #96550A      --crit #A81F2D        --info #4A3E9E
+                   (each has a matching --*-soft background)
+--r 5px  (border radius)
+```
+
+Fonts: **IBM Plex Sans** (UI), **IBM Plex Mono** (UHIDs, times, IDs, any aligned digits),
+**IBM Plex Serif** (brand mark only). Loaded from Google Fonts.
+
+Semantic colour is separate from brand colour: `--ok` / `--warn` / `--crit` mean bed status,
+allergy severity, appointment state. Never use `--brand` to mean "good".
+
+### Code conventions
+
+- **Template literals** for HTML generation, never string concatenation with `+`.
+- **Always `esc()`** any data value before putting it in HTML. A patient named `<script>`
+  must not break the page.
+- Render from data. No hardcoded table rows or list items anywhere.
+- Every screen needs **loading, empty, and error states**. A blank timeline must say why
+  it is blank, not render nothing.
+- `localStorage` reads and writes are always wrapped in `try/catch` — private browsing
+  makes them throw.
+- Plain functions and a small `S` state object. No classes, no state library.
+
+## Data shapes — these are the API contract
+
+Defined in the prototype's mock data. Keep them stable; the MySQL schema and the Express
+endpoints must match.
+
+- `hospital` — id, name, div, dist, tier
+- `doctor` — id, name, dept, qual, hospitalId, fee, bmdc
+- `patient` — uhid, name, dob, sex, blood, phone, nid, district, address, kin,
+  registeredAt, registeredHospitalId, identityVerified, allergies[], encounters[]
+- `encounter` — date, hospitalId, type (OPD/Emergency/Inpatient), doctor, dept, dx, notes, rx[]
+
+UHID format: `BD-<year>-<5-digit serial>-<check digit>`, e.g. `BD-2019-04821-7`.
+The check digit is the serial's digits summed mod 10.
+
+## The seven design decisions that carry this project
+
+Do not quietly undo any of these — they are the reason the project scores.
+
+1. **UHID is anchored to a national ID.** Registration duplicate-checks on NID, name + date
+   of birth, and mobile before issuing. A patient with two UHIDs is the failure the whole
+   system exists to prevent.
+2. **Access is granted, not assumed.** Role-based permissions, patient consent grants with
+   expiry, and an `access_log` written by a database trigger on every clinical read.
+   Emergency break-glass access is allowed but flagged.
+3. **Doctor availability is computed, never stored** — from recurring schedule, minus leave
+   exceptions, minus existing bookings.
+4. **Booking is transactional.** `UNIQUE(doctor_id, slot_start)` plus a stored procedure
+   using `SELECT … FOR UPDATE`. Two patients cannot take one slot.
+5. **`encounter` is the clinical hub.** Diagnoses, prescriptions, lab orders and vitals all
+   hang off it. Diagnoses/medicines/tests reference catalogue tables, never free text.
+6. **Referrals are what make it national.** Hospital A refers to Hospital B; B sees the full
+   history on arrival.
+7. **Bed state changes via trigger**, on admission / transfer / discharge — not in app code.
+
+## Roles
+
+Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Technician.
+**Receptionist admits** to a bed; **Doctor discharges.** There is no separate ward-staff role.
+
+## Status
+
+| | |
+|---|---|
+| Frontend prototype | Built (single file) |
+| Repo + GitHub | Done |
+| Use cases | Not started |
+| **ER diagram / schema** | **Not started — this is the critical path** |
+| Express API | Not started |
+
+## Working rules
+
+- The author is **comfortable with SQL, new to Node.js.** Explain Node/Express concepts;
+  do not over-explain SQL.
+- Prefer showing *why* a decision was made over just making it. He has to defend this work
+  in a viva and cannot defend code he has not understood.
+- Commit when something works, with a message saying what changed.
+- Never commit `node_modules/` or `.env`.
