@@ -1,5 +1,26 @@
-﻿node_modules/
+# Dependencies
+node_modules/
+
+# Environment / secrets — never commit these
 .env
+.env.*
+*.pem
+
+# Logs
 *.log
+npm-debug.log*
+logs/
+
+# OS junk
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Local database dumps that aren't part of the deliverable
+database/local-*.sql
+database/*.bak
