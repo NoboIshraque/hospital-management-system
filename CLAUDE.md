@@ -154,5 +154,52 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   do not over-explain SQL.
 - Prefer showing *why* a decision was made over just making it. He has to defend this work
   in a viva and cannot defend code he has not understood.
-- Commit when something works, with a message saying what changed.
-- Never commit `node_modules/` or `.env`.
+
+## Git — commit and push without being asked
+
+The author's laptop is the only copy of anything not yet pushed, and losing work to a dead
+machine would be fatal to this project. **So commit and push on your own initiative. Do not
+wait to be asked, and do not ask permission each time.**
+
+### When to commit
+
+After **each piece of work that is finished and working** — a page that renders, a query
+that returns the right rows, a bug that is fixed, a file that is split out. Roughly every
+15–30 minutes of work, or at every natural stopping point.
+
+Do **not** commit after every individual file edit. A commit is a checkpoint, not a
+keystroke log. Four commits an hour is healthy; forty is noise.
+
+### How
+
+```
+git add .
+git commit -m "<what changed, in plain words>"
+git push
+```
+
+Write messages that describe the change: `"Split prototype CSS into public/css/app.css"`,
+`"Add patient search page with live filtering"`, `"Fix duplicate check missing saved
+patients"`. Never `"update"`, `"changes"`, `"wip"`, or `"fix"` alone.
+
+Do not add Claude attribution, co-author trailers, or emoji to commit messages. This is
+coursework submitted under the author's name and the history should read as his.
+
+### Before committing
+
+- **Never commit code you have not verified works.** If a page was changed, open it and
+  check it renders. A broken commit is worse than no commit.
+- Run `git status` first and look at what is actually staged. If something unexpected
+  appears — a large file, anything that looks like a credential, a stray database dump —
+  stop and tell the author instead of committing it.
+- `node_modules/` and `.env` are covered by `.gitignore`. If either ever shows up in
+  `git status`, something is wrong with the ignore file — say so, do not commit it.
+
+### Hard limits
+
+- Work on `main`. This is a solo student project; do not create branches unless asked.
+- **Never** `git push --force`, `git reset --hard`, `git rebase`, or anything else that
+  rewrites or discards history. If a push is rejected, stop and explain the situation.
+- If a push fails on authentication, say so plainly and let the author sign in. Do not
+  retry in a loop and do not attempt to reconfigure credentials.
+- Never commit secrets. If real database credentials appear anywhere but `.env`, flag it.
