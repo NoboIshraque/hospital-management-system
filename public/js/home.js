@@ -68,14 +68,30 @@ const SERVICES = [
     body:  'The check digit is derived from the serial, so a mistyped or invented UHID fails validation before it ever reaches the database.' }
 ];
 
-/* The hero figure. One patient, three hospitals, one record —
-   the whole argument for the project in three lines. The hospitals
-   are looked up in HOSPITALS so the names on the front page can
-   never drift from the ones in the directory below. */
-const JOURNEY = [
-  { hospitalId: 1, year: '2019', what: 'First contact · UHID issued' },
-  { hospitalId: 3, year: '2024', what: 'Emergency · allergy recorded' },
-  { hospitalId: 4, year: '2026', what: 'Referral · full history on arrival' }
+/* The hero figure: how a UHID works, start to finish. Deliberately
+   general — no hospital, no patient, no example number. It is the
+   process a visitor needs to understand before any of the names
+   further down the page mean anything. */
+const HOW_STEPS = [
+  { n: '01', icon: 'idcard',
+    t: 'Identity is verified first',
+    a: 'Checked against the national ID before anything is issued',
+    b: 'Duplicate-checked on NID, on name with date of birth, and on mobile' },
+
+  { n: '02', icon: 'tag',
+    t: 'One UHID is issued',
+    a: 'BD · year of first contact · serial · check digit',
+    b: 'One per citizen, for life — never one per hospital' },
+
+  { n: '03', icon: 'referral',
+    t: 'The record follows the patient',
+    a: 'Any connected hospital opens the same history',
+    b: 'Allergies, diagnoses, prescriptions, lab results, referrals' },
+
+  { n: '04', icon: 'consent',
+    t: 'Every read leaves a trace',
+    a: 'Opened on the patient’s consent, or under emergency access',
+    b: 'Written to the access log by a database trigger, not by app code' }
 ];
 
 const APPT_STEPS = [
@@ -135,9 +151,19 @@ function svcIcon(id) {
 const chevron = `<svg class="chev" width="11" height="11" viewBox="0 0 16 16" fill="none"
   stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6l4.5 4.5L12.5 6"/></svg>`;
 
-/* The marker on the hero thread — a hospital, not a generic dot. */
-const hospGlyph = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-  stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 13.8V5.9L8 2.4l5.4 3.5v7.9"/><path d="M6.3 13.8v-3.2h3.4v3.2"/><path d="M8 5.6v2.4M6.8 6.8h2.4"/></svg>`;
+/* Markers for the hero thread. Steps 3 and 4 are the same ideas as
+   two of the services, so they reuse those icons; steps 1 and 2 get
+   their own, because a check inside a circle and a check inside a
+   shield are indistinguishable at 34px. */
+function stepIcon(id) {
+  const own = {
+    idcard: '<rect x="1.6" y="3.2" width="12.8" height="9.6" rx="1.6"/><circle cx="5.5" cy="7" r="1.6"/><path d="M3.3 11c.5-1.3 3.9-1.3 4.4 0"/><path d="M9.8 6.4h2.8M9.8 9h2.8"/>',
+    tag:    '<path d="M8.5 1.8h4a1.7 1.7 0 011.7 1.7v4l-6.4 6.4a1.2 1.2 0 01-1.7 0L2 10.2a1.2 1.2 0 010-1.7z"/><circle cx="11" cy="5" r="1.1"/>'
+  };
+  if (!own[id]) return svcIcon(id);
+  return `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+    stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${own[id]}</svg>`;
+}
 
 /* ------------------------------------------------------------
    NAV BAR
@@ -245,26 +271,23 @@ function wireNavToggle() {
    ------------------------------------------------------------ */
 
 function renderHero() {
-  /* The thread. The last stop is the live one, so it carries the
-     brand marker and the pill — the eye lands there last. */
-  $('#thread').innerHTML = JOURNEY.map((j, i) => {
-    const h    = hospital(j.hospitalId);
-    const last = i === JOURNEY.length - 1;
-    return `
-      <li class="tnode${last ? ' now' : ''}">
-        <span class="tyear mono">${esc(j.year)}</span>
-        <span class="tmark">${hospGlyph}</span>
-        <span class="tbody">
-          <b>${esc(h.name)}${last ? ' <span class="pill ok">now</span>' : ''}</b>
-          <span class="twhat">${esc(j.what)}</span>
-          <span class="twhere">${esc(h.dist)} &middot; ${esc(h.div)} division</span>
-        </span>
-      </li>`;
-  }).join('');
+  /* The thread. One unbroken line down the four steps — the line is
+     the record, and the pulse running down it is what makes the
+     figure read as a sequence rather than a list. */
+  $('#thread').innerHTML = HOW_STEPS.map(s => `
+    <li class="tnode">
+      <span class="tstep mono">${esc(s.n)}</span>
+      <span class="tmark">${stepIcon(s.icon)}</span>
+      <span class="tbody">
+        <b>${esc(s.t)}</b>
+        <span class="twhat">${esc(s.a)}</span>
+        <span class="twhere">${esc(s.b)}</span>
+      </span>
+    </li>`).join('');
 
-  $('#art-cap').innerHTML = `${svcIcon('consent')}<span>One record, three hospitals,
-    seven years apart. Every one of those reads needed the patient&rsquo;s consent
-    &mdash; or logged emergency access.</span>`;
+  $('#art-cap').innerHTML = `${svcIcon('consent')}<span>Issued once, honoured
+    everywhere, and never opened silently. That is the whole system in four
+    steps.</span>`;
 
   const stats = [
     { n: HOSPITALS.length,   k: 'Connected hospitals', s: 'Public, private and upazila' },
