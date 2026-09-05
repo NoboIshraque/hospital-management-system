@@ -157,22 +157,34 @@ a.btn { text-decoration: none; }
 .hero {
   position: relative;
   padding: 56px 26px 0;
-  background:
-    radial-gradient(820px 460px at 12% -20%, var(--brand-soft), transparent 62%),
-    var(--ground);
+  /* No opaque layer under the gradient — the body's --ground shows
+     through, and so do the lights sitting above it. */
+  background: radial-gradient(820px 460px at 12% -20%, var(--brand-soft), transparent 62%);
 }
 
 /* ---- ambient lights -----------------------------------------
-   Soft circles wandering behind the hero. The layer is clipped to
-   the hero and takes no pointer events, so it can never push the
-   page sideways or swallow a click; everything above it is lifted
-   one step in the stack.
+   Soft circles wandering behind the whole page. Fixed to the
+   viewport rather than parked in the hero, so they are there
+   wherever the reader has scrolled to, and clipped to it so they
+   can never push the page sideways. No pointer events, so they
+   never swallow a click.
+
+   z-index: -1 is doing real work here. A fixed layer at z-index 0
+   would paint ABOVE the text of every section — positioned boxes
+   come after in-flow content in the paint order. At -1 it paints
+   above the page background but below every section and every
+   word, which is the one slot an ambient layer can occupy.
+
+   The consequence is that any section with an opaque background of
+   its own would hide it, so the bands below are mixed down to let
+   the lights through. Cards stay opaque, which is what keeps text
+   on them readable.
 
    Only transform and opacity animate — both composited, so this
    costs no layout work on any frame, however far the lights travel.
    -------------------------------------------------------------- */
 
-.glows { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.glows { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
 .glow {
   position: absolute;
   left: var(--x); top: var(--y);
@@ -327,7 +339,14 @@ a.btn { text-decoration: none; }
 
 .sec { padding: 64px 26px; }
 .sec > * { max-width: 1180px; margin-left: auto; margin-right: auto; }
-.sec.alt { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+/* The banded sections are mixed down so the lights behind them stay
+   visible. The plain declaration first is the fallback: a browser
+   without color-mix simply gets the solid band it always had. */
+.sec.alt {
+  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
 /* A white card on a white band would disappear. */
 .sec.alt .card { background: var(--surface-2); }
 
@@ -451,6 +470,11 @@ a.btn { text-decoration: none; }
    EMERGENCY BAND
    ------------------------------------------------------------ */
 
+/* This band and the footer stay solid. --crit-soft means urgency,
+   and a teal glow bleeding through it turns the one colour on the
+   page that carries a meaning into a smudge. The lights run through
+   everything above them and stop here, which reads as the end of
+   the page rather than as a mistake. */
 .emg { padding: 42px 26px; background: var(--crit-soft); border-top: 1px solid var(--line); }
 .emg-in {
   max-width: 1180px; margin: 0 auto;
