@@ -3,12 +3,17 @@
 A working guide for sketching the diagrams on paper and then building them in draw.io.
 The model itself is in `er-design.md` — this file is only about how to *draw* it.
 
-**Already done for you:** `docs/er-diagrams/uhid-er.drawio` is a six-page draw.io file with
-every entity and all 62 relationship lines already placed. Open it at
-[app.diagrams.net](https://app.diagrams.net) → *File → Open From → Device*. Its relationship
-lines were generated from the Mermaid blocks in `er-design.md`, so the diagram and the document
-cannot disagree with each other. Sketch first if that helps you think — then use the file as the
-clean version rather than starting from an empty canvas.
+**Already done for you — two files, both six pages.** Open either at
+[app.diagrams.net](https://app.diagrams.net) → *File → Open From → Device*.
+
+| File | Notation | What it is |
+|---|---|---|
+| `docs/er-diagrams/uhid-er-chen.drawio` | **Chen** | The **conceptual** model. Entities, relationship diamonds, attribute ovals, weak entities, participation. This is the one a DBMS course means by "the ER diagram" |
+| `docs/er-diagrams/uhid-er.drawio` | Crow's foot | The **logical** model. All 39 tables with their key columns, mapping 1-to-1 onto `database/schema.sql` |
+
+The crow's-foot file's relationship lines were generated from the Mermaid blocks in
+`er-design.md`, so it and the document cannot disagree. Sketch first if that helps you think —
+then use the files as the clean version rather than starting from an empty canvas.
 
 ---
 
@@ -24,17 +29,9 @@ draw anything twice.
 | At 39 entities | Unreadable. Attribute ovals alone would be ~200 shapes | Fine. This is what it is designed for |
 | In draw.io | Shapes exist, but you place every oval by hand | Built in, and already generated for you |
 
-**Do both, and say why.** That is not hedging — it is the standard sequence a DBMS course
-teaches, and doing both is how you show you know the difference:
-
-1. **One Chen diagram of the core 10 entities** (§5 below) — the conceptual model. Small enough
-   to read, and it is where you demonstrate weak entities, associative entities and
-   participation.
-2. **Five crow's-foot diagrams of all 39** (`uhid-er.drawio`) — the logical model that maps
-   1-to-1 onto `database/schema.sql`.
-
-If the teacher only wants one, ask which. If they say "just the ER diagram", they almost always
-mean Chen.
+**You have both, which is the standard sequence a DBMS course teaches** — conceptual model
+first, then map it to tables. Lead with the Chen pages; keep the crow's-foot pages as the
+"and here is what it became" half. If the teacher wants only one, it is the Chen one.
 
 ---
 
@@ -172,53 +169,96 @@ The four that are easy to get backwards, so check these on your sketch:
 
 ---
 
-## 5. If you need the Chen diagram
+## 5. The Chen diagrams
 
-Use these **10 entities only**. Anything more and the attribute ovals swamp it.
+`docs/er-diagrams/uhid-er-chen.drawio` — six pages, 33 entity boxes, 28 relationship diamonds,
+109 attribute ovals, 59 cardinality lines. No two shapes overlap.
 
-`patient` · `hospital` · `doctor` · `department` · `encounter` · `diagnosis` · `medicine` ·
-`appointment` · `ward` · `bed`
+| Page | Shows | Why it earns a page |
+|---|---|---|
+| 1 · Core | patient, hospital, doctor, department, encounter | The heart. `posting` is drawn as a **diamond with attributes** — a relationship that carries `fee` is exactly what it is conceptually |
+| 2 · Clinical | encounter, diagnosis, medicine, allergen, lab_test, vitals | Five diamonds, all carrying attributes. `vitals` is a weak entity |
+| 3 · Appointments & beds | patient, doctor, appointment, encounter, hospital, ward, bed | Where the **weak entity** lives: `bed`, double rectangle, double diamond, partial key |
+| 4 · Access | patient, doctor, hospital, user_account, role, permission | The two 1:1 lines are the "at most one account per person" decision |
+| 5 · Consent, audit & referral | patient, hospital, user_account, encounter | `refers` is **recursive** — two lines to `hospital`, labelled *from* and *to*. `reads` is **ternary** |
+| 6 · Availability | doctor, schedule, leave, appointment | The page that shows there is **no slot entity**. Two more weak entities |
 
-**Shapes:**
+### The notation used in the file
 
-- **Rectangle** = entity. **Double rectangle** = weak entity — draw `bed` this way.
-- **Diamond** = relationship. **Double diamond** = identifying relationship — the one between
-  `ward` and `bed`.
-- **Oval** = attribute, on a line to its entity. <u>Underline</u> the primary key. Dashed oval =
-  derived attribute — use it for `age` on `patient`, which is the cheapest way to show you know
-  what a derived attribute is.
-- **Double oval** = multivalued. You have none left: resolving them all into tables is the
-  point of §6.2 in `er-design.md`. Worth saying out loud — "there are no multivalued attributes
-  because each one became a table, and here is the list".
-
-**Attributes to actually draw** (three or four each, no more — say "full list in the data
-dictionary"):
-
-| Entity | Attributes on the diagram |
+| Shape | Means |
 |---|---|
-| `patient` | <u>patient_id</u>, uhid, name, dob, *age* (dashed) |
-| `hospital` | <u>hospital_id</u>, name, tier |
-| `doctor` | <u>doctor_id</u>, name, bmdc_reg |
-| `encounter` | <u>encounter_id</u>, started_at, type |
-| `bed` | <u>bed_no</u> (partial key — dashed underline), status |
+| Rectangle | Entity |
+| **Double** rectangle | Weak entity — `bed`, `vitals`, `schedule`, `leave` |
+| Diamond | Relationship |
+| **Double** diamond | Identifying relationship — `ward`–`bed`, `encounter`–`vitals` |
+| Ellipse, <u>underlined</u> | Key attribute. `(partial)` marks a weak entity's discriminator |
+| **Dashed** ellipse | Derived attribute — `patient.age`, `bed.status` |
+| Single line | Partial participation — optional |
+| **Double** line | Total participation — mandatory |
+| `1` / `N` / `M` on a line | Cardinality |
 
-**The three relationship diamonds worth drawing as diamonds with attributes on them**, because
-they are what make the model more than boxes:
+If a double line renders as a single line in your draw.io version, select it and set *Style →
+Line → Link*. It is drawn with `shape=link`, which is draw.io's two-parallel-lines edge.
 
-1. `doctor` —◇`posting`◇— `hospital`, with `fee` and `department` hanging off the diamond. An
-   M:N relationship whose attributes belong to the relationship, not to either entity.
-2. `patient` —◇`books`◇— `doctor`, with `slot_start` on the diamond → promoted to the
-   `appointment` entity.
-3. `patient` —◇`attends`◇— `hospital`, with the encounter's attributes on it → promoted to the
-   `encounter` entity.
+### The answer that gets the marks: how a diamond becomes a table
 
-Draw 1 as a diamond, and draw 2 and 3 as **entities** with a note saying "promoted from a
-relationship because it has attributes and children of its own". That contrast — one left as a
-relationship, two promoted — is exactly the understanding being examined.
+This is what an examiner is actually testing, and it is one rule:
+
+> **A 1:N relationship becomes a foreign key. An M:N relationship, or any relationship with its
+> own attributes, becomes a table.**
+
+Work it through out loud with these, which is every diamond in the file:
+
+| Diamond | Kind | Maps to |
+|---|---|---|
+| `has` (patient–encounter) | 1:N | a foreign key `encounter.patient_id`. **No table.** |
+| `at`, `attended by`, `contains`, `employs`, `has role`, `booked for` | 1:N | foreign keys. No tables |
+| `signs in as` | 1:1 | a foreign key with a `UNIQUE` on it |
+| `posting` | M:N:1 with `fee` | the `doctor_posting` table |
+| `offers` | M:N | the `hospital_department` table |
+| `allergic to` | M:N with `severity` | `patient_allergy` |
+| `diagnosed as` | M:N with `is_primary` | `encounter_diagnosis` |
+| `prescribes` | M:N with dose, frequency, duration | `prescription` + `prescription_item` |
+| `orders` | M:N with status, value | `lab_order` + `lab_result` |
+| `occupies` | M:N with from_at, to_at | `admission` + `bed_occupancy` |
+| `grants` | M:N | `role_permission` |
+| `consents` | M:N with scope, expiry | `consent_grant` |
+| `reads` | ternary with basis, timestamp | `access_log` |
+| `refers` | recursive, with urgency, status | `referral` |
+| `works`, `away` | 1:N to weak entities | `doctor_schedule`, `doctor_leave` |
+| `records` | identifying, 1:N | `encounter_vitals`, keyed on its parent |
+
+**Say the count:** 28 diamonds, of which 16 become tables and 12 become nothing but a foreign
+key. That sentence demonstrates the mapping rule better than any diagram does.
+
+### Sketching a Chen page on paper
+
+Different order from crow's foot, because the ovals are what run out of space:
+
+1. **Entity rectangles first**, spread wide — wider than feels necessary. Each one needs room
+   for three or four ovals around it.
+2. **Diamonds in the gaps between them**, then the lines, then `1` / `N` / `M` on each line.
+3. **Ovals last.** Hang them on the *outside* edge of each entity, pointing away from the middle
+   of the page, so they never sit between two entities that need a line.
+4. Double the lines that are total participation, and double the borders of `bed`, `vitals`,
+   `schedule` and `leave`.
+
+If you run out of room for ovals, that is the diagram telling you to drop attributes, not to
+shrink the boxes. Three or four per entity, and say "the full column list is in the data
+dictionary".
+
+### What is deliberately not on the Chen pages
+
+- **The lookup tables** — `division`, `district`, `hospital_tier`, `encounter_type`, `ward_type`,
+  `bed_status`. At the conceptual level these are **attributes**, which is why `tier`,
+  `district` and `type` appear as ovals. They only become tables in the logical model. This is
+  a point in your favour, not an omission — have the sentence ready.
+- **`patient_merge`** — phase 2, and a second recursive relationship on one diagram is noise
+  when `refers` already demonstrates recursion. It is in the crow's-foot file.
 
 ---
 
-## 6. What is in the draw.io file
+## 6. What is in the crow's-foot file
 
 Six pages, tabs along the bottom. Colour carries meaning:
 
