@@ -1,7 +1,8 @@
 # ER design — UHID National Hospital Management System
 
 Nobo Ishraque · Dept. of ICT, Bangladesh University of Professionals
-Written 27 September 2026 · **Status: draft for review — nothing here is in `database/schema.sql` yet**
+Written 27 September 2026 · **Status: agreed. The five open questions were answered by the author on
+27 September 2026 and are recorded as decisions in §8.**
 
 This is the conceptual model: entities, their attributes, their keys, and the relationships
 between them with cardinality and participation. It is the document `schema.sql`, the data
@@ -47,6 +48,11 @@ inpatient beds, referrals, consent and audit.
   modelled, and only for doctors.
 - **Bengali-language content.** One name column per entity, `utf8mb4`, so Bangla *fits*; no
   parallel translated columns.
+- **Upazila.** Geography stops at district (§8, decision 4). The administrative hierarchy is
+  really division → district → upazila, and an upazila-level facility such as "Upazila Health
+  Complex, Savar" therefore resolves only as far as district Dhaka. A stated simplification,
+  not an oversight: one table and one FK would fix it if the write-up ever needs sub-district
+  reporting.
 
 ---
 
@@ -126,7 +132,7 @@ erDiagram
 | `role` | Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Technician | `role_id` | `code` UNIQUE, `label` |
 | `permission` | One capability — `patient.read_clinical`, `bed.admit`, `encounter.write` | `permission_id` | `code` UNIQUE, `description` |
 | `role_permission` | Which role may do what | `role_id`, `permission_id` | — |
-| `user_account` | A login | `account_id` | `username` UNIQUE, `password_hash`, `role_id`, `hospital_id` nullable, `patient_id` nullable, `doctor_id` nullable, `is_active`, `last_login_at` |
+| `user_account` | A login | `account_id` | `username` UNIQUE, `password_hash`, `role_id`, `hospital_id` nullable, `patient_id` nullable **UNIQUE**, `doctor_id` nullable **UNIQUE**, `is_active`, `last_login_at` |
 | `patient` | A human with a UHID | `patient_id` | `uhid` UNIQUE, `name`, `dob`, `sex`, `blood_group`, `phone`, `nid`, `district_id`, `address`, `kin_name`, `kin_relation`, `kin_phone`, `registered_at`, `registered_hospital_id`, `identity_verified`, `verified_by`, `verified_at` |
 | `patient_merge` | Records that two UHIDs were one human | `merge_id` | `losing_patient_id`, `surviving_patient_id`, `merged_at`, `merged_by`, `reason` |
 | `doctor` | A registered practitioner | `doctor_id` | `name`, `bmdc_reg` UNIQUE, `qualifications`, `is_active` |
@@ -200,6 +206,13 @@ the subtypes share almost no attributes. The nullable-FK form is held in place b
 table-level `CHECK` asserting the pattern above, so the discipline is enforced by the database
 rather than by convention. Say this before being asked it.
 
+**At most one login per person** (§8, decision 3), enforced by `UNIQUE` on `patient_id` and on
+`doctor_id`. This works because MySQL permits any number of `NULL`s in a unique index, which is
+exactly the wanted behaviour: every receptionist row has both columns null and does not
+collide, while a patient cannot be given a second account by accident. A patient who needs a
+carer to act for them therefore needs a delegate relationship rather than a shared password —
+out of scope, and worth saying so if asked.
+
 Passwords are bcrypt hashes verified **on the server**. `ACCOUNTS` in `js/data.js` is a
 prototype stand-in holding plaintext demo passwords in readable JavaScript, and the write-up
 should say so rather than hope nobody opens the file.
@@ -229,18 +242,33 @@ erDiagram
 | Entity | Purpose | Primary key | Notable attributes |
 |---|---|---|---|
 | `encounter_type` | OPD · Emergency · Inpatient | `type_id` | `code` UNIQUE, `label` |
-| `encounter` | **The hub.** One clinical contact | `encounter_id` | `patient_id`, `hospital_id`, `type_id`, `posting_id`, `department_id`, `started_at`, `ended_at` nullable, `chief_complaint`, `notes`, `created_by` |
+| `encounter` | **The hub.** One clinical contact | `encounter_id` | `patient_id`, `hospital_id`, `type_id`, `posting_id`, `department_id`, `consultation_fee`, `started_at`, `ended_at` nullable, `chief_complaint`, `notes`, `created_by` |
 | `encounter_vitals` | One set of observations at a moment | `encounter_id`, `recorded_at` | `bp_systolic`, `bp_diastolic`, `pulse`, `temp_c`, `spo2`, `weight_kg`, `height_cm`, `recorded_by` |
 | `diagnosis` | Catalogue — ICD-10 code and term | `diagnosis_id` | `icd10_code` UNIQUE, `term`, `category` |
 | `encounter_diagnosis` | What was concluded | `encounter_id`, `diagnosis_id` | `is_primary`, `certainty` (provisional/confirmed), `note` |
 | `medicine` | Catalogue — generic, form, strength | `medicine_id` | `generic_name`, `brand_name`, `form`, `strength`, UNIQUE(`generic_name`,`form`,`strength`) |
-| `prescription` | The header of one prescription | `prescription_id` | `encounter_id` UNIQUE, `prescribed_by`, `prescribed_at`, `advice` |
+| `prescription` | The header of one prescription | `prescription_id` | `encounter_id` UNIQUE, `prescribed_by`, `prescribed_at`, `advice`, `amended_at` nullable, `amended_by` nullable |
 | `prescription_item` | One drug line | `prescription_id`, `line_no` | `medicine_id`, `dose`, `frequency`, `duration_days`, `instruction` |
 | `lab_test` | Catalogue — name, specimen, reference range | `test_id` | `name` UNIQUE, `specimen`, `unit`, `ref_low`, `ref_high` |
 | `lab_order` | An investigation ordered | `order_id` | `encounter_id`, `test_id`, `ordered_by`, `ordered_at`, `status` (ordered/collected/reported/cancelled) |
 | `lab_result` | What came back | `order_id` | `value_num`, `value_text`, `is_abnormal`, `reported_by`, `reported_at` |
 | `allergen` | Catalogue — substance or drug class | `allergen_id` | `name` UNIQUE, `class` |
 | `patient_allergy` | A recorded allergy | `patient_id`, `allergen_id` | `severity` (Mild/Moderate/Severe), `note`, `first_recorded_encounter_id`, `recorded_at` |
+
+#### Two columns that exist only because of a decision in §8
+
+`encounter.consultation_fee` is a **copy** of `doctor_posting.consultation_fee`, taken when the
+encounter is created. It is redundant by definition, and it is there because a fee is not a
+property of the doctor, it is a property of what happened: raising a consultant's fee from ৳800
+to ৳1000 next year must not silently restate what a patient was charged in 2026. This is the
+standard treatment of a price on a historical transaction — the same reason an invoice line
+stores the price it was sold at rather than joining to the current price list. Application code
+sets it once, at insert, and never updates it.
+
+`prescription.encounter_id` stays `UNIQUE` — one prescription per visit (§8, decision 2). A doctor
+who changes their mind edits the existing prescription rather than issuing a second one, so
+`amended_at` / `amended_by` exist to make that edit visible. Without them an amendment is
+indistinguishable from the original, which in a prescription is the one place that matters.
 
 #### The catalogue rule — the difference between a database and a spreadsheet
 
@@ -411,7 +439,7 @@ erDiagram
 | Entity | Purpose | Primary key | Notable attributes |
 |---|---|---|---|
 | `referral` | Hospital A sends a patient to Hospital B | `referral_id` | `patient_id`, `from_hospital_id`, `to_hospital_id`, `from_encounter_id`, `to_encounter_id` nullable, `reason`, `urgency` (routine/urgent/emergency), `referred_by`, `referred_at`, `status` (issued/arrived/completed/expired) |
-| `consent_grant` | Permission to read a record | `grant_id` | `patient_id`, `to_hospital_id`, `to_doctor_id` nullable, `scope` (demographics/clinical/full), `granted_at`, `expires_at`, `revoked_at` nullable, `granted_via` (in_person/otp/referral) |
+| `consent_grant` | Permission to read a record | `grant_id` | `patient_id`, `to_hospital_id`, `to_doctor_id` nullable, `scope` (demographics/clinical/full), `granted_at`, `expires_at` (default `granted_at + INTERVAL 24 HOUR`), `revoked_at` nullable, `granted_via` (in_person/otp/referral) |
 | `access_log` | Every clinical read, ever | `log_id` | `patient_id`, `account_id`, `hospital_id`, `encounter_id` nullable, `action`, `basis`, `is_break_glass`, `justification` nullable, `at`, `ip_address`, `reviewed_by` nullable, `reviewed_at` nullable |
 
 #### Referral is what makes the system national (decision 6)
@@ -425,6 +453,19 @@ becomes a query rather than a phone call.
 A referral also implies a consent grant — `consent_grant.granted_via = 'referral'` — because a
 patient who agrees to be sent to Hospital B has agreed that Hospital B may read the record.
 That is the seam between decisions 2 and 6.
+
+#### A consent grant lasts 24 hours (§8, decision 5)
+
+`expires_at` defaults to `granted_at + INTERVAL 24 HOUR`. Short by design: consent that does
+not expire is not consent, it is a permanent handover, and a patient who visits one hospital
+once should not still be readable there three years later.
+
+The obvious objection is the inpatient who stays five days — does somebody wake them at 3 a.m.
+on day two to re-consent? No, and the reason is that `consent_grant` is not the only lawful
+`basis`. A clinician at the hospital of an **open encounter** reads under `basis = 'treating'`,
+which lasts as long as the encounter rather than 24 hours. The grant exists for the harder
+case: a hospital that wants the *national* history, from visits it had no part in. That is the
+read worth putting a clock on.
 
 #### `basis` is the column that makes the audit trail mean something (decision 2)
 
@@ -566,37 +607,45 @@ availability CTE → `queries.sql` → the views the screens read.
 
 ---
 
-## 8. Open questions for the author
+## 8. Decisions taken
 
-These need a decision before `schema.sql` is written. Each one changes tables, not just columns.
+The five questions this document opened with were answered by the author on 27 September 2026.
+They are recorded here as decisions, with what each one costs, because "we chose this" needs an
+answer to "and what does that stop you doing".
 
-1. **Does changing a posting's fee change the fee on a past encounter?** As modelled,
-   `encounter` points at `posting_id`, so editing the fee rewrites history. If a receipt ever
-   has to reproduce what was charged, the fee must be copied onto the encounter at creation.
-   Cheap now, painful later — recommend copying it.
-2. **Is one prescription per encounter enough?** `prescription.encounter_id` is UNIQUE, so a
-   doctor cannot issue a second revised prescription in the same visit; they must edit the
-   first. Simpler and defensible. Drop the UNIQUE if revisions should be new rows.
-3. **Can a patient hold more than one `user_account`?** Modelled as at most one. Confirm.
-4. **Does `district` need upazila below it?** `hospital_tier` includes `Upazila`, and
-   `HOSPITALS` in `js/data.js` has "Upazila Health Complex, Savar" sitting in district Dhaka.
-   Strictly the hierarchy is division → district → upazila. Adding it is one table and makes
-   the geography correct; leaving it out is a stated simplification. Recommend adding it — the
-   hospital list already implies it exists.
-5. **How long does a `consent_grant` last by default?** The expiry has to have a number in it.
-   24 hours for an OPD visit and the length of the stay for an inpatient is defensible, but
-   pick one and write it down.
+| # | Question | Decision | Consequence in the model |
+|---|---|---|---|
+| 1 | Does changing a posting's fee change the fee on a past encounter? | **No** | `encounter.consultation_fee` snapshots the fee at creation (§4.3). A deliberate redundancy; app code writes it once and never updates it |
+| 2 | Is one prescription per encounter enough? | **Yes** | `prescription.encounter_id` stays `UNIQUE`. Revisions edit the row, and `amended_at` / `amended_by` record that they did |
+| 3 | Can a patient hold more than one `user_account`? | **No** | `UNIQUE` on `user_account.patient_id` and on `doctor_id`; nulls are free, so staff rows are unaffected |
+| 4 | Does `district` need upazila below it? | **No** | Geography stops at district. Stated as a simplification in §2, not left silent |
+| 5 | How long does a `consent_grant` last? | **24 hours** | `expires_at` defaults to `granted_at + INTERVAL 24 HOUR`; a long inpatient stay is covered by `basis = 'treating'` instead (§4.5) |
+
+Two of these went against the recommendation in the draft, and both are recorded that way on
+purpose rather than quietly rewritten:
+
+- **Decision 4 (no upazila)** was recommended *for* inclusion. The cost of leaving it out is
+  that no query can group facilities below district level, so "how many upazila health
+  complexes serve Dhaka district" is answerable only from `hospital_tier`, not from geography.
+  For a course project that never reports at that level, that is an acceptable trade, and it is
+  one table to add if it ever stops being one.
+- **Decision 2 (one prescription per encounter)** is the simpler model and is defensible. Be
+  ready for the follow-up: a real system keeps superseded prescriptions rather than overwriting
+  them, because "what was the patient actually taking on Tuesday" is a clinical question. The
+  honest answer is that `amended_at` records *that* it changed but not *what it was before*, and
+  a `prescription_history` table would be the fix. Say that before it is pointed out.
+
+Nothing in §8 is open. The next thing this document is waiting on is `database/schema.sql`.
 
 ---
 
 ## 9. What to do next
 
-1. Answer §8 — five decisions, none of them long.
-2. Fix the check digits in `js/seed.js` (see **Open items** in `CLAUDE.md`) so `seed.sql` is
+1. Fix the check digits in `js/seed.js` (see **Open items** in `CLAUDE.md`) so `seed.sql` is
    generated from correct data instead of importing a known bug.
-3. Draw the submitted ER diagram from §4, one page per cluster plus a combined overview.
-4. Write `database/schema.sql` for phase 1, in the dependency order of §7.
-5. Write `docs/data-dictionary.md` — every column, type, null, default, constraint. Derived
+2. Draw the submitted ER diagram from §4, one page per cluster plus a combined overview.
+3. Write `database/schema.sql` for phase 1, in the dependency order of §7.
+4. Write `docs/data-dictionary.md` — every column, type, null, default, constraint. Derived
    from this document; it is the long one, and largely mechanical once this one is agreed.
-6. Write `docs/normalization.md` — 1NF → 3NF using §6.2 as the worked examples, plus the two
+5. Write `docs/normalization.md` — 1NF → 3NF using §6.2 as the worked examples, plus the two
    stated denormalizations (`bed.status`, `appointment.doctor_id`) with their reasons.

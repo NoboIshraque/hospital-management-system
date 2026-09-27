@@ -205,7 +205,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |
 | Use cases | Not started |
-| **ER model** | **Written — `docs/er-design.md`. Draft: §8 has 5 questions needing the author's answer** |
+| **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
 | **schema.sql** | **Not started — this is now the critical path** |
 | Express API | Not started |
 
@@ -220,6 +220,11 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   format example below. Flagged to the author on 5 Sep 2026; not yet actioned.
   This now blocks `database/seed.sql`: `docs/er-design.md` §4.2 puts a `CHECK` on the UHID
   format, so MySQL will reject these five rows outright.
+- **MySQL 8 is not installed on the author's laptop.** No `mysql` client, no service, nothing
+  on `PATH` (checked 27 Sep 2026). So `database/schema.sql` cannot be executed here, which
+  means SQL committed to this repo is unverified until it is run somewhere. Installing MySQL 8
+  (or MySQL Workbench, which bundles the client) is a prerequisite for the whole Week-4 plan,
+  not just for testing. Verify with `mysql -u root -p < database/schema.sql`.
 - **No print stylesheet.** A patient record that prints properly matters in a hospital
   system. Not started.
 - **No 404 page.** Worth adding when Express starts serving the site in Week 4, not before.
