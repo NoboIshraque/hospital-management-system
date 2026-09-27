@@ -55,7 +55,7 @@ If you add a page, give its `<body>` a `data-page`, and add root-level pages to 
 ## Repository layout
 
 ```
-docs/         Use cases, ER diagram, data dictionary, normalization write-up
+docs/         er-design.md (the ER model), plus use cases, data dictionary, normalization
 database/     schema.sql, seed.sql, queries.sql, views, triggers, procedures
 server/       Express app — routes/ controllers/ services/ db/
 public/       Frontend served as static files
@@ -205,7 +205,8 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |
 | Use cases | Not started |
-| **ER diagram / schema** | **Not started — this is the critical path** |
+| **ER model** | **Written — `docs/er-design.md`. Draft: §8 has 5 questions needing the author's answer** |
+| **schema.sql** | **Not started — this is now the critical path** |
 | Express API | Not started |
 
 ## Open items — do not lose these
@@ -217,6 +218,8 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   probably where it came from. Correct digits: `04821→5`, `11904→5`, `00723→2`, `38104→6`,
   `27615→1`. Fixing it means touching `seed.js`, the hardcoded default in `shell.js`, and the
   format example below. Flagged to the author on 5 Sep 2026; not yet actioned.
+  This now blocks `database/seed.sql`: `docs/er-design.md` §4.2 puts a `CHECK` on the UHID
+  format, so MySQL will reject these five rows outright.
 - **No print stylesheet.** A patient record that prints properly matters in a hospital
   system. Not started.
 - **No 404 page.** Worth adding when Express starts serving the site in Week 4, not before.
