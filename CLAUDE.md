@@ -56,7 +56,8 @@ If you add a page, give its `<body>` a `data-page`, and add root-level pages to 
 
 ```
 docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
-              er-diagrams/uhid-er-chen.drawio (Chen, conceptual) and
+              er-diagrams/uhid-er-chen-boxed.drawio (Chen, the one to hand in),
+              er-diagrams/uhid-er-chen.drawio (Chen, ellipse styling),
               er-diagrams/uhid-er.drawio (crow's foot, logical), plus use cases,
               data dictionary, normalization
 database/     schema.sql, seed.sql, queries.sql, views, triggers, procedures
@@ -132,6 +133,10 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
   attribute is a second injection surface and needs its own guard.
 - **All media queries live in `css/responsive.css`, which is linked last on every page.**
   They win on source order alone. Link it anywhere but last and the layout breaks.
+- **Cardinality now lives in three places and they must agree:** `docs/er-design.md` §4,
+  `docs/er-diagrams/uhid-er-chen-boxed.drawio`, and `docs/er-diagrams/uhid-er.drawio`. The
+  crow's-foot file used to be generated from the document's mermaid blocks, but those blocks
+  are Chen now, so nothing enforces agreement any more. Change a cardinality in all three.
 - **Site content arrays live in `js/home.js`, not `js/data.js`.** `data.js` holds what becomes
   MySQL lookup tables in Week 4 — hospitals, doctors, departments. Nav links, service copy,
   FAQ text and hero steps are page chrome and must not be mixed in with it.
@@ -144,8 +149,8 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
 - Raw hex is banned everywhere except two files that cannot read CSS custom properties:
   `favicon.svg` and the `theme-color` meta tag. Both hold `#0E6E8C`, which is `--brand`.
   If the brand colour ever changes, those two change by hand. `docs/er-diagrams/uhid-er.drawio`
-  and `uhid-er-chen.drawio` are two more for the same reason — draw.io cannot read CSS
-  custom properties.
+  and the two `uhid-er-chen*.drawio` files are three more for the same reason — draw.io cannot
+  read CSS custom properties.
 
 ### What the public page must not become
 
@@ -210,7 +215,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |
 | Use cases | Not started |
-| ER diagrams | Two draw.io files, 6 pages each — Chen (conceptual) and crow's foot (logical). See `docs/er-diagram-guide.md` |
+| ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. `er-design.md` §4 is Chen too |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
 | **`database/schema.sql`** | **Phase 1 written — 32 tables. NOT yet run against MySQL (not installed; see Open items)** |
 | triggers.sql / procedures.sql | Not started — 7 deferred constraints listed at the foot of schema.sql |

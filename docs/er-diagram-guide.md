@@ -8,12 +8,19 @@ The model itself is in `er-design.md` — this file is only about how to *draw* 
 
 | File | Notation | What it is |
 |---|---|---|
-| `docs/er-diagrams/uhid-er-chen.drawio` | **Chen** | The **conceptual** model. Entities, relationship diamonds, attribute ovals, weak entities, participation. This is the one a DBMS course means by "the ER diagram" |
-| `docs/er-diagrams/uhid-er.drawio` | Crow's foot | The **logical** model. All 39 tables with their key columns, mapping 1-to-1 onto `database/schema.sql` |
+| **`uhid-er-chen-boxed.drawio`** | **Chen** | **Hand this in.** The conceptual model in the author's own restyle: entities as rounded boxes with their attributes listed inside, relationships as diamonds, 24px type throughout. Page 1 is his; pages 2—6 were built to match |
+| `uhid-er-chen.drawio` | Chen | The same conceptual model in the original styling — attributes as separate ellipses around each entity. Keep it only if you want the textbook look |
+| `uhid-er.drawio` | Crow's foot | The **logical** model. All 39 tables with their key columns, mapping 1-to-1 onto `database/schema.sql` |
 
-The crow's-foot file's relationship lines were generated from the Mermaid blocks in
-`er-design.md`, so it and the document cannot disagree. Sketch first if that helps you think —
-then use the files as the clean version rather than starting from an empty canvas.
+All three live in `docs/er-diagrams/`. The Chen diagrams in `er-design.md` §4 match
+`uhid-er-chen-boxed.drawio`, so document and drawing say the same thing. Sketch first if that
+helps you think — then use the files as the clean version rather than starting from an empty
+canvas.
+
+> The crow's-foot file was generated from `er-design.md` when that document's diagrams were
+> still crow's foot. They are now Chen, so that link is broken: if you change a cardinality,
+> change it in the document, in `uhid-er-chen-boxed.drawio` and in `uhid-er.drawio`. Three
+> places. Say so in the write-up rather than letting a marker find the inconsistency.
 
 ---
 
@@ -171,8 +178,19 @@ The four that are easy to get backwards, so check these on your sketch:
 
 ## 5. The Chen diagrams
 
-`docs/er-diagrams/uhid-er-chen.drawio` — six pages, 33 entity boxes, 28 relationship diamonds,
-109 attribute ovals, 59 cardinality lines. No two shapes overlap.
+Two files, same model, different styling. **`uhid-er-chen-boxed.drawio`** is the one to hand
+in: six pages, entities as rounded boxes with their attributes inside, 28 relationship diamonds,
+19 relationship-attribute ovals, 48 cardinality lines, everything at 24px. Page 1 is the
+author's own layout, kept verbatim; pages 2–6 were built to match it.
+
+`uhid-er-chen.drawio` is the earlier styling of the same model — 109 attribute ovals hung around
+the entities, which is the strict textbook form. Neither has overlapping shapes.
+
+**One thing to be ready for.** Putting entity attributes *inside* the entity box is not strict
+Chen — in Chen every attribute is an ellipse on a line. The boxed version is a hybrid: Chen
+relationships and Chen participation, with entity attributes listed rather than drawn. It reads
+far better at 39 entities and most courses accept it, but if your teacher wants the textbook
+form, `uhid-er-chen.drawio` already is that, with no work needed.
 
 | Page | Shows | Why it earns a page |
 |---|---|---|

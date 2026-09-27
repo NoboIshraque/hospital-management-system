@@ -79,19 +79,54 @@ inpatient beds, referrals, consent and audit.
 ## 4. The entities, in five clusters
 
 Five diagrams rather than one, because one diagram with thirty entities is unreadable and
-earns a question about legibility instead of a question about modelling. The formal submitted
-ER diagram is drawn from these.
+earns a question about legibility instead of a question about modelling.
+
+**These are in Chen notation**, matching `docs/er-diagrams/uhid-er-chen-boxed.drawio`, which is
+the file to hand in. Read them like this:
+
+| Shape | Means |
+|---|---|
+| `rectangle` | Entity |
+| rectangle with **doubled side bars** | Weak entity — `bed`, `encounter_vitals`, `doctor_schedule`, `doctor_leave` |
+| `diamond` | Relationship |
+| `circle` | An attribute **of a relationship** — the attributes that prove why that relationship has to become a table |
+| **thick line** | Total participation — mandatory. A thin line is partial |
+| `1` / `N` / `M` | Cardinality |
+
+Entity attributes are not drawn as circles here. They are listed in full in the tables under
+each diagram, which is more legible on a page than thirty ellipses and matches how the drawio
+file puts each entity's attributes inside its box. Circles are reserved for relationship
+attributes, where the placement is the point.
+
+Mermaid has no double-rectangle or double-line primitive, so a weak entity renders as a
+rectangle with doubled side bars and total participation renders as a thicker line. In the
+drawio file both are drawn properly.
 
 ### 4.1 Institutions and geography
 
 ```mermaid
-erDiagram
-  division      ||--o{ district            : "contains"
-  district      ||--o{ hospital            : "locates"
-  hospital_tier ||--o{ hospital            : "classifies"
-  hospital      ||--o{ hospital_department : "runs"
-  department    ||--o{ hospital_department : "is offered as"
-  hospital      ||--o{ ward                : "contains"
+flowchart LR
+  division["division"]
+  district["district"]
+  hospital["hospital"]
+  department["department"]
+  ward["ward"]
+
+  comprises{"comprises"}
+  locates{"locates"}
+  offers{"offers"}
+  contains{"contains"}
+  opd(("opd_room"))
+
+  division ---|1| comprises
+  comprises ===|N| district
+  district ---|1| locates
+  locates ===|N| hospital
+  hospital ---|M| offers
+  offers ---|N| department
+  offers --- opd
+  hospital ---|1| contains
+  contains ===|N| ward
 ```
 
 | Entity | Purpose | Primary key | Notable attributes |
@@ -113,18 +148,40 @@ relationship with its own attributes.
 ### 4.2 People, identity and access
 
 ```mermaid
-erDiagram
-  role       ||--o{ role_permission : "is granted"
-  permission ||--o{ role_permission : "belongs to"
-  role       ||--o{ user_account    : "types"
-  hospital   ||--o{ user_account    : "employs"
-  patient    ||--o| user_account    : "may sign in as"
-  doctor     ||--o| user_account    : "may sign in as"
-  doctor     ||--o{ doctor_posting  : "practises via"
-  hospital   ||--o{ doctor_posting  : "hosts"
-  department ||--o{ doctor_posting  : "specialises"
-  patient    ||--o{ patient_merge   : "was merged from"
-  district   ||--o{ patient         : "is from"
+flowchart LR
+  patient["patient"]
+  doctor["doctor"]
+  hospital["hospital"]
+  department["department"]
+  user_account["user_account"]
+  role["role"]
+  permission["permission"]
+
+  posting{"posting"}
+  signs_p{"signs in as"}
+  signs_d{"signs in as"}
+  employs{"employs"}
+  has_role{"has role"}
+  grants{"grants"}
+
+  fee(("fee"))
+  valid_from(("valid_from"))
+
+  doctor ===|M| posting
+  posting ---|N| hospital
+  posting ---|1| department
+  posting --- fee
+  posting --- valid_from
+  patient ---|1| signs_p
+  signs_p ---|1| user_account
+  doctor ---|1| signs_d
+  signs_d ---|1| user_account
+  hospital ---|1| employs
+  employs ---|N| user_account
+  user_account ===|N| has_role
+  has_role ---|1| role
+  role ---|M| grants
+  grants ---|N| permission
 ```
 
 | Entity | Purpose | Primary key | Notable attributes |
@@ -224,23 +281,59 @@ should say so rather than hope nobody opens the file.
 ### 4.3 The clinical spine
 
 ```mermaid
-erDiagram
-  patient        ||--o{ encounter           : "has"
-  hospital       ||--o{ encounter           : "hosts"
-  encounter_type ||--o{ encounter           : "classifies"
-  doctor_posting ||--o{ encounter           : "attends"
-  encounter      ||--o{ encounter_vitals    : "records"
-  encounter      ||--o{ encounter_diagnosis : "concludes"
-  diagnosis      ||--o{ encounter_diagnosis : "codes"
-  encounter      ||--o| prescription        : "issues"
-  prescription   ||--|{ prescription_item   : "lists"
-  medicine       ||--o{ prescription_item   : "specifies"
-  encounter      ||--o{ lab_order           : "orders"
-  lab_test       ||--o{ lab_order           : "names"
-  lab_order      ||--o| lab_result          : "yields"
-  patient        ||--o{ patient_allergy     : "is allergic"
-  allergen       ||--o{ patient_allergy     : "identifies"
-  encounter      ||--o{ patient_allergy     : "was recorded at"
+flowchart LR
+  patient["patient"]
+  hospital["hospital"]
+  doctor_posting["doctor_posting"]
+  encounter["encounter"]
+  vitals[["encounter_vitals"]]
+  diagnosis["diagnosis"]
+  medicine["medicine"]
+  lab_test["lab_test"]
+  allergen["allergen"]
+
+  has{"has"}
+  at{"at"}
+  attended{"attended by"}
+  records{"records"}
+  dx{"diagnosed as"}
+  rx{"prescribes"}
+  orders{"orders"}
+  allergic{"allergic to"}
+
+  is_primary(("is_primary"))
+  certainty(("certainty"))
+  dose(("dose"))
+  frequency(("frequency"))
+  duration_days(("duration_days"))
+  lab_status(("status"))
+  lab_value(("value"))
+  severity(("severity"))
+
+  patient ---|1| has
+  has ===|N| encounter
+  encounter ===|N| at
+  at ---|1| hospital
+  encounter ===|N| attended
+  attended ---|1| doctor_posting
+  encounter ---|1| records
+  records ===|N| vitals
+  encounter ---|M| dx
+  dx ---|N| diagnosis
+  dx --- is_primary
+  dx --- certainty
+  encounter ---|M| rx
+  rx ---|N| medicine
+  rx --- dose
+  rx --- frequency
+  rx --- duration_days
+  encounter ---|M| orders
+  orders ---|N| lab_test
+  orders --- lab_status
+  orders --- lab_value
+  patient ---|M| allergic
+  allergic ---|N| allergen
+  allergic --- severity
 ```
 
 | Entity | Purpose | Primary key | Notable attributes |
@@ -317,19 +410,39 @@ view, the database's shape is normalized, and the API is where one becomes the o
 ### 4.4 Scheduling and beds
 
 ```mermaid
-erDiagram
-  doctor_posting ||--o{ doctor_schedule : "recurs on"
-  doctor         ||--o{ doctor_leave    : "is away"
-  doctor_posting ||--o{ appointment     : "is booked at"
-  patient        ||--o{ appointment     : "books"
-  appointment    ||--o| encounter       : "becomes"
-  hospital       ||--o{ ward            : "contains"
-  ward_type      ||--o{ ward            : "classifies"
-  ward           ||--|{ bed             : "holds"
-  bed_status     ||--o{ bed             : "is in"
-  encounter      ||--o| admission       : "admits via"
-  admission      ||--|{ bed_occupancy   : "occupies"
-  bed            ||--o{ bed_occupancy   : "is occupied by"
+flowchart LR
+  patient["patient"]
+  doctor["doctor"]
+  appointment["appointment"]
+  encounter["encounter"]
+  hospital["hospital"]
+  ward["ward"]
+  bed[["bed"]]
+
+  books{"books"}
+  for_doctor{"for"}
+  becomes{"becomes"}
+  contains{"contains"}
+  has_bed{"has"}
+  occupies{"occupies"}
+
+  from_at(("from_at"))
+  to_at(("to_at"))
+
+  patient ---|1| books
+  books ===|N| appointment
+  doctor ---|1| for_doctor
+  for_doctor ===|N| appointment
+  appointment ---|1| becomes
+  becomes ---|1| encounter
+  hospital ---|1| contains
+  contains ===|N| ward
+  ward ===|1| has_bed
+  has_bed ===|N| bed
+  encounter ---|1| occupies
+  occupies ---|N| bed
+  occupies --- from_at
+  occupies --- to_at
 ```
 
 | Entity | Purpose | Primary key | Notable attributes |
@@ -366,6 +479,29 @@ That is a recursive CTE over a date range joined against the two subtracting tab
 
 Note `doctor_leave` hangs off `doctor_id`, not `posting_id`: a doctor on leave is away from
 every hospital they practise at, not from one of them.
+
+In Chen notation that is three relationships and no slot entity at all — `doctor_schedule` and
+`doctor_leave` are weak entities, because a weekly clinic has no identity apart from the doctor
+whose clinic it is:
+
+```mermaid
+flowchart LR
+  doctor["doctor"]
+  schedule[["doctor_schedule"]]
+  leave[["doctor_leave"]]
+  appointment["appointment"]
+
+  works{"works"}
+  away{"away"}
+  booked{"booked for"}
+
+  doctor ---|1| works
+  works ===|N| schedule
+  doctor ---|1| away
+  away ===|N| leave
+  doctor ---|1| booked
+  booked ===|N| appointment
+```
 
 #### Why the unique constraint is on the doctor, not the posting (decision 4)
 
@@ -429,15 +565,41 @@ different tables.
 ### 4.5 Referral, consent and audit
 
 ```mermaid
-erDiagram
-  patient      ||--o{ referral      : "is referred"
-  hospital     ||--o{ referral      : "refers from"
-  encounter    ||--o| referral      : "originates"
-  patient      ||--o{ consent_grant : "grants"
-  hospital     ||--o{ consent_grant : "is granted to"
-  patient      ||--o{ access_log    : "is read"
-  user_account ||--o{ access_log    : "reads"
-  encounter    ||--o{ access_log    : "is read via"
+flowchart LR
+  patient["patient"]
+  hospital["hospital"]
+  user_account["user_account"]
+  encounter["encounter"]
+
+  consents{"consents"}
+  reads{"reads"}
+  refers{"refers"}
+
+  scope(("scope"))
+  granted_at(("granted_at"))
+  expires_at(("expires_at"))
+  basis(("basis"))
+  read_at(("at"))
+  is_break_glass(("is_break_glass"))
+  urgency(("urgency"))
+  ref_status(("status"))
+
+  patient ---|M| consents
+  consents ---|N| hospital
+  consents --- scope
+  consents --- granted_at
+  consents --- expires_at
+  user_account ---|M| reads
+  reads ---|N| patient
+  reads ---|N| encounter
+  reads --- basis
+  reads --- read_at
+  reads --- is_break_glass
+  patient ---|M| refers
+  refers ---|"N (from)"| hospital
+  refers ---|"N (to)"| hospital
+  refers --- urgency
+  refers --- ref_status
 ```
 
 | Entity | Purpose | Primary key | Notable attributes |
