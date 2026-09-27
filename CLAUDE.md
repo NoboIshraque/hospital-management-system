@@ -206,7 +206,8 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Repo + GitHub | Done |
 | Use cases | Not started |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **schema.sql** | **Not started — this is now the critical path** |
+| **`database/schema.sql`** | **Phase 1 written — 32 tables. NOT yet run against MySQL (not installed; see Open items)** |
+| triggers.sql / procedures.sql | Not started — 7 deferred constraints listed at the foot of schema.sql |
 | Express API | Not started |
 
 ## Open items — do not lose these

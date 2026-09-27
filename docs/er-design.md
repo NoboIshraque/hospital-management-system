@@ -144,7 +144,7 @@ The UHID is the natural key — unique by construction, printed on the card, and
 `BD-2026-13052-1` means something to a human in a way that `47` does not. It is still not the
 primary key, for two reasons:
 
-1. **Foreign-key width.** `uhid` is `CHAR(18)`. It would be the foreign key in `encounter`,
+1. **Foreign-key width.** `uhid` is `CHAR(15)` (`BD-2026-13052-1` is fifteen characters). It would be the foreign key in `encounter`,
    `appointment`, `admission`, `consent_grant`, `access_log` and `patient_allergy` — the
    largest tables in the system. A 4-byte `INT` in each of those, and in every index over
    them, is materially smaller and faster to join.
@@ -158,7 +158,7 @@ primary key, for two reasons:
    the patient has, which is precisely the operation you do not want to perform on a medical
    history.
 
-`uhid` is therefore `CHAR(18) NOT NULL UNIQUE` with a `CHECK` on its format:
+`uhid` is therefore `CHAR(15) NOT NULL UNIQUE` with a `CHECK` on its format:
 `BD-<year>-<5-digit serial>-<check digit>`, the check digit being the serial's digits summed
 mod 10. Issuing is a stored procedure, not application code, so the serial comes from one
 place under one lock.
@@ -202,9 +202,13 @@ nullable, because which of them applies is determined by the role:
 The alternative — a supertype `person` with a subtype table per role, i.e. full
 generalization/specialization — is the textbook answer and is rejected on purpose: it turns
 every login into a join across three tables to answer "who is this and what may they do", and
-the subtypes share almost no attributes. The nullable-FK form is held in place by a
-table-level `CHECK` asserting the pattern above, so the discipline is enforced by the database
-rather than by convention. Say this before being asked it.
+the subtypes share almost no attributes. The nullable-FK form is enforced by the database rather
+than by convention — but **not by a `CHECK`**, which is what an earlier draft of this document
+claimed. A MySQL `CHECK` may not contain a subquery or reference another table, and the pattern
+above is stated in terms of `role.code`, which lives in `role`. So it is a `BEFORE INSERT` /
+`BEFORE UPDATE` trigger that looks up the role and raises `SIGNAL SQLSTATE '45000'`. Correcting
+this mattered: "there is a CHECK constraint" would have been a wrong answer given confidently
+in the viva.
 
 **At most one login per person** (§8, decision 3), enforced by `UNIQUE` on `patient_id` and on
 `doctor_id`. This works because MySQL permits any number of `NULL`s in a unique index, which is
