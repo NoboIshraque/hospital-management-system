@@ -55,7 +55,9 @@ If you add a page, give its `<body>` a `data-page`, and add root-level pages to 
 ## Repository layout
 
 ```
-docs/         er-design.md (the ER model), plus use cases, data dictionary, normalization
+docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
+              er-diagrams/uhid-er.drawio (6-page draw.io file), plus use cases,
+              data dictionary, normalization
 database/     schema.sql, seed.sql, queries.sql, views, triggers, procedures
 server/       Express app — routes/ controllers/ services/ db/
 public/       Frontend served as static files
@@ -140,7 +142,8 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
   first thing in `<body>`, and an `id="main"` for it to skip to.
 - Raw hex is banned everywhere except two files that cannot read CSS custom properties:
   `favicon.svg` and the `theme-color` meta tag. Both hold `#0E6E8C`, which is `--brand`.
-  If the brand colour ever changes, those two change by hand.
+  If the brand colour ever changes, those two change by hand. `docs/er-diagrams/uhid-er.drawio`
+  is a third such file for the same reason — draw.io cannot read CSS custom properties.
 
 ### What the public page must not become
 
@@ -205,6 +208,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |
 | Use cases | Not started |
+| ER diagrams | draw.io file generated — 6 pages, 62 relationship lines, edges taken from the doc's mermaid |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
 | **`database/schema.sql`** | **Phase 1 written — 32 tables. NOT yet run against MySQL (not installed; see Open items)** |
 | triggers.sql / procedures.sql | Not started — 7 deferred constraints listed at the foot of schema.sql |
