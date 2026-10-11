@@ -19,13 +19,29 @@ The frontend exists to demonstrate the database. Do not let UI polish crowd out 
 
 | Layer | Technology |
 |---|---|
-| Database | MySQL 8 |
+| Database | MySQL 8 — **8.4 LTS** on the author's laptop |
 | Backend | Node.js + Express + `mysql2` (not yet built) |
 | Frontend | **Vanilla HTML, CSS, JavaScript** |
 
 **No frameworks.** No React, no Vue, no Tailwind, no build step, no bundler, no TypeScript.
 The course requires plain HTML/CSS/JS and the author is learning these. Adding a framework
 would be actively harmful. Libraries in general need a real justification.
+
+### The author's laptop
+
+Set up 11 Oct 2026. Check here before concluding something is missing — the 27 Sep session
+looked only on `PATH`, missed XAMPP, and logged "no database" for two weeks.
+
+- **MySQL 8.4.9** (winget `Oracle.MySQL`), Windows service **`MySQL84`**, automatic start.
+  Binaries `C:\Program Files\MySQL\MySQL Server 8.4\bin` (on the user `PATH`); config and data
+  under `C:\ProgramData\MySQL\MySQL Server 8.4\`. Listens on **127.0.0.1:3306 only**.
+  Server defaults: `utf8mb4` / `utf8mb4_0900_ai_ci`, strict `sql_mode`.
+- **The root password is not in this repo and must never be.** The author holds it. Code
+  reads credentials from `.env` (ignored by git); ask the author if you need them.
+- **XAMPP** is also installed at `C:\xampp`, with **MariaDB 10.4**. It wants port 3306 too,
+  so its MySQL must stay stopped while `MySQL84` runs. Do not test this project against it:
+  `schema.sql` uses MySQL-8-only syntax (`utf8mb4_0900_ai_ci`, `REGEXP_LIKE`) and fails there.
+- **Node.js is not installed** — see Open items.
 
 ## Architecture — the decision that shapes everything
 
@@ -223,23 +239,13 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Use cases | Not started |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. `er-design.md` §4 is Chen too |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/schema.sql`** | **Phase 1 written — 32 tables. Built and tested on XAMPP's MariaDB 10.4 with two spellings swapped (11 Oct 2026); never yet run on MySQL 8 — see Open items** |
+| **`database/schema.sql`** | **Phase 1 — 32 tables. Verified on MySQL 8.4.9 on 11 Oct 2026: runs unmodified with no warnings, 19 CHECKs and 54 FKs present, and 33 constraint tests (UHID, NID, double-booking, access log, prescriptions) all behave as designed** |
+| MySQL 8 on the laptop | Installed 11 Oct 2026 — see "The author's laptop" under Stack |
 | triggers.sql / procedures.sql | Not started — 7 deferred constraints listed at the foot of schema.sql |
 | Express API | Not started |
 
 ## Open items — do not lose these
 
-- **MySQL 8 is not installed — but XAMPP's MariaDB 10.4.32 is**, at `C:\xampp\mysql\bin`
-  (not on `PATH`, which is why the 27 Sep check missed it). `schema.sql` as written **fails on
-  MariaDB at line 28**: `utf8mb4_0900_ai_ci` is a MySQL 8 collation. It also uses
-  `REGEXP_LIKE()`, which MariaDB lacks. With those two swapped (`utf8mb4_unicode_ci`, and
-  `uhid REGEXP '…'`), all 32 tables, 19 CHECKs and 54 foreign keys build, and the UHID CHECKs
-  accept the corrected seed UHIDs and reject the old ones, lowercase and non-digits (tested
-  11 Oct 2026 on a throwaway server). **Decision needed from the author:** install MySQL 8
-  and keep the file as it is, or target XAMPP's MariaDB and make the two swaps — both
-  spellings also work on MySQL 8. Everything after this (triggers, procedures, seed.sql)
-  should be written to whichever engine is chosen. To test without touching XAMPP's own
-  data: `mysql_install_db.exe --datadir=<scratch dir>`, then run `mysqld.exe` on another port.
 - **Node.js is not installed** — no `node` or `npm` anywhere (checked 11 Oct 2026). The
   Express API cannot be started until it is. Install the current LTS from nodejs.org.
 - **No print stylesheet.** A patient record that prints properly matters in a hospital
