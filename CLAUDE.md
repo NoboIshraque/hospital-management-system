@@ -54,11 +54,16 @@ looked only on `PATH`, missed XAMPP, and logged "no database" for two weeks.
 **Static HTML pages that call a REST API with `fetch()`, served as static files by Express.**
 Not EJS, not server-side rendering.
 
-Why: the frontend had to be built *before* the backend existed. Pages fetch from local mock
-JSON now; in Week 4 the URLs change to real API endpoints and nothing else does.
+Why: the frontend had to be built *before* the backend existed. **Today no page calls
+`fetch()`.** The pages read JavaScript constants — reference data in `js/data.js`, patients
+in `js/seed.js` — through `js/store.js`, which persists changes to localStorage. `mock/` is
+empty and nothing reads it. When the Express API lands, those constants become
+`fetch('/api/…')` calls (the header of `js/data.js` says so) and the code that renders them
+does not change.
 
-**The consequence that matters:** mock JSON in `mock/` must have exactly the shape the real
-API will return. If you invent a different shape per screen, Week 4 becomes a rewrite.
+**The consequence that matters:** the objects in `js/data.js` and `js/seed.js` must have
+exactly the shape the real API will return — they *are* the API contract until the API
+exists. If you invent a different shape per screen, wiring up the API becomes a rewrite.
 
 ### The site has two halves
 
@@ -76,15 +81,18 @@ If you add a page, give its `<body>` a `data-page`, and add root-level pages to 
 
 ## Repository layout
 
+What exists today. Anything marked *planned* is an empty folder or a file not yet written.
+
 ```
 docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
               er-diagrams/uhid-er-chen-boxed.drawio (Chen, the one to hand in),
               er-diagrams/uhid-er-chen.drawio (Chen, ellipse styling),
-              er-diagrams/uhid-er.drawio (crow's foot, logical), plus use cases,
-              data dictionary, normalization
-database/     schema.sql, seed.sql, queries.sql, views, triggers, procedures
-server/       Express app — routes/ controllers/ services/ db/
-public/       Frontend served as static files
+              er-diagrams/uhid-er.drawio (crow's foot, logical)
+              planned: use cases, data-dictionary.md, normalization.md
+database/     schema.sql (phase 1, 32 tables, verified on MySQL 8.4)
+              planned: seed.sql, triggers.sql, procedures.sql, views.sql, queries.sql
+server/       planned: Express app — routes/ controllers/ services/ db/ are empty
+public/       Frontend, served as static files (also works opened straight from disk)
   index.html    public landing page
   login.html    sign-in
   privacy.html  data-handling statement
@@ -92,7 +100,7 @@ public/       Frontend served as static files
   css/          tokens, base, components, shell, site, per-screen, responsive
   js/           data, seed, store, util, shell, auth, home
   pages/        the clinical console — one .html + one .js per screen
-mock/         Mock JSON standing in for the API
+mock/         empty — the pages read js/data.js and js/seed.js instead (see Architecture)
 prototype/    uhid-prototype.html — single-file working prototype (see below)
 ```
 
@@ -164,7 +172,7 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
   browser starts again from the seed. Do not write a migration for prototype data. The
   patients and wards keys went to v2 in October 2026 when the seed UHIDs were corrected.
 - **Site content arrays live in `js/home.js`, not `js/data.js`.** `data.js` holds what becomes
-  MySQL lookup tables in Week 4 — hospitals, doctors, departments. Nav links, service copy,
+  MySQL lookup tables once the API exists — hospitals, doctors, departments. Nav links, service copy,
   FAQ text and hero steps are page chrome and must not be mixed in with it.
 - **Animate `transform` and `opacity` only.** Both are composited; animating anything else
   makes the browser re-lay-out the page every frame.
@@ -214,8 +222,11 @@ Do not quietly undo any of these — they are the reason the project scores.
    of birth, and mobile before issuing. A patient with two UHIDs is the failure the whole
    system exists to prevent.
 2. **Access is granted, not assumed.** Role-based permissions, patient consent grants with
-   expiry, and an `access_log` written by a database trigger on every clinical read.
-   Emergency break-glass access is allowed but flagged.
+   expiry, and an `access_log` row written on every clinical read. MySQL has no `SELECT`
+   trigger, so the write happens inside the stored procedure that performs the read, and the
+   app's database user may only `EXECUTE` that procedure — never "a trigger does it", which
+   will not survive a viva follow-up (`er-design.md` §4.5). Emergency break-glass access is
+   allowed but flagged.
 3. **Doctor availability is computed, never stored** — from recurring schedule, minus leave
    exceptions, minus existing bookings.
 4. **Booking is transactional.** `UNIQUE(doctor_id, slot_start)` plus a stored procedure
@@ -238,7 +249,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | | |
 |---|---|
 | Frontend prototype | Built (single file) |
-| Console split into `public/` | Done — 5 screens, shared shell |
+| Console split into `public/` | Done — 5 screens, shared shell. Runs on in-browser data (`js/data.js`, `js/seed.js`, localStorage); no API calls yet |
 | Public landing page | Done — nav, dropdown, hero, services, hospitals, doctors, FAQ, footer |
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |
@@ -247,14 +258,19 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
 | **`database/schema.sql`** | **Phase 1 — 32 tables. Verified on MySQL 8.4.9 on 11 Oct 2026: runs unmodified with no warnings, 19 CHECKs and 54 FKs present, and 33 constraint tests (UHID, NID, double-booking, access log, prescriptions) all behave as designed** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
+| `seed.sql` | **Next.** Not started, and no longer blocked — the seed UHIDs were corrected 11 Oct 2026 |
 | triggers.sql / procedures.sql | Not started — 7 deferred constraints listed at the foot of schema.sql |
-| Express API | Not started |
+| Express API | Not started — Node.js is installed, `server/` folders are empty |
+| Data dictionary, normalization write-up | Not started — `er-design.md` §9 items 4 and 5 |
 
 ## Open items — do not lose these
 
 - **No print stylesheet.** A patient record that prints properly matters in a hospital
   system. Not started.
-- **No 404 page.** Worth adding when Express starts serving the site in Week 4, not before.
+- **No 404 page.** Worth adding when Express starts serving the site, not before.
+- **README milestones slipped.** Its plan had the schema due 19 Sep and the API 26 Sep; on
+  11 Oct 2026 the schema was done but seed data, triggers, procedures and the API were not.
+  The README table states that honestly — keep it that way rather than moving the dates.
 
 ## Working rules
 

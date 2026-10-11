@@ -406,7 +406,8 @@ read time:
 
 This is the sentence that joins the two halves of the project: **the frontend's shape is a
 view, the database's shape is normalized, and the API is where one becomes the other.**
-`public/` does not change in Week 4 because the JSON it receives does not change.
+`public/` does not change when the API is wired in, because the JSON it receives does not
+change.
 
 ### 4.4 Scheduling and beds
 
@@ -752,7 +753,7 @@ which is the short answer if asked why there are no three-legged diamonds anywhe
 
 ## 7. Build order
 
-The model is bigger than the four weeks left before **25 October 2026**, so it is split. Phase
+The model is bigger than the time left before **25 October 2026**, so it is split. Phase
 1 is everything the five existing screens need. Phase 2 is what makes the model score well but
 that no screen currently reads.
 
@@ -768,7 +769,7 @@ that no screen currently reads.
 `lab_test` · `lab_order` · `lab_result` · `referral` · `consent_grant` · `patient_merge` ·
 `encounter_vitals`
 
-Then, in order: `schema.sql` → `seed.sql` → the three
+Then, in order: `schema.sql` (done — verified on MySQL 8.4.9, 11 Oct 2026) → `seed.sql` → the three
 triggers (`access_log` review flag, `bed.status`, UHID issue) → `book_appointment()` → the
 availability CTE → `queries.sql` → the views the screens read.
 
@@ -802,7 +803,10 @@ purpose rather than quietly rewritten:
   honest answer is that `amended_at` records *that* it changed but not *what it was before*, and
   a `prescription_history` table would be the fix. Say that before it is pointed out.
 
-Nothing in §8 is open. The next thing this document is waiting on is `database/schema.sql`.
+Nothing in §8 is open. `database/schema.sql` implements phase 1 and was verified on MySQL 8.4.9
+on 11 October 2026: it builds every table, CHECK and foreign key in this model's phase 1, and
+the constraints reject what §4 says they must. The next thing to build is `database/seed.sql`
+(§7).
 
 ---
 
@@ -815,3 +819,5 @@ Nothing in §8 is open. The next thing this document is waiting on is `database/
    from this document; it is the long one, and largely mechanical once this one is agreed.
 5. Write `docs/normalization.md` — 1NF → 3NF using §6.2 as the worked examples, plus the two
    stated denormalizations (`bed.status`, `appointment.doctor_id`) with their reasons.
+6. Build the rest of phase 1 in the order given at the end of §7, starting with
+   `database/seed.sql`.

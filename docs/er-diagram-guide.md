@@ -3,14 +3,14 @@
 A working guide for sketching the diagrams on paper and then building them in draw.io.
 The model itself is in `er-design.md` — this file is only about how to *draw* it.
 
-**Already done for you — two files, both six pages.** Open either at
+**Already done for you — three files, six pages each.** Open any of them at
 [app.diagrams.net](https://app.diagrams.net) → *File → Open From → Device*.
 
 | File | Notation | What it is |
 |---|---|---|
 | **`uhid-er-chen-boxed.drawio`** | **Chen** | **Hand this in.** The conceptual model in the author's own restyle: entities as rounded boxes with their attributes listed inside, relationships as diamonds, 24px type throughout. Page 1 is his; pages 2—6 were built to match |
 | `uhid-er-chen.drawio` | Chen | The same conceptual model in the original styling — attributes as separate ellipses around each entity. Keep it only if you want the textbook look |
-| `uhid-er.drawio` | Crow's foot | The **logical** model. All 39 tables with their key columns, mapping 1-to-1 onto `database/schema.sql` |
+| `uhid-er.drawio` | Crow's foot | The **logical** model. All 39 tables with their key columns: the 32 phase-1 tables map 1-to-1 onto `database/schema.sql`, and the 7 phase-2 tables (dashed) are listed at its foot but not yet created |
 
 All three live in `docs/er-diagrams/`. The Chen diagrams in `er-design.md` §4 match
 `uhid-er-chen-boxed.drawio`, so document and drawing say the same thing. Sketch first if that

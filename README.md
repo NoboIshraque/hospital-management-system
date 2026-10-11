@@ -23,8 +23,10 @@ Four design decisions carry the project:
    before it will issue a new identifier — because a patient with two UHIDs is a national
    record split silently in half.
 2. **Access is granted, not assumed.** Role-based permissions, patient consent grants with
-   an expiry, and an immutable access log written by a database trigger on every clinical
-   read. Emergency "break-glass" access is allowed but flagged.
+   an expiry, and an append-only access log with a row for every clinical read. MySQL has no
+   trigger that fires on a read, so clinical reads go through a stored procedure that writes
+   the log row and then returns the data — the application may call that procedure but never
+   read the clinical tables directly. Emergency "break-glass" access is allowed but flagged.
 3. **Availability is computed, never stored.** A doctor's free slots are derived from their
    recurring schedule, their leave exceptions, and existing bookings.
 4. **Booking is transactional.** A unique constraint on `(doctor_id, slot_start)` plus a
@@ -37,8 +39,8 @@ Four design decisions carry the project:
 
 | Layer | Technology |
 |---|---|
-| Database | MySQL 8 |
-| Backend | Node.js, Express, `mysql2` |
+| Database | MySQL 8 (developed on 8.4 LTS; needs 8.0.16 or later) |
+| Backend | Node.js, Express, `mysql2` (developed on Node.js 24 LTS) |
 | Frontend | HTML, CSS, JavaScript — no framework |
 | Architecture | Static pages calling a REST API via `fetch`, served by Express |
 
@@ -47,16 +49,19 @@ Four design decisions carry the project:
 ## Repository layout
 
 ```
-docs/         Use cases, ER diagram, data dictionary, normalization write-up
-database/     schema.sql, seed.sql, queries.sql, views, triggers, procedures
-server/       Express application
+docs/         er-design.md — the ER model and the reasoning behind every decision
+              er-diagram-guide.md — how the diagrams are drawn
+              er-diagrams/ — Chen and crow's-foot diagrams (draw.io)
+              planned: use cases, data dictionary, normalization write-up
+database/     schema.sql — phase 1, 32 tables
+              planned: seed data, triggers, stored procedures, views, queries
+server/       planned: the Express application
   routes/       HTTP endpoints
   controllers/  Request handling and validation
   services/     Business logic and SQL
   db/           Connection pool and config
-public/       Frontend served as static files
+public/       The website: public landing page, sign-in, and the clinical console
   css/  js/  pages/
-mock/         Mock JSON standing in for the API until the backend exists
 prototype/    Standalone clickable prototype (open the .html directly)
 ```
 
@@ -64,29 +69,32 @@ prototype/    Standalone clickable prototype (open the .html directly)
 
 ## Status
 
+As of 11 October 2026.
+
 | Milestone | Due | State |
 |---|---|---|
-| Use cases and ER diagram | 5 Sep 2026 | In progress |
-| Frontend complete on mock data | 13 Sep 2026 | Prototype built |
-| Database schema, seed data, views | 19 Sep 2026 | Not started |
+| Use cases and ER diagram | 5 Sep 2026 | ER model and diagrams done (27 Sep). Use cases not started |
+| Frontend complete on mock data | 13 Sep 2026 | Done — public site plus a five-screen clinical console, running on in-browser sample data |
+| Database schema, seed data, views | 19 Sep 2026 | Schema done — 32 tables, verified on MySQL 8.4 on 11 Oct. Seed data and views not started |
 | Express API and authentication | 26 Sep 2026 | Not started |
-| Appointments and concurrency control | 3 Oct 2026 | Not started |
-| Clinical records, wards, access control | 10 Oct 2026 | Not started |
+| Appointments and concurrency control | 3 Oct 2026 | The one-doctor-one-slot constraint is in the schema and tested. The booking procedure is not started |
+| Clinical records, wards, access control | 10 Oct 2026 | Tables and constraints are in the schema. Triggers and procedures not started |
 | Referrals and hardening | 17 Oct 2026 | Not started |
 | Documentation and demo | 25 Oct 2026 | Not started |
 
 ---
 
-## Running the prototype
+## Running the website
 
-No server, no database, no install:
+No server, no database, no install. Open either file in any browser:
 
 ```
-prototype/uhid-prototype.html
+public/index.html                 the website: landing page, sign-in, clinical console
+prototype/uhid-prototype.html     the original single-file prototype
 ```
 
-Open it in any browser. It runs on sample data held in JavaScript and saves registered
-patients to browser storage.
+Both run on sample data held in JavaScript and save registered patients to browser storage.
+The clinical console starts from `public/login.html`.
 
 **Demo accounts** — password `demo1234` for all four:
 
@@ -102,10 +110,23 @@ patients to browser storage.
 
 ---
 
+## Creating the database
+
+Needs MySQL 8.0.16 or later — earlier versions accept `CHECK` constraints but silently
+ignore them, which would let malformed UHIDs in. It will not run on MariaDB (for example the
+one bundled with XAMPP), which lacks the `utf8mb4_0900_ai_ci` collation and `REGEXP_LIKE()`.
+
+```
+mysql -u root -p < database/schema.sql
+```
+
+This creates a database named `uhid` with the 32 phase-1 tables, empty. **It drops any
+existing `uhid` database first**, so do not run it against data you want to keep.
+
 ## Running the full system
 
-Not yet available — the backend is built in weeks 4–7. Setup instructions will be added
-here as `schema.sql`, `seed.sql` and the Express app land.
+Not yet available. Sample data, triggers, stored procedures and the Express API are still to
+come; instructions will be added here as each one lands.
 
 ---
 
