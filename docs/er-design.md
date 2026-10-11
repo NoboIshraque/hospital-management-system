@@ -206,7 +206,7 @@ primary key, for two reasons:
    largest tables in the system. A 4-byte `INT` in each of those, and in every index over
    them, is materially smaller and faster to join.
 2. **Merging.** Decision 1 is that one human must not hold two UHIDs, and `js/seed.js` ships
-   two rows that are deliberately the same man — `BD-2019-04821-7` and `BD-2018-00723-1`, same
+   two rows that are deliberately the same man — `BD-2019-04821-5` and `BD-2018-00723-2`, same
    name, same date of birth, the second registered with no NID. Prevention is the goal; a
    merge path is the admission that prevention sometimes arrives too late. With a surrogate
    key, the merge repoints child rows to the surviving `patient_id` and retires the losing row
@@ -220,11 +220,12 @@ primary key, for two reasons:
 mod 10. Issuing is a stored procedure, not application code, so the serial comes from one
 place under one lock.
 
-> **Known defect, already logged.** The five patients in `js/seed.js` have check digits that
-> fail this rule (`0+4+8+2+1 = 15`, so `BD-2019-04821-…` must end in `5`, not `7`). Seeding
-> from those values imports the bug into MySQL, where the `CHECK` constraint will reject them.
-> Corrected digits are in **Open items** in `CLAUDE.md`. Fix `js/seed.js` before writing
-> `database/seed.sql`.
+It is the one column that does not use the database's `utf8mb4` collation: it is
+`CHARACTER SET ascii COLLATE ascii_bin`. The default collation is case-insensitive, and a
+`CHECK` inherits the collation of the column it tests — so under it, `bd-2026-13052-1`
+matches `^BD-` and is stored. A binary collation makes the format check case-sensitive and
+the `UNIQUE` index byte-exact, and an identifier that is ASCII by definition costs 15 bytes
+per index entry instead of up to 60.
 
 #### Why `doctor_posting` exists instead of `doctor.hospital_id`
 
@@ -767,7 +768,7 @@ that no screen currently reads.
 `lab_test` · `lab_order` · `lab_result` · `referral` · `consent_grant` · `patient_merge` ·
 `encounter_vitals`
 
-Then, in order: `schema.sql` → `seed.sql` (after fixing the `seed.js` check digits) → the three
+Then, in order: `schema.sql` → `seed.sql` → the three
 triggers (`access_log` review flag, `bed.status`, UHID issue) → `book_appointment()` → the
 availability CTE → `queries.sql` → the views the screens read.
 
@@ -807,10 +808,9 @@ Nothing in §8 is open. The next thing this document is waiting on is `database/
 
 ## 9. What to do next
 
-1. Fix the check digits in `js/seed.js` (see **Open items** in `CLAUDE.md`) so `seed.sql` is
-   generated from correct data instead of importing a known bug.
-2. Draw the submitted ER diagram from §4, one page per cluster plus a combined overview.
-3. Write `database/schema.sql` for phase 1, in the dependency order of §7.
+1. ~~Fix the check digits in `js/seed.js`~~ — done 11 Oct 2026.
+2. ~~Draw the submitted ER diagram from §4~~ — done 27 Sep 2026, `docs/er-diagrams/`.
+3. ~~Write `database/schema.sql` for phase 1~~ — done 27 Sep 2026.
 4. Write `docs/data-dictionary.md` — every column, type, null, default, constraint. Derived
    from this document; it is the long one, and largely mechanical once this one is agreed.
 5. Write `docs/normalization.md` — 1NF → 3NF using §6.2 as the worked examples, plus the two

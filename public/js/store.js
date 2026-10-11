@@ -5,9 +5,14 @@
    localStorage throw rather than return null.
    ============================================================ */
 
-const PATIENT_KEY = 'uhid.patients.v1';
+/* patients and wards are v2 because v1 cached the seed UHIDs with
+   wrong check digits (BD-2019-04821-7 should end in 5). A browser
+   holding v1 would keep showing them and could no longer find the
+   patient login's own record; bumping the key makes it start again
+   from the corrected seed. */
+const PATIENT_KEY = 'uhid.patients.v2';
 const SESSION_KEY = 'uhid.session.v1';
-const WARD_KEY    = 'uhid.wards.v1';
+const WARD_KEY    = 'uhid.wards.v2';
 const FLASH_KEY   = 'uhid.flash.v1';
 
 const store = {

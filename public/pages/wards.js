@@ -10,11 +10,12 @@ function bedRow(prefix, states) {
   return states.split('').map((ch, i) => {
     const status = map[ch] || 'free';
     const occ = status === 'occupied';
+    const serial = String(10000 + i * 137).slice(0, 5);
     return {
       no: prefix + '-' + String(i + 1).padStart(2, '0'),
       status,
       patient: occ ? names[i % names.length] : null,
-      uhid:    occ ? 'BD-20' + (18 + (i % 8)) + '-' + String(10000 + i * 137).slice(0, 5) + '-' + (i % 9) : null,
+      uhid:    occ ? `BD-20${18 + (i % 8)}-${serial}-${uhidCheckDigit(serial)}` : null,
       dx:      occ ? dxs[i % dxs.length] : null,
       days:    occ ? (i % 9) + 1 : null
     };

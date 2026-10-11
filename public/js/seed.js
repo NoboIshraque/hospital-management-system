@@ -7,7 +7,7 @@
 
 const SEED_PATIENTS = [
   {
-    uhid: 'BD-2019-04821-7', name: 'Md. Rahim Uddin', dob: '1978-04-12', sex: 'Male', blood: 'B+',
+    uhid: 'BD-2019-04821-5', name: 'Md. Rahim Uddin', dob: '1978-04-12', sex: 'Male', blood: 'B+',
     phone: '01711-482031', nid: '1978419923041', district: 'Dhaka',
     address: 'House 42, Road 7, Mirpur-2, Dhaka', kin: 'Salma Rahim (wife) · 01911-330218',
     registeredAt: '2019-02-11', registeredHospitalId: 1, identityVerified: true,
@@ -35,7 +35,7 @@ const SEED_PATIENTS = [
     ]
   },
   {
-    uhid: 'BD-2021-11904-3', name: 'Fatema Begum', dob: '1991-09-30', sex: 'Female', blood: 'O+',
+    uhid: 'BD-2021-11904-5', name: 'Fatema Begum', dob: '1991-09-30', sex: 'Female', blood: 'O+',
     phone: '01819-330442', nid: '1991773310448', district: 'Chattogram',
     address: 'Flat 3B, Nasirabad, Chattogram', kin: 'Nurul Islam (husband) · 01712-884410',
     registeredAt: '2021-05-04', registeredHospitalId: 3, identityVerified: true,
@@ -52,7 +52,7 @@ const SEED_PATIENTS = [
     ]
   },
   {
-    uhid: 'BD-2018-00723-1', name: 'Md. Rahim Uddin', dob: '1978-04-12', sex: 'Male', blood: 'B+',
+    uhid: 'BD-2018-00723-2', name: 'Md. Rahim Uddin', dob: '1978-04-12', sex: 'Male', blood: 'B+',
     phone: '01552-908114', nid: '', district: 'Manikganj',
     address: 'Village Baliati, Saturia, Manikganj', kin: 'Abdul Uddin (father) · —',
     registeredAt: '2018-08-30', registeredHospitalId: 2, identityVerified: false,
@@ -65,7 +65,7 @@ const SEED_PATIENTS = [
     ]
   },
   {
-    uhid: 'BD-2023-38104-9', name: 'Abdul Karim Mia', dob: '1965-01-22', sex: 'Male', blood: 'A-',
+    uhid: 'BD-2023-38104-6', name: 'Abdul Karim Mia', dob: '1965-01-22', sex: 'Male', blood: 'A-',
     phone: '01922-771030', nid: '1965110220317', district: 'Rangpur',
     address: 'Ward 4, Mithapukur, Rangpur', kin: 'Rehana Karim (daughter) · 01755-201933',
     registeredAt: '2023-03-17', registeredHospitalId: 8, identityVerified: true,
@@ -82,7 +82,7 @@ const SEED_PATIENTS = [
     ]
   },
   {
-    uhid: 'BD-2020-27615-4', name: 'Shirin Akter', dob: '1996-11-05', sex: 'Female', blood: 'AB+',
+    uhid: 'BD-2020-27615-1', name: 'Shirin Akter', dob: '1996-11-05', sex: 'Female', blood: 'AB+',
     phone: '01733-119284', nid: '1996884411052', district: 'Sylhet',
     address: 'Shibganj, Sylhet', kin: 'Mokbul Hossain (father) · 01717-443021',
     registeredAt: '2020-12-01', registeredHospitalId: 4, identityVerified: true,

@@ -85,7 +85,7 @@ function boot(render) {
      is the correct behaviour, not an inconvenience. */
   const uhid = new URLSearchParams(location.search).get('uhid');
   S.patient = uhid ? store.find(uhid)
-                   : (S.role === 'patient' ? store.find('BD-2019-04821-7') : null);
+                   : (S.role === 'patient' ? store.find('BD-2019-04821-5') : null);
 
   $('#me-name').textContent = r.who;
   $('#me-role').textContent = r.label;

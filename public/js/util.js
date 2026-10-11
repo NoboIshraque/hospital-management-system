@@ -19,6 +19,13 @@ const initials = name => String(name || '?')
   .replace(/^Dr\.\s*/, '').split(/\s+/).filter(w => /^[A-Za-z]/.test(w))
   .slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
 
+/* The UHID check digit: the serial's five digits summed, mod 10.
+   '13052' → 1+3+0+5+2 = 11 → 1, so BD-2026-13052-1. The database
+   enforces the same rule as ck_patient_uhid_check_digit, so a UHID
+   built any other way is one MySQL will refuse to store. This is the
+   only place in the frontend that knows the rule. */
+const uhidCheckDigit = serial => String(serial).split('').reduce((a, d) => a + Number(d), 0) % 10;
+
 const fmtDate = iso => {
   const d = new Date(iso);
   return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });

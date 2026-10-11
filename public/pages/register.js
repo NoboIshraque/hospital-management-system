@@ -129,8 +129,7 @@ function runMatch() {
 function issueUhid() {
   const year   = new Date().getFullYear();
   const serial = String(Math.floor(Math.random() * 90000) + 10000);
-  const check  = serial.split('').reduce((a, d) => a + Number(d), 0) % 10;
-  return `BD-${year}-${serial}-${check}`;
+  return `BD-${year}-${serial}-${uhidCheckDigit(serial)}`;
 }
 
 function submitRegistration(e) {

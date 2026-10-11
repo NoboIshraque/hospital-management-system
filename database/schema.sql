@@ -207,7 +207,13 @@ CREATE TABLE patient (
   -- be the FK in every large table, and a duplicate-UHID merge must be able
   -- to repoint child rows without rewriting the key column of a medical
   -- history. See er-design.md §4.2.
-  uhid                   CHAR(15)          NOT NULL,
+  --
+  -- ascii_bin, not the database's utf8mb4 default. That collation is
+  -- case-INsensitive, and the format CHECK below inherits it: under it,
+  -- 'bd-2026-13052-1' satisfies '^BD-' and gets stored. A binary collation
+  -- makes the regex case-sensitive and the unique index byte-exact, and an
+  -- ASCII-only identifier costs 15 bytes in the index instead of up to 60.
+  uhid                   CHAR(15) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
 
   name                   VARCHAR(100)      NOT NULL,
   dob                    DATE              NOT NULL,
@@ -259,8 +265,7 @@ CREATE TABLE patient (
   -- The check digit is the serial's five digits summed mod 10. Positions in
   -- 'BD-YYYY-SSSSS-C' are 1-based: the serial is 9..13, the check digit 15.
   -- This is the project's own rule, enforced by the database rather than by
-  -- issueUhid() alone. NOTE: the five patients in js/seed.js currently FAIL
-  -- this constraint — see Open items in CLAUDE.md. Fix them before seed.sql.
+  -- issueUhid() alone; uhidCheckDigit() in js/util.js is the same rule.
   CONSTRAINT ck_patient_uhid_check_digit CHECK (
     ( CAST(SUBSTRING(uhid,  9, 1) AS UNSIGNED)
     + CAST(SUBSTRING(uhid, 10, 1) AS UNSIGNED)

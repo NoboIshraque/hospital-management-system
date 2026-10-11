@@ -137,6 +137,10 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
   `docs/er-diagrams/uhid-er-chen-boxed.drawio`, and `docs/er-diagrams/uhid-er.drawio`. The
   crow's-foot file used to be generated from the document's mermaid blocks, but those blocks
   are Chen now, so nothing enforces agreement any more. Change a cardinality in all three.
+- **localStorage keys carry a version suffix** (`uhid.patients.v2`). When cached data becomes
+  wrong — a changed shape, or corrected seed values — bump the suffix in `js/store.js` so every
+  browser starts again from the seed. Do not write a migration for prototype data. The
+  patients and wards keys went to v2 in October 2026 when the seed UHIDs were corrected.
 - **Site content arrays live in `js/home.js`, not `js/data.js`.** `data.js` holds what becomes
   MySQL lookup tables in Week 4 — hospitals, doctors, departments. Nav links, service copy,
   FAQ text and hero steps are page chrome and must not be mixed in with it.
@@ -174,9 +178,11 @@ endpoints must match.
 UHID format: `BD-<year>-<5-digit serial>-<check digit>`, e.g. `BD-2026-13052-1`.
 The check digit is the serial's digits summed mod 10 — `1+3+0+5+2 = 11`, so `1`.
 
-> This example used to read `BD-2019-04821-7`, which does not satisfy the rule stated on the
-> line above it: `0+4+8+2+1 = 15`, so it should end in `5`. The five patients in `js/seed.js`
-> were built from that wrong example and are all still wrong. See **Open items**.
+The rule is written down in exactly two places, and they must agree: `uhidCheckDigit()` in
+`js/util.js` (the prototype has its own copy) and `ck_patient_uhid_check_digit` in
+`database/schema.sql`. Never build a UHID by hand or with a different formula — the seed data
+once did, and every seeded UHID failed the database's own CHECK. The five seed UHIDs are
+`BD-2019-04821-5`, `BD-2021-11904-5`, `BD-2018-00723-2`, `BD-2023-38104-6`, `BD-2020-27615-1`.
 
 ## The seven design decisions that carry this project
 
@@ -217,26 +223,25 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Use cases | Not started |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. `er-design.md` §4 is Chen too |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/schema.sql`** | **Phase 1 written — 32 tables. NOT yet run against MySQL (not installed; see Open items)** |
+| **`database/schema.sql`** | **Phase 1 written — 32 tables. Built and tested on XAMPP's MariaDB 10.4 with two spellings swapped (11 Oct 2026); never yet run on MySQL 8 — see Open items** |
 | triggers.sql / procedures.sql | Not started — 7 deferred constraints listed at the foot of schema.sql |
 | Express API | Not started |
 
 ## Open items — do not lose these
 
-- **The seed UHIDs fail the project's own check-digit rule.** `issueUhid()` in
-  `pages/register.js` computes the check digit as the serial's digits summed mod 10, and
-  none of the five patients in `js/seed.js` satisfy it — `BD-2019-04821-7` sums to 15, so it
-  should end in 5, not 7. The example in this file is wrong in the same way, which is
-  probably where it came from. Correct digits: `04821→5`, `11904→5`, `00723→2`, `38104→6`,
-  `27615→1`. Fixing it means touching `seed.js`, the hardcoded default in `shell.js`, and the
-  format example below. Flagged to the author on 5 Sep 2026; not yet actioned.
-  This now blocks `database/seed.sql`: `docs/er-design.md` §4.2 puts a `CHECK` on the UHID
-  format, so MySQL will reject these five rows outright.
-- **MySQL 8 is not installed on the author's laptop.** No `mysql` client, no service, nothing
-  on `PATH` (checked 27 Sep 2026). So `database/schema.sql` cannot be executed here, which
-  means SQL committed to this repo is unverified until it is run somewhere. Installing MySQL 8
-  (or MySQL Workbench, which bundles the client) is a prerequisite for the whole Week-4 plan,
-  not just for testing. Verify with `mysql -u root -p < database/schema.sql`.
+- **MySQL 8 is not installed — but XAMPP's MariaDB 10.4.32 is**, at `C:\xampp\mysql\bin`
+  (not on `PATH`, which is why the 27 Sep check missed it). `schema.sql` as written **fails on
+  MariaDB at line 28**: `utf8mb4_0900_ai_ci` is a MySQL 8 collation. It also uses
+  `REGEXP_LIKE()`, which MariaDB lacks. With those two swapped (`utf8mb4_unicode_ci`, and
+  `uhid REGEXP '…'`), all 32 tables, 19 CHECKs and 54 foreign keys build, and the UHID CHECKs
+  accept the corrected seed UHIDs and reject the old ones, lowercase and non-digits (tested
+  11 Oct 2026 on a throwaway server). **Decision needed from the author:** install MySQL 8
+  and keep the file as it is, or target XAMPP's MariaDB and make the two swaps — both
+  spellings also work on MySQL 8. Everything after this (triggers, procedures, seed.sql)
+  should be written to whichever engine is chosen. To test without touching XAMPP's own
+  data: `mysql_install_db.exe --datadir=<scratch dir>`, then run `mysqld.exe` on another port.
+- **Node.js is not installed** — no `node` or `npm` anywhere (checked 11 Oct 2026). The
+  Express API cannot be started until it is. Install the current LTS from nodejs.org.
 - **No print stylesheet.** A patient record that prints properly matters in a hospital
   system. Not started.
 - **No 404 page.** Worth adding when Express starts serving the site in Week 4, not before.
