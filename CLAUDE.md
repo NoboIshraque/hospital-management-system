@@ -41,7 +41,13 @@ looked only on `PATH`, missed XAMPP, and logged "no database" for two weeks.
 - **XAMPP** is also installed at `C:\xampp`, with **MariaDB 10.4**. It wants port 3306 too,
   so its MySQL must stay stopped while `MySQL84` runs. Do not test this project against it:
   `schema.sql` uses MySQL-8-only syntax (`utf8mb4_0900_ai_ci`, `REGEXP_LIKE`) and fails there.
-- **Node.js is not installed** — see Open items.
+- **Node.js 24.20.0 LTS** (winget `OpenJS.NodeJS.LTS`) at `C:\Program Files\nodejs`, with
+  npm 11. `mysql2` 3.x connects to the MySQL above with its default `caching_sha2_password`
+  login — tested 11 Oct 2026, so no `mysql_native_password` workaround is needed.
+- **PowerShell execution policy is `RemoteSigned` for the author's user.** The machine
+  default is `Restricted`, which blocks `npm.ps1`, so `npm install` failed in any normal
+  PowerShell or VS Code terminal. If `npm` reports "running scripts is disabled", this setting
+  has been lost; `npm.cmd` works regardless.
 
 ## Architecture — the decision that shapes everything
 
@@ -240,14 +246,12 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. `er-design.md` §4 is Chen too |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
 | **`database/schema.sql`** | **Phase 1 — 32 tables. Verified on MySQL 8.4.9 on 11 Oct 2026: runs unmodified with no warnings, 19 CHECKs and 54 FKs present, and 33 constraint tests (UHID, NID, double-booking, access log, prescriptions) all behave as designed** |
-| MySQL 8 on the laptop | Installed 11 Oct 2026 — see "The author's laptop" under Stack |
+| MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
 | triggers.sql / procedures.sql | Not started — 7 deferred constraints listed at the foot of schema.sql |
 | Express API | Not started |
 
 ## Open items — do not lose these
 
-- **Node.js is not installed** — no `node` or `npm` anywhere (checked 11 Oct 2026). The
-  Express API cannot be started until it is. Install the current LTS from nodejs.org.
 - **No print stylesheet.** A patient record that prints properly matters in a hospital
   system. Not started.
 - **No 404 page.** Worth adding when Express starts serving the site in Week 4, not before.
