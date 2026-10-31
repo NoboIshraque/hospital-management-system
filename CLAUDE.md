@@ -94,7 +94,8 @@ docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
               guides/nobo.md, abir.md, noria.md — the team's learning guides (see Team below)
 database/     schema.sql (40 tables) → triggers.sql → procedures.sql → views.sql → seed.sql,
               loaded in that order
-              planned: grants.sql, queries.sql, tests.sql
+              → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
+              planned: queries.sql, tests.sql
 server/       db/run-sql.js + db/reset.js (npm run db:reset), .env.example
               practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
               planned: the Express API — routes/ controllers/ services/ are still empty
@@ -281,6 +282,11 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   wipes them, which is intended.
 - **MySQL 8.4 was reinstalled on 31 Oct 2026: 8.4.13**, service on 127.0.0.1:3306. The root
   password is in `server/.env` (git-ignored); code reads it from there and never prints it.
+- **The API must connect as `uhid_app`, never root.** `APP_DB_USER` / `APP_DB_PASSWORD` in
+  `server/.env`; `db:reset` generates the password on first run and appends it. uhid_app has no
+  table rights except SELECT on views and lookup tables, so a route that needs data a view does
+  not give must get it from a procedure. Verified 31 Oct 2026: SELECT on patient, UPDATE on bed,
+  DELETE/TRUNCATE on access_log all refused.
 - **Rebuild the database with `npm run db:reset` in `server/`.** It runs `database/*.sql` in
   order through `server/db/run-sql.js`, which does the mysql client's `DELIMITER` handling
   itself — mysql2 sends one statement per query and knows nothing about delimiters.

@@ -136,17 +136,21 @@ npm run db:reset
 You should see:
 
 ```
+  (no APP_DB_PASSWORD in .env — generated one and added it)
   schema.sql — 44 statements
   triggers.sql — 28 statements
   procedures.sql — 57 statements
   views.sql — 9 statements
   seed.sql — 54 statements
-  grants.sql — not written yet, skipped
+  grants.sql — 26 statements
 
 Database rebuilt: 40 tables, 8 views, 21 triggers, 31 procedures/functions, 18 patients, 24 encounters.
 ```
 
-The exact numbers may grow as the project grows. What matters is the last line starting with
+The first line appears only the first time. `grants.sql` creates a second MySQL user,
+`uhid_app`, with very limited rights, for the real API to connect as, and its password is
+generated once and saved at the bottom of your `.env`. The exact numbers may grow as the
+project grows. What matters is the last line starting with
 `Database rebuilt`. That one command dropped the `uhid` database, created all the tables,
 triggers, procedures and views, and loaded the sample data.
 

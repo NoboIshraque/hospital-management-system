@@ -26,7 +26,7 @@ Tick an item only when it has been run and checked, not when it has been written
       8 hospitals, 10 doctors, 5 patients with their encounters, diagnoses, prescriptions and
       allergies, the 4 demo logins with bcrypt hashes, wards and beds, schedules, labs,
       vitals, referrals, consent grants.
-- [ ] **A6. `grants.sql`** — the least-privilege application user: `EXECUTE` on procedures,
+- [x] **A6. `grants.sql`** — the least-privilege application user: `EXECUTE` on procedures,
       `SELECT` on views and lookup tables, nothing on the clinical tables directly.
 - [ ] **A7. `queries.sql`** — the demonstration queries: joins, aggregates, subqueries,
       window functions, CTEs, each answering a question the system should answer.
