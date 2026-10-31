@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Paths here start with / on purpose. Express sends this page for any
+     address it does not know — /nothing and /pages/nothing alike — so a
+     relative path like css/tokens.css would break one level down. The
+     page is only ever served by Express, never opened from disk. -->
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0E6E8C">
+<title>Page not found &middot; UHID</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/components.css">
+<link rel="stylesheet" href="/css/site.css">
+<!-- responsive.css last: its media queries override at equal specificity -->
+<link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body data-page="doc">
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!-- No scripts run on this page. -->
+<header class="site-nav scrolled">
+  <div class="nav-in">
+    <a class="brand nav-brand" href="/index.html">
+      <div class="brand-mark">U</div>
+      <div>
+        <div class="brand-name">UHID</div>
+        <p>National Health Record</p>
+      </div>
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a class="nav-link" href="/index.html">&larr; Back to the site</a>
+      <a class="btn primary nav-cta" href="/login.html">Sign in</a>
+    </nav>
+  </div>
+</header>
+
+<main class="doc-page" id="main" tabindex="-1">
+  <span class="sec-eyebrow">Error 404</span>
+  <h1>There is no page at this address</h1>
+  <p class="doc-lead">
+    The link may be mistyped, or the page may have moved. Nothing about any patient is
+    shown at an address you were not given, so a wrong address always ends here.
+  </p>
+  <p>
+    <a class="btn primary" href="/index.html">Go to the home page</a>
+    &nbsp;
+    <a class="btn" href="/login.html">Sign in to the clinical console</a>
+  </p>
+</main>
+
+</body>
+</html>

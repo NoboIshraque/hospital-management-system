@@ -31,9 +31,10 @@ const fmtDate = iso => {
   return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-/* '2026-10-31 22:06:02' (how the API sends a DATETIME) → '31 Oct 2026 · 22:06'. */
+/* '2026-10-31 22:06:02' (how the API sends a DATETIME), or a Date,
+   → '31 Oct 2026 · 22:06' in local time. */
 const fmtDateTime = s => {
-  const d = new Date(String(s).replace(' ', 'T'));
+  const d = s instanceof Date ? s : new Date(String(s).replace(' ', 'T'));
   if (isNaN(d)) return '—';
   return `${fmtDate(d)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };

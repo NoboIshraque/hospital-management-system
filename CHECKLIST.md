@@ -64,7 +64,7 @@ Tick an item only when it has been run and checked, not when it has been written
       (duplicate NID, slot taken, allergy conflict, wrong role) reach the user as toasts.
 - [x] **D4. Record page** — real access log, real access basis, break-glass prompt,
       referrals and lab results.
-- [ ] **D5. Print stylesheet** for the patient record; **404 page** served by Express.
+- [x] **D5. Print stylesheet** for the patient record; **404 page** served by Express.
 
 ## E. Documentation
 

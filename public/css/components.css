@@ -177,3 +177,6 @@
 [id="main"]:focus { outline: none; }
 
 ::selection { background: var(--brand-soft); color: var(--brand-ink); }
+
+/* Shown only on paper — see the print block in responsive.css. */
+.print-only { display: none; }

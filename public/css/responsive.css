@@ -73,3 +73,23 @@
 }
 
 @media (max-width: 700px) { .login-grid { grid-template-columns: 1fr; } }
+
+/* ---- print ----
+   A patient record that prints properly matters in a hospital: it goes
+   with a patient who is referred to a hospital that is not yet
+   connected. Print shows the record and nothing else — no sidebar, no
+   top bar, no buttons, no tabs — in the light theme (tokens.css limits
+   the dark theme to screens). It prints whichever tab is open. */
+@media print {
+  @page { margin: 14mm; }
+  body { background: var(--surface); font-size: 11.5pt; }
+  .rail, .topbar, .tabs, .pt-actions, .toasts, .skip-link, .scrim,
+  .btn, .gsearch, .nav, .site-strip, .site-nav { display: none !important; }
+  #app { display: block; }
+  .main, .content { padding: 0; margin: 0; max-width: none; }
+  .card, .banner { box-shadow: none; }
+  .card, .banner, .enc, .enc-card, .pt-head { break-inside: avoid; }
+  .timeline::before { display: none; }
+  .print-only { display: block; }
+  .print-foot { margin-top: 18px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 9pt; }
+}

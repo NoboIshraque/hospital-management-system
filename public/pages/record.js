@@ -128,7 +128,8 @@ function drawRecord(root, p) {
       <button data-tab="rx">Prescriptions</button>
       <button data-tab="access">Who has viewed this</button>
     </div>
-    <div id="rec-body"></div>`;
+    <div id="rec-body"></div>
+    <p class="print-only print-foot">Printed from the UHID national health record by ${esc(S.account.name)} (${esc(ROLES[S.role].label)}), ${esc(fmtDateTime(new Date()))}. Access basis: ${esc(BASIS_LABEL[access.basis] || access.basis)}. Confidential clinical information.</p>`;
 
   $('#rec-tabs').addEventListener('click', e => {
     const b = e.target.closest('[data-tab]');

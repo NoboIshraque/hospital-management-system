@@ -39,7 +39,9 @@
   --f-mono:  "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
   --f-brand: "IBM Plex Serif", Georgia, serif;
 }
-@media (prefers-color-scheme: dark) {
+/* screen only: a printed page is always the light theme, whatever the
+   system setting, so a printed record is dark ink on white paper. */
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --ground:     #0A1116;
     --surface:    #101B22;

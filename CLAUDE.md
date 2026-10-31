@@ -120,6 +120,7 @@ public/       Frontend, served as static files (also works opened straight from 
   index.html    public landing page
   login.html    sign-in
   privacy.html  data-handling statement
+  404.html      sent by Express for any unknown address; uses /-rooted paths for that reason
   favicon.svg   brand mark
   css/          tokens, base, components, shell, site, per-screen, responsive
   js/           data, seed, store, api (the fetch wrapper + online/offline switch), util, shell, auth, home
@@ -185,6 +186,12 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
 - Plain functions and a small `S` state object. No classes, no state library.
 - **`Number()` anything that goes into a `style` attribute.** `esc()` protects HTML; a style
   attribute is a second injection surface and needs its own guard.
+- **Printing is in the `@media print` block at the end of `css/responsive.css`.** It hides the
+  console chrome and prints the open tab; `tokens.css` limits the dark theme to `screen`, so
+  paper is always the light theme. `.print-only` elements (the record's "printed by" footer)
+  appear only on paper.
+- **`privacy.html` must stay true.** It states what the system stores and sends. When that
+  changes (a new cookie, a new external request), change the page in the same commit.
 - **All media queries live in `css/responsive.css`, which is linked last on every page.**
   They win on source order alone. Link it anywhere but last and the layout breaks.
 - **No controllers/ or services/ layer, on purpose.** The stored procedures are the service
@@ -317,9 +324,6 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   order through `server/db/run-sql.js`, which does the mysql client's `DELIMITER` handling
   itself — mysql2 sends one statement per query and knows nothing about delimiters.
 
-- **No print stylesheet.** A patient record that prints properly matters in a hospital
-  system. Not started.
-- **No 404 page.** Worth adding when Express starts serving the site, not before.
 - **README milestones slipped.** Its plan had the schema due 19 Sep and the API 26 Sep; on
   11 Oct 2026 the schema was done but seed data, triggers, procedures and the API were not.
   The README table states that honestly — keep it that way rather than moving the dates.
