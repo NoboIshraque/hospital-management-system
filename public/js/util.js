@@ -31,6 +31,13 @@ const fmtDate = iso => {
   return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+/* '2026-10-31 22:06:02' (how the API sends a DATETIME) → '31 Oct 2026 · 22:06'. */
+const fmtDateTime = s => {
+  const d = new Date(String(s).replace(' ', 'T'));
+  if (isNaN(d)) return '—';
+  return `${fmtDate(d)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 function ageFrom(dob) {
   const d = new Date(dob);
   if (isNaN(d)) return '—';
@@ -105,6 +112,17 @@ function showFlashes() {
 }
 
 function resetDemo() {
+  /* Online, the data lives in MySQL, and a web page must never be able to
+     wipe a database. The reset is a deliberate act on the server. */
+  if (typeof API !== 'undefined' && API.online) {
+    modal(`
+      <div class="modal-h"><h3>Reset demo data</h3><p>The data now lives in MySQL, not in this browser.</p></div>
+      <div class="modal-b">To put the database back to the sample data, stop the server and run
+        <span class="mono">npm run db:reset</span> in the <span class="mono">server</span> folder, then
+        <span class="mono">npm start</span> again. A web page is deliberately not allowed to do this.</div>
+      <div class="modal-f"><button class="btn primary" data-close>Understood</button></div>`);
+    return;
+  }
   const sc = modal(`
     <div class="modal-h"><h3>Reset demo data</h3><p>Removes every patient you registered and signs you out.</p></div>
     <div class="modal-b">The five sample patients come back, and anyone you added in this browser is discarded. Useful right before a presentation.</div>

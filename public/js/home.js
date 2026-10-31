@@ -349,6 +349,12 @@ function renderHero() {
     everywhere, and never opened silently. That is the whole system in four
     steps.</span>`;
 
+  renderStats();
+}
+
+/* The four numbers under the hero. Its own function so it can be drawn
+   again once the real counts arrive from the API (see START). */
+function renderStats() {
   const stats = [
     { n: HOSPITALS.length,   k: 'Connected hospitals', s: 'Public, private and upazila' },
     { n: DIVISIONS.length,   k: 'Divisions covered',   s: 'Every division in the country' },
@@ -556,6 +562,17 @@ renderHospitals();
 renderDoctors();
 renderFaq();
 renderRest();
+
+/* Served by Express, the hospital and doctor lists come from the
+   database. The page draws at once from the built-in copies, then
+   redraws the three sections that use them when the API has answered,
+   so a slow server never leaves the page blank. */
+API.ready.then(online => {
+  if (!online) return;
+  renderStats();
+  renderHospitals();
+  renderDoctors();
+});
 
 /* A fragment in the URL is resolved by the browser while this page
    is still an empty shell. Every section then grows as it renders,

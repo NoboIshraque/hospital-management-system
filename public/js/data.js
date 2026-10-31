@@ -1,8 +1,10 @@
 /* ============================================================
    UHID — reference data
-   Becomes lookup tables in MySQL. In week 4 this file is one of only
-   two that change: these consts become fetch('/api/hospitals') etc.
-   Nothing that renders them has to change.
+   These are the lookup tables in MySQL (database/seed.sql). When the
+   site is served by Express, js/api.js replaces HOSPITALS, DOCTORS and
+   DEPARTMENTS in place with what GET /api/hospitals etc. return, so
+   nothing that renders them changes. Opened from disk, these built-in
+   copies are used as they are.
    ============================================================ */
 
 const HOSPITALS = [
@@ -64,6 +66,18 @@ const ROLES = {
     label: 'Hospital Admin', who: 'Nasima Sultana', hospital: 1,
     blurb: 'Manages doctors, departments, schedules, wards and beds.',
     nav: [['wards','Wards &amp; beds'], ['search','Find patient'], ['book','Appointments']]
+  },
+  /* These two exist in the database (seed.sql) but had no screens in the
+     prototype. They can sign in when the site is served by Express. */
+  lab_technician: {
+    label: 'Lab Technician', who: 'Rumana Parvin', hospital: 1,
+    blurb: 'Enters lab results for the hospital.',
+    nav: [['search','Find patient'], ['wards','Wards &amp; beds']]
+  },
+  system_admin: {
+    label: 'System Admin', who: 'System Administrator', hospital: null,
+    blurb: 'National administration and audit.',
+    nav: [['search','Find patient']]
   }
 };
 

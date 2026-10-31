@@ -57,12 +57,12 @@ Tick an item only when it has been run and checked, not when it has been written
 
 ## D. Frontend wired to the API
 
-- [ ] **D1. `js/api.js`** — one `fetch` wrapper; pages load from the API when served by
+- [x] **D1. `js/api.js`** — one `fetch` wrapper; pages load from the API when served by
       Express and fall back to the built-in sample data when opened from disk.
-- [ ] **D2. Login against the server**; console pages use real data.
-- [ ] **D3. Register, book, admit, discharge** call the API; errors from the database
+- [x] **D2. Login against the server**; console pages use real data.
+- [x] **D3. Register, book, admit, discharge** call the API; errors from the database
       (duplicate NID, slot taken, allergy conflict, wrong role) reach the user as toasts.
-- [ ] **D4. Record page** — real access log, real access basis, break-glass prompt,
+- [x] **D4. Record page** — real access log, real access basis, break-glass prompt,
       referrals and lab results.
 - [ ] **D5. Print stylesheet** for the patient record; **404 page** served by Express.
 

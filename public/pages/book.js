@@ -3,13 +3,15 @@
    Availability is computed, never stored.
    ============================================================ */
 
+/* Offline only: the prototype's invented grid. Online the grid is
+   doctor_availability() — schedule, minus leave, minus bookings. */
 function buildSlots() {
   const labels = ['Mon 31 Aug', 'Tue 1 Sep', 'Wed 2 Sep'];
   const times  = ['09:00','09:20','09:40','10:00','10:20','10:40','11:00','11:20','11:40','12:00'];
   const taken  = [[1,2,5,6,9], [0,3,4], [2,7]];
   return labels.map((label, di) => ({
     label,
-    slots: times.map((time, ti) => ({ time, taken: taken[di].includes(ti) }))
+    slots: times.map((time, ti) => ({ time, start: null, taken: taken[di].includes(ti) }))
   }));
 }
 
@@ -67,7 +69,7 @@ function runDoctorFilter() {
           <span>${esc(h.name)}<br><span style="color:var(--ink-3);font-size:11.5px">${esc(h.dist)}, ${esc(h.div)} &middot; ${esc(h.tier)}</span></span>
         </div>
         <div class="doc-foot">
-          <span class="next-free">Next free &middot; <b>${nexts[i % nexts.length]}</b><br><span class="fee">&#2547;${d.fee} consultation</span></span>
+          <span class="next-free">Next free &middot; <b>${esc(API.online ? (d.nextFree || 'none in 14 days') : nexts[i % nexts.length])}</b><br><span class="fee">&#2547;${Number(d.fee)} consultation</span></span>
           <button class="btn primary sm" data-doc="${d.id}">See slots</button>
         </div>
       </div>`;
@@ -76,14 +78,22 @@ function runDoctorFilter() {
   $$('[data-doc]', out).forEach(b => b.addEventListener('click', () => openSlots(Number(b.dataset.doc))));
 }
 
-function openSlots(docId) {
+async function openSlots(docId) {
   const d = DOCTORS.find(x => x.id === docId);
   const h = hospital(d.hospitalId);
-  const days = buildSlots();
   S.doctor = d;
   S.slot = null;
 
   const root = $('#view');
+  let days;
+  if (API.online) {
+    root.innerHTML = loadingHtml(`Working out ${d.name}’s free slots for the next week.`);
+    try { days = await API.get(`/doctors/${d.id}/availability?days=7`); }
+    catch (e) { root.innerHTML = errorHtml('Availability could not be loaded', e.message); return; }
+  } else {
+    days = buildSlots();
+  }
+
   root.innerHTML = `
     <button class="btn ghost sm" id="back" style="margin-bottom:14px">&larr; Back to doctors</button>
     <div class="card pt-head" style="margin-bottom:18px">
@@ -94,7 +104,7 @@ function openSlots(docId) {
         <div class="pt-facts">
           <div><span class="k">Hospital</span>${esc(h.name)}</div>
           <div><span class="k">BMDC reg.</span><span class="mono">${esc(d.bmdc)}</span></div>
-          <div><span class="k">Fee</span><span class="mono">&#2547;${d.fee}</span></div>
+          <div><span class="k">Fee</span><span class="mono">&#2547;${Number(d.fee)}</span></div>
           <div><span class="k">Slot length</span>20 minutes</div>
         </div>
       </div>
@@ -103,13 +113,14 @@ function openSlots(docId) {
       <h2 style="font-size:16px">Choose a time</h2>
       <p>Struck-through slots are already booked. In the finished system this grid is a live query, and the booking runs inside a transaction so two patients can never take the same slot.</p>
     </div>
-    ${days.map(day => `
+    ${days.length ? days.map(day => `
       <div class="slot-day">
         <h4>${esc(day.label)} <span>${day.slots.filter(s => !s.taken).length} of ${day.slots.length} free</span></h4>
         <div class="slots">${day.slots.map(s =>
-          `<button class="slot" data-t="${esc(day.label + ' · ' + s.time)}"${s.taken ? ' disabled' : ''}>${s.time}</button>`
+          `<button class="slot" data-t="${esc(day.label + ' · ' + s.time)}" data-start="${esc(s.start || '')}"${s.taken ? ' disabled' : ''}>${esc(s.time)}</button>`
         ).join('')}</div>
-      </div>`).join('')}
+      </div>`).join('')
+    : `<div class="card empty-state"><b>No clinics in the next 7 days</b>${esc(d.name)} has no scheduled sessions here this week, or is on leave. Try another doctor.</div>`}
     <div class="form-actions" style="border:0;padding-top:4px">
       <button class="btn primary" id="confirm" disabled>Confirm appointment</button>
       <span id="picked" style="align-self:center;font-size:13px;color:var(--ink-3)">No slot selected</span>
@@ -119,8 +130,8 @@ function openSlots(docId) {
   $$('.slot', root).forEach(b => b.addEventListener('click', () => {
     $$('.slot', root).forEach(x => x.classList.remove('on'));
     b.classList.add('on');
-    S.slot = b.dataset.t;
-    $('#picked').textContent = 'Selected · ' + S.slot;
+    S.slot = { label: b.dataset.t, start: b.dataset.start };
+    $('#picked').textContent = 'Selected · ' + S.slot.label;
     $('#confirm').disabled = false;
   }));
   $('#confirm').addEventListener('click', () => confirmBooking(d, h));
@@ -140,8 +151,8 @@ function confirmBooking(d, h) {
         <dt>Doctor</dt><dd>${esc(d.name)}</dd>
         <dt>Department</dt><dd>${esc(d.dept)}</dd>
         <dt>Hospital</dt><dd>${esc(h.name)}</dd>
-        <dt>When</dt><dd>${esc(S.slot)}</dd>
-        <dt>Fee</dt><dd class="mono">&#2547;${d.fee}</dd>
+        <dt>When</dt><dd>${esc(S.slot.label)}</dd>
+        <dt>Fee</dt><dd class="mono">&#2547;${Number(d.fee)}</dd>
       </dl>
     </div>
     <div class="modal-f">
@@ -150,9 +161,23 @@ function confirmBooking(d, h) {
     </div>`);
 
   const ok = $('[data-ok]', sc);
-  if (p) ok.addEventListener('click', () => {
+  if (p) ok.addEventListener('click', async () => {
+    if (API.online) {
+      /* book_appointment() locks the doctor and re-checks the slot inside a
+         transaction. If someone else took it a moment ago, it says so, and
+         the grid is redrawn from the database. */
+      ok.disabled = true;
+      try {
+        await API.post('/appointments', { postingId: d.id, uhid: p.uhid, slotStart: S.slot.start });
+      } catch (e) {
+        sc.remove();
+        toast('Not booked', e.message, 'err');
+        if (e.status === 409) openSlots(d.id);
+        return;
+      }
+    }
     sc.remove();
-    toast('Appointment booked', S.slot + ' with ' + d.name + ' at ' + h.name + '.');
+    toast('Appointment booked', S.slot.label + ' with ' + d.name + ' at ' + h.name + '.');
     go('book');
   });
 }

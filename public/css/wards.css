@@ -41,6 +41,7 @@
 .bed.occupied { border-color: var(--crit); background: var(--crit-soft); color: var(--crit); }
 .bed.reserved { border-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
 .bed.cleaning { border-color: var(--line-2); background: var(--surface-3); color: var(--ink-3); }
+.bed.out-of-service { border-style: dashed; border-color: var(--line-2); background: var(--surface-2); color: var(--ink-3); }
 .bed-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-bottom: 14px; }
 .bed-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 11px; height: 11px; border-radius: 3px; border: 1px solid; }
@@ -48,3 +49,4 @@
 .sw.occupied { border-color: var(--crit); background: var(--crit-soft); }
 .sw.reserved { border-color: var(--warn); background: var(--warn-soft); }
 .sw.cleaning { border-color: var(--line-2); background: var(--surface-3); }
+.sw.out-of-service { border-style: dashed; border-color: var(--line-2); background: var(--surface-2); }

@@ -84,9 +84,10 @@
 }
 .banner.crit { background: var(--crit-soft); color: var(--crit); border: 1px solid currentColor; }
 .banner.ok   { background: var(--ok-soft);   color: var(--ok);   border: 1px solid currentColor; }
+.banner.info { background: var(--info-soft); color: var(--info); border: 1px solid currentColor; }
 .banner b { display: block; margin-bottom: 1px; }
 .banner .txt { color: var(--ink); }
-.banner.crit .txt, .banner.ok .txt { color: inherit; }
+.banner.crit .txt, .banner.ok .txt, .banner.info .txt { color: inherit; }
 
 .uhid {
   font-family: var(--f-mono); font-size: 13px; font-weight: 500;

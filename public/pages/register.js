@@ -35,7 +35,7 @@ function renderRegister(root) {
           <div class="row c3">
             <div><label class="label" for="f-blood">Blood group</label><select class="field" id="f-blood">${BLOODS.map(b => `<option>${b}</option>`).join('')}</select></div>
             <div><label class="label" for="f-div">Division</label><select class="field" id="f-div">${DIVISIONS.map(d => `<option>${d}</option>`).join('')}</select></div>
-            <div><label class="label" for="f-dist">District</label><input class="field" id="f-dist" placeholder="Dhaka"></div>
+            <div><label class="label" for="f-dist">District</label><input class="field" id="f-dist" placeholder="Dhaka" list="dist-list"><datalist id="dist-list"></datalist></div>
           </div>
           <div class="row"><div><label class="label" for="f-addr">Address</label><input class="field" id="f-addr" placeholder="House, road, area"></div></div>
           <div class="row c2">
@@ -61,6 +61,14 @@ function renderRegister(root) {
       </div>
     </div>`;
 
+  /* Online, the district must be one of the 64 in the database:
+     register_patient() refuses anything else. Offer them as suggestions. */
+  if (API.online) {
+    API.get('/districts')
+      .then(list => { $('#dist-list').innerHTML = list.map(d => `<option value="${esc(d.district)}">${esc(d.div)}</option>`).join(''); })
+      .catch(() => { /* suggestions are a convenience; typing still works */ });
+  }
+
   ['f-nid','f-name','f-dob','f-phone'].forEach(id => $('#' + id).addEventListener('input', runMatch));
   $('#clear-btn').addEventListener('click', () => { $('#reg-form').reset(); runMatch(); });
   $('#reg-form').addEventListener('submit', submitRegistration);
@@ -81,7 +89,7 @@ function currentMatches() {
     if (nid && p.nid && p.nid === nid)                            score += 100;
     if (name.length > 2 && p.name.toLowerCase().includes(name))   score += 40;
     if (dob && p.dob === dob)                                     score += 35;
-    if (phone.length > 4 && p.phone.replace(/\D/g, '') === phone) score += 45;
+    if (phone.length > 4 && (p.phone || '').replace(/\D/g, '') === phone) score += 45;
     return { p, score };
   }).filter(m => m.score >= 35).sort((a, b) => b.score - a.score);
 }
@@ -132,7 +140,7 @@ function issueUhid() {
   return `BD-${year}-${serial}-${uhidCheckDigit(serial)}`;
 }
 
-function submitRegistration(e) {
+async function submitRegistration(e) {
   e.preventDefault();
 
   const v = id => $('#' + id).value.trim();
@@ -148,7 +156,46 @@ function submitRegistration(e) {
     return;
   }
 
-  const patient = {
+  let patient;
+  if (API.online) {
+    /* The server issues the UHID: register_patient() takes the next serial
+       under a lock, so no browser ever invents one. 'Salma Rahim (wife)'
+       is split into the name and relationship columns. */
+    const kin = v('f-kin').match(/^(.*?)\s*\((.+)\)\s*$/);
+    const btn = $('#reg-form button[type=submit]');
+    btn.disabled = true;
+    try {
+      patient = await API.post('/patients', {
+        name, dob, nid,
+        sex: $('#f-sex').value,
+        blood: $('#f-blood').value,
+        phone: v('f-phone'),
+        district: v('f-dist'),
+        address: v('f-addr'),
+        kinName: kin ? kin[1] : v('f-kin'),
+        kinRelation: kin ? kin[2] : '',
+        kinPhone: v('f-kinphone'),
+        allergies: v('f-allergy') ? v('f-allergy').split(',').map(x => x.trim()).filter(Boolean) : []
+      });
+    } catch (err) {
+      toast('Not registered', err.message, 'err');
+      return;
+    } finally {
+      btn.disabled = false;
+    }
+    store.add(patient);
+  } else {
+    patient = offlinePatient(v, name, dob, nid);
+    store.add(patient);
+  }
+  S.patient = patient;
+  showIssued(patient);
+}
+
+/* Offline only: the prototype's stand-in, which invents a UHID in the
+   browser. Online the database issues it. */
+function offlinePatient(v, name, dob, nid) {
+  return {
     uhid: issueUhid(),
     name,
     dob,
@@ -160,7 +207,7 @@ function submitRegistration(e) {
     address:  v('f-addr') || '—',
     kin:      v('f-kin') ? v('f-kin') + (v('f-kinphone') ? ' · ' + v('f-kinphone') : '') : '—',
     registeredAt: new Date().toISOString().slice(0, 10),
-    registeredHospitalId: ROLES[S.role].hospital || 1,
+    registeredHospitalId: S.account.hospitalId || 1,
     identityVerified: Boolean(nid),
     allergies: v('f-allergy')
       ? v('f-allergy').split(',').map(s => s.trim()).filter(Boolean)
@@ -168,10 +215,9 @@ function submitRegistration(e) {
       : [],
     encounters: []
   };
+}
 
-  store.add(patient);
-  S.patient = patient;
-
+function showIssued(patient) {
   const sc = modal(`
     <div class="modal-h">
       <h3>UHID issued</h3>

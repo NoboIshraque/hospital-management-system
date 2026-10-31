@@ -1,11 +1,12 @@
 /* ============================================================
    UHID — sign in
-   index.html only.
+   login.html only.
 
-   These credentials are checked in JavaScript the user can read.
-   That is a prototype stand-in and nothing else: in week 4 the
-   accounts live in `user_account`, the password is a bcrypt hash,
-   and the check happens on the SERVER. Say so if anyone asks.
+   Served by Express, the password is checked on the SERVER against
+   the bcrypt hash in user_account (POST /api/login). Opened from
+   disk there is no server, so the four demo accounts in js/data.js
+   are checked here in JavaScript the user can read: a stand-in for
+   offline use only, and you should say so if anyone asks.
    ============================================================ */
 
 /* Where each role lands after signing in — the first item of its
@@ -16,11 +17,22 @@ function enterApp(role) {
 
 /* Already signed in? Go straight through, as a reload did before.
    replace() rather than href so the back button does not bounce
-   the user off the screen they just landed on. */
-const existing = session.get();
-if (existing && ROLES[existing.role]) {
-  location.replace('pages/' + ROLES[existing.role].nav[0][0] + '.html');
-}
+   the user off the screen they just landed on. Online, "signed in"
+   means the server still has a session for this browser. */
+API.ready.then(async online => {
+  if (online) {
+    try {
+      const me = await API.get('/me');
+      session.set(me.role);
+      location.replace('pages/' + ROLES[me.role].nav[0][0] + '.html');
+    } catch (e) { session.clear(); }
+    return;
+  }
+  const existing = session.get();
+  if (existing && ROLES[existing.role]) {
+    location.replace('pages/' + ROLES[existing.role].nav[0][0] + '.html');
+  }
+});
 
 $('#demo-list').innerHTML = ACCOUNTS.map(a => {
   const r = ROLES[a.role];
@@ -48,30 +60,40 @@ $('#pw-toggle').addEventListener('click', () => {
   $('#pw-toggle').textContent = showing ? 'show' : 'hide';
 });
 
-$('#login-form').addEventListener('submit', e => {
+$('#login-form').addEventListener('submit', async e => {
   e.preventDefault();
   const user = $('#l-user').value.trim().toLowerCase();
   const pass = $('#l-pass').value;
   const err  = $('#login-err');
+  const fail = msg => { err.textContent = msg; err.hidden = false; $('#l-pass').value = ''; };
 
   if (!user || !pass) {
     err.textContent = 'Enter both a username and a password.';
     err.hidden = false;
     return;
   }
-  const match = ACCOUNTS.find(a => a.user === user && a.pass === pass);
-  if (!match) {
-    err.textContent = 'No account matches those details. Check the demo accounts on the right.';
-    err.hidden = false;
-    $('#l-pass').value = '';
-    return;
+
+  let role;
+  if (await API.ready) {
+    /* The real check: the server compares the password with the bcrypt
+       hash in user_account and starts a session. */
+    try {
+      role = (await API.post('/login', { username: user, password: pass })).role;
+    } catch (ex) {
+      fail(ex.status === 401 ? 'No account matches those details. Check the demo accounts on the right.' : ex.message);
+      return;
+    }
+  } else {
+    const match = ACCOUNTS.find(a => a.user === user && a.pass === pass);
+    if (!match) { fail('No account matches those details. Check the demo accounts on the right.'); return; }
+    role = match.role;
   }
   err.hidden = true;
   $('#login-form').reset();
   $('#pw-toggle').textContent = 'show';
   $('#l-pass').type = 'password';
-  session.set(match.role);
-  enterApp(match.role);
+  session.set(role);
+  enterApp(role);
 });
 
 $('#reset-demo').addEventListener('click', resetDemo);

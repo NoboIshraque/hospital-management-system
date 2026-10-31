@@ -27,7 +27,7 @@ function runSearch() {
   const hits = q.length < 2 ? all : all.filter(p =>
     p.name.toLowerCase().includes(q) ||
     p.uhid.toLowerCase().includes(q) ||
-    (digits.length > 2 && p.phone.replace(/\D/g, '').includes(digits)) ||
+    (digits.length > 2 && (p.phone || '').replace(/\D/g, '').includes(digits)) ||
     (digits.length > 2 && p.nid && p.nid.includes(digits))
   );
 
@@ -54,7 +54,7 @@ function runSearch() {
         <div class="doc-foot">
           <span class="next-free">
             <span class="mono">${esc(p.phone)}</span><br>
-            <span style="font-size:11.5px;color:var(--ink-3)">${p.encounters.length} encounter${p.encounters.length === 1 ? '' : 's'}</span>
+            <span style="font-size:11.5px;color:var(--ink-3)">${encounterCount(p)} encounter${encounterCount(p) === 1 ? '' : 's'}</span>
           </span>
           <button class="btn sm primary" data-open="${esc(p.uhid)}">Open record</button>
         </div>
@@ -62,5 +62,10 @@ function runSearch() {
 
   $$('[data-open]', out).forEach(b => b.addEventListener('click', () => openPatient(b.dataset.open)));
 }
+
+/* Online, the search list carries a count from v_patient_directory but
+   not the encounters themselves: those are clinical, and reading them
+   is a logged act (get_patient_record), not something a search does. */
+const encounterCount = p => p.encounterCount ?? (p.encounters ? p.encounters.length : 0);
 
 boot(renderSearch);

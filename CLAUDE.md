@@ -54,16 +54,26 @@ looked only on `PATH`, missed XAMPP, and logged "no database" for two weeks.
 **Static HTML pages that call a REST API with `fetch()`, served as static files by Express.**
 Not EJS, not server-side rendering.
 
-Why: the frontend had to be built *before* the backend existed. **Today no page calls
-`fetch()`.** The pages read JavaScript constants — reference data in `js/data.js`, patients
-in `js/seed.js` — through `js/store.js`, which persists changes to localStorage. `mock/` is
-empty and nothing reads it. When the Express API lands, those constants become
-`fetch('/api/…')` calls (the header of `js/data.js` says so) and the code that renders them
-does not change.
+Why: the frontend had to be built *before* the backend existed, so the pages first ran on
+JavaScript constants. **Since 31 Oct 2026 they run on the API**, in two modes chosen by
+`js/api.js` at page load:
 
-**The consequence that matters:** the objects in `js/data.js` and `js/seed.js` must have
-exactly the shape the real API will return — they *are* the API contract until the API
-exists. If you invent a different shape per screen, wiring up the API becomes a rewrite.
+- **Served by Express** (`npm start` → http://localhost:3000): `API.ready` resolves `true`.
+  `HOSPITALS`, `DOCTORS` and `DEPARTMENTS` are replaced *in place* (array splice) with what
+  `/api/hospitals` etc. return; the shell asks `GET /api/me` for the session (401 → login);
+  `store.all()` returns `API.patients` from `GET /api/patients`; every write goes to an
+  endpoint. Opening a record is `GET /api/patients/:uhid`, a logged read.
+- **Opened from disk** (`file://`) or with no API behind it: `API.ready` resolves `false`, and
+  the pages use `js/data.js`, `js/seed.js` and localStorage exactly as the prototype did. This
+  is what lets the frontend be shown without MySQL running. Keep it working.
+
+`shell.js` start-up is therefore asynchronous: `SHELL_READY` is a promise, and `boot(render)`
+waits for it. Every screen renders inside `boot`, never at the top level of its script.
+
+**The consequence that matters:** the API returns exactly the shapes `js/data.js` and
+`js/seed.js` use (plus extra fields such as `encounterCount`, `labs[]`, `accessLog[]`), so the
+same rendering code serves both modes. A new field is additive; renaming one breaks the
+offline mode silently. `mock/` is empty and nothing reads it.
 
 ### The site has two halves
 
@@ -112,7 +122,7 @@ public/       Frontend, served as static files (also works opened straight from 
   privacy.html  data-handling statement
   favicon.svg   brand mark
   css/          tokens, base, components, shell, site, per-screen, responsive
-  js/           data, seed, store, util, shell, auth, home
+  js/           data, seed, store, api (the fetch wrapper + online/offline switch), util, shell, auth, home
   pages/        the clinical console — one .html + one .js per screen
 mock/         empty — the pages read js/data.js and js/seed.js instead (see Architecture)
 prototype/    uhid-prototype.html — single-file working prototype (see below)
@@ -272,7 +282,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | | |
 |---|---|
 | Frontend prototype | Built (single file) |
-| Console split into `public/` | Done — 5 screens, shared shell. Runs on in-browser data (`js/data.js`, `js/seed.js`, localStorage); no API calls yet |
+| Console split into `public/` | Done — 5 screens, shared shell. Wired to the API 31 Oct 2026 (25-step browser test passed, no JS errors); still runs on sample data when opened from disk |
 | Public landing page | Done — nav, dropdown, hero, services, hospitals, doctors, FAQ, footer |
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |

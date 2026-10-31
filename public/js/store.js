@@ -15,8 +15,13 @@ const SESSION_KEY = 'uhid.session.v1';
 const WARD_KEY    = 'uhid.wards.v2';
 const FLASH_KEY   = 'uhid.flash.v1';
 
+/* Online (served by Express), the patient list is the national register
+   the shell fetched from GET /api/patients into API.patients, and
+   localStorage is not used for patients at all. Offline, it is the
+   seed plus anything registered in this browser, as before. */
 const store = {
   all() {
+    if (API.online) return API.patients;
     try {
       const raw = localStorage.getItem(PATIENT_KEY);
       if (raw) {
@@ -31,6 +36,7 @@ const store = {
     catch (e) { toast('Not saved', 'This browser is blocking local storage, so new patients will not survive a refresh.', 'err'); }
   },
   add(patient) {
+    if (API.online) { API.patients.unshift(patient); return patient; }
     const list = store.all();
     list.unshift(patient);
     store.write(list);
@@ -48,6 +54,9 @@ const store = {
   }
 };
 
+/* Offline, this IS the session. Online, the server's session cookie is
+   the real one and this is only a hint for the landing page's "Open
+   console" button; the console asks GET /api/me on every page load. */
 const session = {
   get() {
     try { const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; }

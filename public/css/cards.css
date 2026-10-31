@@ -14,6 +14,7 @@
   font-size: 19px; font-weight: 600;
 }
 .pt-id { flex: 1; min-width: 220px; }
+.pt-actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
 .pt-id h2 { margin: 0 0 3px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
 
 .pt-facts { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 9px; font-size: 12.5px; }
