@@ -268,13 +268,11 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 
 - **Work now follows `CHECKLIST.md`** (written 31 Oct 2026, target 7 Nov 2026). It is a
   three-person team: Nobo, Abir and Noria. Learning guides for each go in `docs/guides/`.
-- **MySQL 8.4 is no longer installed on the author's laptop** (found 31 Oct 2026: no
-  `MySQL84` service, no install folder; XAMPP is at `F:\XAMPP`, MariaDB 10.4 — unusable).
-  The 31 Oct work was tested on a portable MySQL 8.4.6 in a temp folder. Reinstall MySQL 8.4
-  before the demo.
-- **`npm run db:reset` is referenced in the SQL headers but does not exist yet** — it is
-  checklist item A9. Until then load the files in order with the mysql client: schema,
-  triggers, procedures, views, seed. `server/package.json` is uncommitted work in progress.
+- **MySQL 8.4 was reinstalled on 31 Oct 2026: 8.4.13**, service on 127.0.0.1:3306. The root
+  password is in `server/.env` (git-ignored); code reads it from there and never prints it.
+- **Rebuild the database with `npm run db:reset` in `server/`.** It runs `database/*.sql` in
+  order through `server/db/run-sql.js`, which does the mysql client's `DELIMITER` handling
+  itself — mysql2 sends one statement per query and knows nothing about delimiters.
 
 - **No print stylesheet.** A patient record that prints properly matters in a hospital
   system. Not started.

@@ -1,0 +1,22 @@
+{
+  "name": "uhid-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Express API for the UHID National Hospital Management System",
+  "main": "app.js",
+  "type": "commonjs",
+  "scripts": {
+    "db:reset": "node db/reset.js",
+    "db:run": "node db/run-sql.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.3",
+    "express-session": "^1.19.0",
+    "mysql2": "^3.24.6"
+  }
+}

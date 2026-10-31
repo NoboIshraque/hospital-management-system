@@ -32,7 +32,7 @@ Tick an item only when it has been run and checked, not when it has been written
       window functions, CTEs, each answering a question the system should answer.
 - [ ] **A8. `tests.sql`** — a re-runnable script proving every constraint, trigger and
       procedure rejects what it must and accepts what it should.
-- [ ] **A9. One-command rebuild** — `npm run db:reset` runs all of the above in order.
+- [x] **A9. One-command rebuild** — `npm run db:reset` runs all of the above in order.
 
 ## B. Backend (Express API)
 
