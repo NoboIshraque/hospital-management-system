@@ -30,7 +30,7 @@ Tick an item only when it has been run and checked, not when it has been written
       `SELECT` on views and lookup tables, nothing on the clinical tables directly.
 - [x] **A7. `queries.sql`** — the demonstration queries: joins, aggregates, subqueries,
       window functions, CTEs, each answering a question the system should answer.
-- [ ] **A8. `tests.sql`** — a re-runnable script proving every constraint, trigger and
+- [x] **A8. `tests.sql`** — a re-runnable script proving every constraint, trigger and
       procedure rejects what it must and accepts what it should.
 - [x] **A9. One-command rebuild** — `npm run db:reset` runs all of the above in order.
 

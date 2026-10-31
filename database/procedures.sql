@@ -1042,6 +1042,8 @@ CREATE PROCEDURE transfer_patient(
   IN p_bed_no       VARCHAR(12)
 )
 BEGIN
+  DECLARE v_at DATETIME;
+
   DECLARE EXIT HANDLER FOR SQLEXCEPTION
   BEGIN
     ROLLBACK;
@@ -1051,16 +1053,27 @@ BEGIN
   CALL require_permission(p_account_id, 'bed.transfer');
 
   START TRANSACTION;
+
+  -- The moment of the move. Normally NOW(); but ck_occupancy_dates needs the
+  -- old stay to end strictly after it began, and DATETIME has one-second
+  -- precision, so a transfer in the same second as the admission would be
+  -- refused. GREATEST() moves it to one second after the stay began. (Found
+  -- by tests.sql: admit-then-transfer within a second failed the CHECK.)
+  SELECT GREATEST(NOW(), from_at + INTERVAL 1 SECOND) INTO v_at
+    FROM bed_occupancy
+   WHERE admission_id = p_admission_id AND to_at IS NULL
+     FOR UPDATE;
+  IF v_at IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That admission has no current bed to transfer from.';
+  END IF;
+
   -- Close first, then open: trg_bed_occupancy_bi refuses a second open row,
   -- so the order matters. If the new bed is not free, the close is rolled
   -- back with it and the patient stays where they were.
-  UPDATE bed_occupancy SET to_at = NOW()
+  UPDATE bed_occupancy SET to_at = v_at
    WHERE admission_id = p_admission_id AND to_at IS NULL;
-  IF ROW_COUNT() = 0 THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That admission has no current bed to transfer from.';
-  END IF;
   INSERT INTO bed_occupancy (admission_id, ward_id, bed_no, from_at)
-  VALUES (p_admission_id, p_ward_id, p_bed_no, NOW() + INTERVAL 1 SECOND);
+  VALUES (p_admission_id, p_ward_id, p_bed_no, v_at);
   COMMIT;
 END $$
 

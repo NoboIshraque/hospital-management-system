@@ -97,7 +97,7 @@ database/     schema.sql (40 tables) → triggers.sql → procedures.sql → vie
               → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
               queries.sql — 20 demonstration queries (joins, ROLLUP, window functions, CTEs,
               INTERSECT), each tied to a design decision; run as root, not uhid_app
-              planned: tests.sql
+              tests.sql — 64 tests of constraints, triggers and procedures (npm run db:test)
 server/       db/run-sql.js + db/reset.js (npm run db:reset), .env.example
               practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
               planned: the Express API — routes/ controllers/ services/ are still empty
@@ -172,6 +172,11 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
   attribute is a second injection surface and needs its own guard.
 - **All media queries live in `css/responsive.css`, which is linked last on every page.**
   They win on source order alone. Link it anywhere but last and the layout breaks.
+- **Run `npm run db:test` (in `server/`) before committing any change in `database/`.** It
+  rebuilds, runs `database/tests.sql`, and rebuilds again; it exits non-zero if any test fails.
+  A new rule in a trigger or procedure gets a test that proves it refuses what it should, with the
+  exact error number. On 31 Oct 2026 the suite caught a real bug: `transfer_patient()` violated
+  `ck_occupancy_dates` when called in the same second as the admission.
 - **Cardinality now lives in three places and they must agree:** `docs/er-design.md` §4,
   `docs/er-diagrams/uhid-er-chen-boxed.drawio`, and `docs/er-diagrams/uhid-er.drawio`. The
   crow's-foot file used to be generated from the document's mermaid blocks, but those blocks

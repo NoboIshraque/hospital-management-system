@@ -7,7 +7,8 @@
   "type": "commonjs",
   "scripts": {
     "db:reset": "node db/reset.js",
-    "db:run": "node db/run-sql.js"
+    "db:run": "node db/run-sql.js",
+    "db:test": "node db/reset.js && node db/run-sql.js ../database/tests.sql && node db/reset.js"
   },
   "engines": {
     "node": ">=20"
