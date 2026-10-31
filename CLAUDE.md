@@ -88,9 +88,12 @@ docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
               er-diagrams/uhid-er-chen-boxed.drawio (Chen, the one to hand in),
               er-diagrams/uhid-er-chen.drawio (Chen, ellipse styling),
               er-diagrams/uhid-er.drawio (crow's foot, logical)
-              planned: use cases, data-dictionary.md, normalization.md
-database/     schema.sql (phase 1, 32 tables, verified on MySQL 8.4)
-              planned: seed.sql, triggers.sql, procedures.sql, views.sql, queries.sql
+              use-cases.md (17 use cases, each mapped to its procedure/trigger/view),
+              data-dictionary.md (all 40 tables, generated from schema.sql),
+              normalization.md (1NF → BCNF worked examples, and every deliberate redundancy)
+database/     schema.sql (40 tables) → triggers.sql → procedures.sql → views.sql → seed.sql,
+              loaded in that order
+              planned: grants.sql, queries.sql, tests.sql
 server/       planned: Express app — routes/ controllers/ services/ db/ are empty
 public/       Frontend, served as static files (also works opened straight from disk)
   index.html    public landing page
@@ -253,13 +256,13 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Public landing page | Done — nav, dropdown, hero, services, hospitals, doctors, FAQ, footer |
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |
-| Use cases | Not started |
+| Use cases | Done — `docs/use-cases.md` |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. `er-design.md` §4 is Chen too |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
 | **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (27 + 4 functions), views (8), seed — all built and loaded together on MySQL 8.4.6, 31 Oct 2026. Not yet written: grants.sql, queries.sql, tests.sql. Follow `CHECKLIST.md`** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
 | Express API | Not started — Node.js is installed, `server/` folders are empty |
-| Data dictionary, normalization write-up | Not started — `er-design.md` §9 items 4 and 5 |
+| Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
 
 ## Open items — do not lose these
 

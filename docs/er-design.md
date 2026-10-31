@@ -815,9 +815,7 @@ the constraints reject what §4 says they must. The next thing to build is `data
 1. ~~Fix the check digits in `js/seed.js`~~ — done 11 Oct 2026.
 2. ~~Draw the submitted ER diagram from §4~~ — done 27 Sep 2026, `docs/er-diagrams/`.
 3. ~~Write `database/schema.sql` for phase 1~~ — done 27 Sep 2026.
-4. Write `docs/data-dictionary.md` — every column, type, null, default, constraint. Derived
-   from this document; it is the long one, and largely mechanical once this one is agreed.
-5. Write `docs/normalization.md` — 1NF → 3NF using §6.2 as the worked examples, plus the two
-   stated denormalizations (`bed.status`, `appointment.doctor_id`) with their reasons.
+4. ~~Write `docs/data-dictionary.md`~~ — done 31 Oct 2026.
+5. ~~Write `docs/normalization.md`~~ — done 31 Oct 2026.
 6. Build the rest of phase 1 in the order given at the end of §7, starting with
    `database/seed.sql`.
