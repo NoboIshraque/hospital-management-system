@@ -95,7 +95,9 @@ docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
 database/     schema.sql (40 tables) → triggers.sql → procedures.sql → views.sql → seed.sql,
               loaded in that order
               → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
-              planned: queries.sql, tests.sql
+              queries.sql — 20 demonstration queries (joins, ROLLUP, window functions, CTEs,
+              INTERSECT), each tied to a design decision; run as root, not uhid_app
+              planned: tests.sql
 server/       db/run-sql.js + db/reset.js (npm run db:reset), .env.example
               practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
               planned: the Express API — routes/ controllers/ services/ are still empty

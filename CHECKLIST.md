@@ -28,7 +28,7 @@ Tick an item only when it has been run and checked, not when it has been written
       vitals, referrals, consent grants.
 - [x] **A6. `grants.sql`** — the least-privilege application user: `EXECUTE` on procedures,
       `SELECT` on views and lookup tables, nothing on the clinical tables directly.
-- [ ] **A7. `queries.sql`** — the demonstration queries: joins, aggregates, subqueries,
+- [x] **A7. `queries.sql`** — the demonstration queries: joins, aggregates, subqueries,
       window functions, CTEs, each answering a question the system should answer.
 - [ ] **A8. `tests.sql`** — a re-runnable script proving every constraint, trigger and
       procedure rejects what it must and accepts what it should.
