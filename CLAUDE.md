@@ -256,14 +256,22 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Use cases | Not started |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. `er-design.md` §4 is Chen too |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/schema.sql`** | **Phase 1 — 32 tables. Verified on MySQL 8.4.9 on 11 Oct 2026: runs unmodified with no warnings, 19 CHECKs and 54 FKs present, and 33 constraint tests (UHID, NID, double-booking, access log, prescriptions) all behave as designed** |
+| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (27 + 4 functions), views (8), seed — all built and loaded together on MySQL 8.4.6, 31 Oct 2026. Not yet written: grants.sql, queries.sql, tests.sql. Follow `CHECKLIST.md`** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
-| `seed.sql` | **Next.** Not started, and no longer blocked — the seed UHIDs were corrected 11 Oct 2026 |
-| triggers.sql / procedures.sql | Not started — 7 deferred constraints listed at the foot of schema.sql |
 | Express API | Not started — Node.js is installed, `server/` folders are empty |
 | Data dictionary, normalization write-up | Not started — `er-design.md` §9 items 4 and 5 |
 
 ## Open items — do not lose these
+
+- **Work now follows `CHECKLIST.md`** (written 31 Oct 2026, target 7 Nov 2026). It is a
+  three-person team: Nobo, Abir and Noria. Learning guides for each go in `docs/guides/`.
+- **MySQL 8.4 is no longer installed on the author's laptop** (found 31 Oct 2026: no
+  `MySQL84` service, no install folder; XAMPP is at `F:\XAMPP`, MariaDB 10.4 — unusable).
+  The 31 Oct work was tested on a portable MySQL 8.4.6 in a temp folder. Reinstall MySQL 8.4
+  before the demo.
+- **`npm run db:reset` is referenced in the SQL headers but does not exist yet** — it is
+  checklist item A9. Until then load the files in order with the mysql client: schema,
+  triggers, procedures, views, seed. `server/package.json` is uncommitted work in progress.
 
 - **No print stylesheet.** A patient record that prints properly matters in a hospital
   system. Not started.

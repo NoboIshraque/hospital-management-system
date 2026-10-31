@@ -1,18 +1,22 @@
 -- =====================================================================
--- UHID National Hospital Management System — schema, phase 1
+-- UHID National Hospital Management System — schema
 -- Nobo Ishraque · Dept. of ICT, Bangladesh University of Professionals
 --
 -- Derived from docs/er-design.md. That document is the authority: if this
 -- file and it disagree, the document is right and this file is a bug.
 --
 -- Phase 1 = the 32 tables the five existing screens need (er-design.md §7).
--- Phase 2 tables (lab_*, referral, consent_grant, patient_merge,
--- encounter_vitals) are listed at the foot of this file, not created here.
+-- Phase 2 = section 9: labs, vitals, referral, consent, merge — the tables
+-- that carry decisions 2, 5 and 6 — plus uhid_sequence, the locked counter
+-- that UHID serials are issued from.
 --
 -- Triggers, stored procedures and views are NOT in this file. They live in
 -- database/triggers.sql, procedures.sql and views.sql. The constraints that
--- could not be expressed as CHECK are listed under "Deferred to triggers.sql"
--- at the foot of this file — read that list, it is part of the design.
+-- could not be expressed as CHECK are listed at the foot of this file with
+-- where each one is now enforced — read that list, it is part of the design.
+--
+-- Build order: schema → triggers → procedures → views → seed → grants.
+-- `npm run db:reset` (in server/) runs all six in that order.
 --
 -- Requires MySQL 8.0.16 or later: CHECK constraints are parsed but silently
 -- ignored before 8.0.16, which would let bad UHIDs in without complaint.
@@ -290,6 +294,15 @@ CREATE TABLE user_account (
   account_id    INT UNSIGNED      NOT NULL AUTO_INCREMENT,
   username      VARCHAR(40)       NOT NULL,
   password_hash CHAR(60)          NOT NULL,   -- bcrypt, verified on the SERVER
+
+  -- Only for roles with no patient or doctor row to take a name from:
+  -- receptionist, hospital admin, lab technician, system admin. A patient's
+  -- or doctor's name is NOT copied here — it lives on their own row, and a
+  -- copy would be a transitive dependency (account → patient → name) that
+  -- could disagree with the original. trg_user_account_bi enforces which
+  -- roles must have it and which must not.
+  staff_name    VARCHAR(100)      NULL,
+
   role_id       TINYINT UNSIGNED  NOT NULL,
   hospital_id   SMALLINT UNSIGNED NULL,
   patient_id    INT UNSIGNED      NULL,
@@ -408,9 +421,16 @@ CREATE TABLE medicine (
   brand_name   VARCHAR(100)       NULL,
   form         VARCHAR(30)        NOT NULL,   -- tablet, capsule, syrup, cream
   strength     VARCHAR(30)        NOT NULL,   -- '5 mg', '500 mg', '1%'
+
+  -- Matches allergen.class. This one column is what lets the database refuse
+  -- Amoxicillin to a patient whose allergy says Penicillin — two different
+  -- names, one class. trg_prescription_item_bi in triggers.sql reads it.
+  drug_class   VARCHAR(60)        NULL,
+
   PRIMARY KEY (medicine_id),
   UNIQUE KEY uq_medicine (generic_name, form, strength),
-  KEY ix_medicine_generic (generic_name)
+  KEY ix_medicine_generic (generic_name),
+  KEY ix_medicine_class (drug_class)
 ) ENGINE = InnoDB;
 
 -- One prescription per encounter (§8, decision 2). A doctor who changes
@@ -553,11 +573,25 @@ CREATE TABLE appointment (
   booked_by      INT UNSIGNED       NOT NULL,
   booked_at      DATETIME           NOT NULL DEFAULT CURRENT_TIMESTAMP,
   encounter_id   INT UNSIGNED       NULL,   -- NULL until the patient attends
+
+  -- slot_start for a live booking, NULL for a cancelled one. Computed by
+  -- MySQL from the two columns above; nothing ever writes it.
+  active_slot    DATETIME GENERATED ALWAYS AS
+                   (CASE WHEN status <> 'cancelled' THEN slot_start END) VIRTUAL,
+
   PRIMARY KEY (appointment_id),
 
   -- Decision 4. Two patients cannot take one slot, and the database says so
   -- rather than the application hoping so.
-  UNIQUE KEY uq_doctor_slot (doctor_id, slot_start),
+  --
+  -- On active_slot, not slot_start: a UNIQUE on slot_start would count
+  -- cancelled rows too, and a slot somebody cancelled could never be booked
+  -- again. A cancelled row's active_slot is NULL, and NULLs never collide in
+  -- a unique index — the same reason patient.nid can be NULL for many
+  -- patients. (The first version of this file had UNIQUE(doctor_id,
+  -- slot_start); writing book_appointment() exposed the problem.)
+  UNIQUE KEY uq_doctor_slot (doctor_id, active_slot),
+  KEY ix_appointment_doctor_time (doctor_id, slot_start),
 
   UNIQUE KEY uq_appointment_encounter (encounter_id),
   KEY ix_appointment_patient (patient_id, slot_start DESC),
@@ -760,46 +794,255 @@ CREATE TABLE access_log (
 
 
 -- =====================================================================
--- DEFERRED TO triggers.sql / procedures.sql
+-- 9. PHASE 2 — LABS, VITALS, REFERRAL, CONSENT, MERGE
+--                                         (er-design.md §4.3, §4.5, §7)
+-- =====================================================================
+
+-- The UHID serial counter. One row per year. register_patient() takes this
+-- row with SELECT ... FOR UPDATE, so two receptionists registering at the
+-- same instant queue on it and can never be handed the same serial.
+-- Why not MAX(serial) + 1 over patient? Because that reads a range of an
+-- index other sessions are inserting into; the counter is one row, one lock.
+CREATE TABLE uhid_sequence (
+  year         SMALLINT UNSIGNED  NOT NULL,
+  last_serial  MEDIUMINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (year),
+  -- Five digits in the format: 99,999 registrations per year, nationally.
+  -- A real national system would need a wider serial; the format is the
+  -- project's, and this CHECK turns its limit into an error, not a wrap.
+  CONSTRAINT ck_sequence_serial CHECK (last_serial <= 99999),
+  CONSTRAINT ck_sequence_year   CHECK (year BETWEEN 2000 AND 2099)
+) ENGINE = InnoDB;
+
+-- Weak entity: a blood pressure is meaningless without the visit it was
+-- taken at, so the identity is (encounter_id, recorded_at). er-design.md §6.1.
+CREATE TABLE encounter_vitals (
+  encounter_id  INT UNSIGNED      NOT NULL,
+  recorded_at   DATETIME          NOT NULL,
+  bp_systolic   SMALLINT UNSIGNED NULL,
+  bp_diastolic  SMALLINT UNSIGNED NULL,
+  pulse         SMALLINT UNSIGNED NULL,
+  temp_c        DECIMAL(4,1)      NULL,
+  spo2          TINYINT UNSIGNED  NULL,
+  weight_kg     DECIMAL(5,1)      NULL,
+  height_cm     DECIMAL(4,1)      NULL,
+  recorded_by   INT UNSIGNED      NOT NULL,
+  PRIMARY KEY (encounter_id, recorded_at),
+  KEY ix_vitals_by (recorded_by),
+  CONSTRAINT fk_vitals_encounter FOREIGN KEY (encounter_id)
+    REFERENCES encounter (encounter_id) ON DELETE CASCADE,
+  CONSTRAINT fk_vitals_by FOREIGN KEY (recorded_by)
+    REFERENCES user_account (account_id) ON DELETE RESTRICT,
+  -- Plausibility, not diagnosis: wide enough for any living patient, narrow
+  -- enough to catch a value typed into the wrong box.
+  CONSTRAINT ck_vitals_bp CHECK (
+    (bp_systolic IS NULL AND bp_diastolic IS NULL)
+    OR (bp_systolic BETWEEN 40 AND 300 AND bp_diastolic BETWEEN 20 AND 200
+        AND bp_systolic > bp_diastolic)
+  ),
+  CONSTRAINT ck_vitals_pulse  CHECK (pulse     IS NULL OR pulse     BETWEEN 20 AND 250),
+  CONSTRAINT ck_vitals_temp   CHECK (temp_c    IS NULL OR temp_c    BETWEEN 30.0 AND 45.0),
+  CONSTRAINT ck_vitals_spo2   CHECK (spo2      IS NULL OR spo2      BETWEEN 50 AND 100),
+  CONSTRAINT ck_vitals_weight CHECK (weight_kg IS NULL OR weight_kg BETWEEN 0.3 AND 350),
+  CONSTRAINT ck_vitals_height CHECK (height_cm IS NULL OR height_cm BETWEEN 20 AND 250)
+) ENGINE = InnoDB;
+
+CREATE TABLE lab_test (
+  test_id   SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name      VARCHAR(80)       NOT NULL,   -- 'Haemoglobin', 'Serum creatinine'
+  specimen  VARCHAR(30)       NOT NULL,   -- 'Blood', 'Urine'
+  unit      VARCHAR(20)       NULL,       -- 'g/dL'; NULL for a text result
+  ref_low   DECIMAL(10,2)     NULL,
+  ref_high  DECIMAL(10,2)     NULL,
+  PRIMARY KEY (test_id),
+  UNIQUE KEY uq_lab_test_name (name),
+  CONSTRAINT ck_lab_test_range CHECK (
+    ref_low IS NULL OR ref_high IS NULL OR ref_high >= ref_low
+  )
+) ENGINE = InnoDB;
+
+CREATE TABLE lab_order (
+  order_id     INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+  encounter_id INT UNSIGNED      NOT NULL,
+  test_id      SMALLINT UNSIGNED NOT NULL,
+  ordered_by   INT UNSIGNED      NOT NULL,
+  ordered_at   DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status       ENUM('ordered','collected','reported','cancelled')
+                                 NOT NULL DEFAULT 'ordered',
+  PRIMARY KEY (order_id),
+  KEY ix_lab_order_encounter (encounter_id),
+  KEY ix_lab_order_test (test_id),
+  KEY ix_lab_order_status (status),
+  KEY ix_lab_order_by (ordered_by),
+  CONSTRAINT fk_lab_order_encounter FOREIGN KEY (encounter_id)
+    REFERENCES encounter (encounter_id) ON DELETE CASCADE,
+  CONSTRAINT fk_lab_order_test FOREIGN KEY (test_id)
+    REFERENCES lab_test (test_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_lab_order_by FOREIGN KEY (ordered_by)
+    REFERENCES user_account (account_id) ON DELETE RESTRICT
+) ENGINE = InnoDB;
+
+-- 1 : 1 optional with lab_order. order_id is both the primary key and the
+-- foreign key, which is how "at most one result per order" is enforced.
+CREATE TABLE lab_result (
+  order_id     INT UNSIGNED  NOT NULL,
+  value_num    DECIMAL(10,2) NULL,
+  value_text   VARCHAR(200)  NULL,
+  is_abnormal  BOOLEAN       NOT NULL DEFAULT FALSE,
+  reported_by  INT UNSIGNED  NOT NULL,
+  reported_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (order_id),
+  KEY ix_lab_result_by (reported_by),
+  CONSTRAINT fk_lab_result_order FOREIGN KEY (order_id)
+    REFERENCES lab_order (order_id) ON DELETE CASCADE,
+  CONSTRAINT fk_lab_result_by FOREIGN KEY (reported_by)
+    REFERENCES user_account (account_id) ON DELETE RESTRICT,
+  CONSTRAINT ck_lab_result_value CHECK (value_num IS NOT NULL OR value_text IS NOT NULL)
+) ENGINE = InnoDB;
+
+-- Decision 6. to_encounter_id is NULL until the patient arrives at Hospital
+-- B, and that null is the whole mechanism: it is the difference between
+-- "referred" and "arrived", and "referred to us but never came" becomes a
+-- WHERE clause instead of a phone call. er-design.md §4.5.
+CREATE TABLE referral (
+  referral_id       INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+  patient_id        INT UNSIGNED      NOT NULL,
+  from_hospital_id  SMALLINT UNSIGNED NOT NULL,
+  to_hospital_id    SMALLINT UNSIGNED NOT NULL,
+  to_department_id  SMALLINT UNSIGNED NULL,   -- NULL = "whichever is right"
+  from_encounter_id INT UNSIGNED      NOT NULL,
+  to_encounter_id   INT UNSIGNED      NULL,
+  reason            VARCHAR(300)      NOT NULL,
+  urgency           ENUM('routine','urgent','emergency') NOT NULL DEFAULT 'routine',
+  referred_by       INT UNSIGNED      NOT NULL,
+  referred_at       DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status            ENUM('issued','arrived','completed','expired')
+                                      NOT NULL DEFAULT 'issued',
+  PRIMARY KEY (referral_id),
+  UNIQUE KEY uq_referral_to_encounter (to_encounter_id),
+  KEY ix_referral_patient (patient_id, referred_at DESC),
+  KEY ix_referral_inbox (to_hospital_id, status),
+  KEY ix_referral_from_hospital (from_hospital_id),
+  KEY ix_referral_department (to_department_id),
+  KEY ix_referral_from_encounter (from_encounter_id),
+  KEY ix_referral_by (referred_by),
+  CONSTRAINT fk_referral_patient FOREIGN KEY (patient_id)
+    REFERENCES patient (patient_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_referral_from_hospital FOREIGN KEY (from_hospital_id)
+    REFERENCES hospital (hospital_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_referral_to_hospital FOREIGN KEY (to_hospital_id)
+    REFERENCES hospital (hospital_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_referral_department FOREIGN KEY (to_department_id)
+    REFERENCES department (department_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_referral_from_encounter FOREIGN KEY (from_encounter_id)
+    REFERENCES encounter (encounter_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_referral_to_encounter FOREIGN KEY (to_encounter_id)
+    REFERENCES encounter (encounter_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_referral_by FOREIGN KEY (referred_by)
+    REFERENCES user_account (account_id) ON DELETE RESTRICT,
+  -- Sending a patient to the hospital they are already in is a ward
+  -- transfer, not a referral.
+  CONSTRAINT ck_referral_hospitals CHECK (from_hospital_id <> to_hospital_id),
+  -- The status and the null must tell the same story.
+  CONSTRAINT ck_referral_arrival CHECK (
+    (status IN ('issued','expired')     AND to_encounter_id IS NULL)
+    OR (status IN ('arrived','completed') AND to_encounter_id IS NOT NULL)
+  )
+) ENGINE = InnoDB;
+
+-- Decision 2, and §8 decision 5: a grant lasts 24 hours unless stated
+-- otherwise. The default is an expression over granted_at, so "24 hours" is
+-- written once, here, not in every INSERT. A long inpatient stay does not
+-- need re-consent — it reads under basis = 'treating'. er-design.md §4.5.
+CREATE TABLE consent_grant (
+  grant_id        INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+  patient_id      INT UNSIGNED      NOT NULL,
+  to_hospital_id  SMALLINT UNSIGNED NOT NULL,
+  to_doctor_id    SMALLINT UNSIGNED NULL,   -- NULL = anyone at that hospital
+  scope           ENUM('demographics','clinical','full') NOT NULL DEFAULT 'clinical',
+  granted_at      DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at      DATETIME          NOT NULL DEFAULT (granted_at + INTERVAL 24 HOUR),
+  revoked_at      DATETIME          NULL,
+  granted_via     ENUM('in_person','otp','referral') NOT NULL,
+  referral_id     INT UNSIGNED      NULL,     -- set exactly when granted_via = 'referral'
+  PRIMARY KEY (grant_id),
+  -- "Is there a live grant for this patient at this hospital?" — asked by
+  -- get_patient_record() on every read.
+  KEY ix_grant_lookup (patient_id, to_hospital_id, expires_at),
+  KEY ix_grant_hospital (to_hospital_id),
+  KEY ix_grant_doctor (to_doctor_id),
+  KEY ix_grant_referral (referral_id),
+  CONSTRAINT fk_grant_patient FOREIGN KEY (patient_id)
+    REFERENCES patient (patient_id) ON DELETE CASCADE,
+  CONSTRAINT fk_grant_hospital FOREIGN KEY (to_hospital_id)
+    REFERENCES hospital (hospital_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_grant_doctor FOREIGN KEY (to_doctor_id)
+    REFERENCES doctor (doctor_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_grant_referral FOREIGN KEY (referral_id)
+    REFERENCES referral (referral_id) ON DELETE RESTRICT,
+  CONSTRAINT ck_grant_window  CHECK (expires_at > granted_at),
+  CONSTRAINT ck_grant_revoked CHECK (revoked_at IS NULL OR revoked_at >= granted_at),
+  CONSTRAINT ck_grant_via     CHECK ((granted_via = 'referral') = (referral_id IS NOT NULL))
+) ENGINE = InnoDB;
+
+-- Decision 1's admission that prevention sometimes arrives too late. The
+-- losing patient row is NOT deleted: its UHID stays resolvable, so a patient
+-- holding the old card is still found. merge_patients() repoints the child
+-- rows and this table records that it happened. UNIQUE on losing_patient_id:
+-- a record can only be merged away once.
+CREATE TABLE patient_merge (
+  merge_id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  losing_patient_id    INT UNSIGNED NOT NULL,
+  surviving_patient_id INT UNSIGNED NOT NULL,
+  merged_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  merged_by            INT UNSIGNED NOT NULL,
+  reason               VARCHAR(300) NOT NULL,
+  PRIMARY KEY (merge_id),
+  UNIQUE KEY uq_merge_losing (losing_patient_id),
+  KEY ix_merge_surviving (surviving_patient_id),
+  KEY ix_merge_by (merged_by),
+  CONSTRAINT fk_merge_losing FOREIGN KEY (losing_patient_id)
+    REFERENCES patient (patient_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_merge_surviving FOREIGN KEY (surviving_patient_id)
+    REFERENCES patient (patient_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_merge_by FOREIGN KEY (merged_by)
+    REFERENCES user_account (account_id) ON DELETE RESTRICT,
+  CONSTRAINT ck_merge_distinct CHECK (losing_patient_id <> surviving_patient_id)
+) ENGINE = InnoDB;
+
+
+-- =====================================================================
+-- WHAT A CHECK COULD NOT SAY, AND WHERE IT IS ENFORCED INSTEAD
 --
 -- These are real constraints in the design that MySQL cannot express as a
 -- CHECK, because a CHECK may not contain a subquery or reference another
 -- table. They are not optional polish — without them the schema permits
 -- states the design forbids.
 --
---  1. user_account role consistency. The pattern in er-design.md §4.2 —
---     a patient row has patient_id set and hospital_id null, a doctor row has
---     both doctor_id and hospital_id, staff have hospital_id only, a system
---     admin has none — depends on role.code, which lives in another table.
---     BEFORE INSERT / BEFORE UPDATE trigger, SIGNAL SQLSTATE '45000'.
---     (The draft of er-design.md called this a table-level CHECK. It cannot
---     be one; the document has been corrected.)
+--  1. user_account role consistency (the table in er-design.md §4.2)
+--       → trg_user_account_bi / _bu                       triggers.sql
+--  2. One open bed_occupancy row per admission
+--       → trg_bed_occupancy_bi / _bu                      triggers.sql
+--  3. bed.status maintenance — decision 7
+--       → trg_bed_occupancy_ai / _au                      triggers.sql
+--  4. UHID issue under a lock
+--       → register_patient(), via uhid_sequence           procedures.sql
+--  5. Transactional booking — decision 4
+--       → book_appointment(), SELECT ... FOR UPDATE       procedures.sql
+--  6. Only an Inpatient encounter may have an admission
+--       → trg_admission_bi                                triggers.sql
+--  7. access_log is append-only
+--       → trg_access_log_bu / _bd, and grants.sql gives the application
+--         user no UPDATE or DELETE on it                  triggers.sql
 --
---  2. One open bed_occupancy row per admission. "Exactly one row with
---     to_at IS NULL" needs to count sibling rows, so it is a trigger.
+-- And three more that came out of writing those:
 --
---  3. bed.status maintenance — decision 7. AFTER INSERT and AFTER UPDATE on
---     bed_occupancy: occupied when a row opens, cleaning then free when one
---     closes.
---
---  4. UHID issue. The format and check digit are enforced above; allocating
---     the next serial under a lock is a stored procedure, so the serial comes
---     from one place.
---
---  5. book_appointment() — decision 4. SELECT ... FOR UPDATE on the doctor's
---     posting, verify the slot against doctor_schedule and doctor_leave, then
---     INSERT. uq_doctor_slot is the real guard; the procedure exists so the
---     loser is told the slot has gone instead of seeing a duplicate-key
---     error.
---
---  6. Encounter type must match admission. Only an 'Inpatient' encounter may
---     have an admission row, which is a cross-table rule.
---
---  7. access_log append-only. Revoke UPDATE and DELETE from the application
---     user; a BEFORE UPDATE / BEFORE DELETE trigger that signals is belt and
---     braces worth having.
---
--- PHASE 2 TABLES, not created here (er-design.md §7):
---   lab_test · lab_order · lab_result · referral · consent_grant ·
---   patient_merge · encounter_vitals
+--  8. encounter.consultation_fee, hospital_id and department_id are copied
+--     from the posting, never typed in — decision 1
+--       → trg_encounter_bi / _bu                          triggers.sql
+--  9. A medicine may not be prescribed against a recorded allergy to it or
+--     to its drug class
+--       → trg_prescription_item_bi                        triggers.sql
+-- 10. A bed can be occupied only if it is free and in service
+--       → trg_bed_occupancy_bi                            triggers.sql
 -- =====================================================================
