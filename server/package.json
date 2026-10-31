@@ -6,9 +6,13 @@
   "main": "app.js",
   "type": "commonjs",
   "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js",
     "db:reset": "node db/reset.js",
     "db:run": "node db/run-sql.js",
-    "db:test": "node db/reset.js && node db/run-sql.js ../database/tests.sql && node db/reset.js"
+    "db:test": "node db/reset.js && node db/run-sql.js ../database/tests.sql && node db/reset.js",
+    "api:test": "node scripts/api-test.js",
+    "race": "node scripts/race-booking.js"
   },
   "engines": {
     "node": ">=20"

@@ -98,9 +98,14 @@ database/     schema.sql (40 tables) → triggers.sql → procedures.sql → vie
               queries.sql — 20 demonstration queries (joins, ROLLUP, window functions, CTEs,
               INTERSECT), each tied to a design decision; run as root, not uhid_app
               tests.sql — 64 tests of constraints, triggers and procedures (npm run db:test)
-server/       db/run-sql.js + db/reset.js (npm run db:reset), .env.example
-              practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
-              planned: the Express API — routes/ controllers/ services/ are still empty
+server/       Express app — serves public/ AND the JSON API under /api (docs/api.md)
+  app.js        wiring only: session, routes, static files, 404, error handler
+  auth.js       sessions, requireLogin, requirePermission (asks has_permission() in MySQL)
+  db/           pool.js (connects as uhid_app), errors.js (MYSQL_ERRNO → HTTP), run-sql.js, reset.js
+  routes/       auth, reference, patients, appointments, wards, clinical, audit
+  lib/format.js turns rows into the shapes public/ renders
+  scripts/      api-test.js (npm run api:test, 59 checks), race-booking.js (npm run race)
+  practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
 public/       Frontend, served as static files (also works opened straight from disk)
   index.html    public landing page
   login.html    sign-in
@@ -172,6 +177,10 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
   attribute is a second injection surface and needs its own guard.
 - **All media queries live in `css/responsive.css`, which is linked last on every page.**
   They win on source order alone. Link it anywhere but last and the layout breaks.
+- **No controllers/ or services/ layer, on purpose.** The stored procedures are the service
+  layer; a route validates input, calls one procedure (or a few, in one transaction), and shapes
+  the result. Business rules go in `database/`, never in a route.
+- **Run `npm run api:test` before committing any change in `server/`.**
 - **Run `npm run db:test` (in `server/`) before committing any change in `database/`.** It
   rebuilds, runs `database/tests.sql`, and rebuilds again; it exits non-zero if any test fails.
   A new rule in a trigger or procedure gets a test that proves it refuses what it should, with the
@@ -272,7 +281,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
 | **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (27 + 4 functions), views (8), seed — all built and loaded together on MySQL 8.4.6, 31 Oct 2026. Not yet written: grants.sql, queries.sql, tests.sql. Follow `CHECKLIST.md`** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
-| Express API | Not started — Node.js is installed, `server/` folders are empty |
+| Express API | Done 31 Oct 2026 — 27 endpoints, `docs/api.md`; `npm run api:test` passes 59/59; `npm run race` shows 5/5 single bookings |
 | Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
 
 ## Open items — do not lose these

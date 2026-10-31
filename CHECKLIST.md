@@ -36,18 +36,18 @@ Tick an item only when it has been run and checked, not when it has been written
 
 ## B. Backend (Express API)
 
-- [ ] **B1. Skeleton** — `server/package.json`, `.env.example`, connection pool,
+- [x] **B1. Skeleton** — `server/package.json`, `.env.example`, connection pool,
       `server/app.js` serving `public/` as static files.
-- [ ] **B2. Authentication** — `POST /api/login` (bcrypt), `POST /api/logout`, `GET /api/me`,
+- [x] **B2. Authentication** — `POST /api/login` (bcrypt), `POST /api/logout`, `GET /api/me`,
       sessions, a `requireRole()` middleware.
-- [ ] **B3. Reference data** — `GET /api/hospitals`, `/api/departments`, `/api/doctors`,
+- [x] **B3. Reference data** — `GET /api/hospitals`, `/api/departments`, `/api/doctors`,
       `/api/doctors/:id/availability`.
-- [ ] **B4. Patients** — `GET /api/patients` (search list), `POST /api/patients` (register),
+- [x] **B4. Patients** — `GET /api/patients` (search list), `POST /api/patients` (register),
       `GET /api/patients/:uhid` (the logged record read, with break-glass).
-- [ ] **B5. Appointments** — `POST /api/appointments`, plus a script that fires two bookings
+- [x] **B5. Appointments** — `POST /api/appointments`, plus a script that fires two bookings
       for one slot at the same instant and shows exactly one succeed.
-- [ ] **B6. Wards** — `GET /api/wards`, admit, discharge, mark clean.
-- [ ] **B7. Referrals and audit** — `POST /api/referrals`, `GET /api/audit/break-glass`.
+- [x] **B6. Wards** — `GET /api/wards`, admit, discharge, mark clean.
+- [x] **B7. Referrals and audit** — `POST /api/referrals`, `GET /api/audit/break-glass`.
 
 ## C. Team learning guides
 
