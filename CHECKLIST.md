@@ -51,9 +51,9 @@ Tick an item only when it has been run and checked, not when it has been written
 
 ## C. Team learning guides
 
-- [ ] **C1. `docs/guides/nobo.md`** — the hardest and longest parts.
-- [ ] **C2. `docs/guides/abir.md`** — the middle band.
-- [ ] **C3. `docs/guides/noria.md`** — the smallest and easiest parts.
+- [x] **C1. `docs/guides/nobo.md`** — the hardest and longest parts.
+- [x] **C2. `docs/guides/abir.md`** — the middle band.
+- [x] **C3. `docs/guides/noria.md`** — the smallest and easiest parts.
 
 ## D. Frontend wired to the API
 

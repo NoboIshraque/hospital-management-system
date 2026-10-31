@@ -91,10 +91,13 @@ docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
               use-cases.md (17 use cases, each mapped to its procedure/trigger/view),
               data-dictionary.md (all 40 tables, generated from schema.sql),
               normalization.md (1NF → BCNF worked examples, and every deliberate redundancy)
+              guides/nobo.md, abir.md, noria.md — the team's learning guides (see Team below)
 database/     schema.sql (40 tables) → triggers.sql → procedures.sql → views.sql → seed.sql,
               loaded in that order
               planned: grants.sql, queries.sql, tests.sql
-server/       planned: Express app — routes/ controllers/ services/ db/ are empty
+server/       db/run-sql.js + db/reset.js (npm run db:reset), .env.example
+              practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
+              planned: the Express API — routes/ controllers/ services/ are still empty
 public/       Frontend, served as static files (also works opened straight from disk)
   index.html    public landing page
   login.html    sign-in
@@ -266,8 +269,16 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 
 ## Open items — do not lose these
 
-- **Work now follows `CHECKLIST.md`** (written 31 Oct 2026, target 7 Nov 2026). It is a
-  three-person team: Nobo, Abir and Noria. Learning guides for each go in `docs/guides/`.
+- **Work now follows `CHECKLIST.md`** (written 31 Oct 2026, target 7 Nov 2026).
+- **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
+  small version of one slice of the database and backend: Nobo the hardest (transactions,
+  locking, recursive CTEs, derived-state triggers, the logged read, the backend core), Abir the
+  middle (constraints, triggers, a procedure, harder queries, an API that maps errors), Noria the
+  foundations (inserts, CHECKs, queries, a view, a read-only API). Every code block in the guides
+  was run against the real database on 31 Oct 2026 and its output copied in. **If you change a
+  procedure, view or seed row the guides use, re-check the guide's expected output.** Practice
+  objects are prefixed `nb_` / `ab_` / `nr_` and live in `server/practice/<name>/`; `db:reset`
+  wipes them, which is intended.
 - **MySQL 8.4 was reinstalled on 31 Oct 2026: 8.4.13**, service on 127.0.0.1:3306. The root
   password is in `server/.env` (git-ignored); code reads it from there and never prints it.
 - **Rebuild the database with `npm run db:reset` in `server/`.** It runs `database/*.sql` in
