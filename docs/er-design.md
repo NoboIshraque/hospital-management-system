@@ -861,7 +861,7 @@ dictionary (`docs/data-dictionary.md`) was generated from the schema after all s
 shows them.
 
 Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
-64 tests that check every constraint, trigger and procedure rejects what §4 says it must.
+72 tests that check every constraint, trigger and procedure rejects what §4 says it must.
 
 ---
 

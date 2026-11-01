@@ -109,14 +109,14 @@ database/     schema.sql (40 tables) → triggers.sql → procedures.sql → vie
               → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
               queries.sql — 20 demonstration queries (joins, ROLLUP, window functions, CTEs,
               INTERSECT), each tied to a design decision; run as root, not uhid_app
-              tests.sql — 64 tests of constraints, triggers and procedures (npm run db:test)
+              tests.sql — 72 tests of constraints, triggers and procedures (npm run db:test)
 server/       Express app — serves public/ AND the JSON API under /api (docs/api.md)
   app.js        wiring only: session, routes, static files, 404, error handler
   auth.js       sessions, requireLogin, requirePermission (asks has_permission() in MySQL)
   db/           pool.js (connects as uhid_app), errors.js (MYSQL_ERRNO → HTTP), run-sql.js, reset.js
   routes/       auth, reference, patients, appointments, wards, clinical, audit
   lib/format.js turns rows into the shapes public/ renders
-  scripts/      api-test.js (npm run api:test, 59 checks), race-booking.js (npm run race)
+  scripts/      api-test.js (npm run api:test, 64 checks), race-booking.js (npm run race)
   practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
 public/       Frontend, served as static files (also works opened straight from disk)
   index.html    public landing page
@@ -300,9 +300,9 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Use cases | Done — `docs/use-cases.md` |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched). The crow's-foot file is no longer maintained |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (27 + 4 functions), views (8), seed, grants, 20 demonstration queries, 64 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 64/64** |
+| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (28 + 4 functions), views (8), seed, grants, 20 demonstration queries, 72 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 72/72** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
-| Express API | Done 31 Oct 2026 — 27 endpoints, `docs/api.md`; `npm run api:test` passes 59/59; `npm run race` shows 5/5 single bookings |
+| Express API | Done 31 Oct 2026 — 28 endpoints, `docs/api.md`; `npm run api:test` passes 64/64; `npm run race` shows 5/5 single bookings |
 | Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
 | Demo script, README | Done 1 Nov 2026 — `docs/demo-script.md`; README rewritten for the running system |
 | Print stylesheet, 404 page | Done 1 Nov 2026 |

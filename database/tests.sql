@@ -24,8 +24,9 @@
 --   1062 duplicate key · 1451 parent row in use · 1452 no such parent row
 --
 -- Accounts used (seed.sql §5): 1 rezaul (receptionist, DMCH) · 2 nasima
--- (hospital admin) · 6 anisur (doctor, DMCH) · 11 tahmina (doctor, Square)
--- · 16 mahbub (doctor, DMCH Medicine) · 17 rahim (patient)
+-- (hospital admin, DMCH) · 4 rumana (lab technician, DMCH) · 5 sysadmin
+-- (system admin, no hospital) · 6 anisur (doctor, DMCH) · 11 tahmina
+-- (doctor, Square) · 16 mahbub (doctor, DMCH Medicine) · 17 rahim (patient)
 -- =====================================================================
 
 USE uhid;
@@ -391,6 +392,28 @@ CALL t_value('…and the merged-away record no longer appears in search',
   "SELECT COUNT(*) FROM v_patient_directory WHERE uhid = 'BD-2018-00723-2'", '0');
 CALL t_expect('A record cannot be merged away twice',
   "CALL merge_patients(2, 'BD-2018-00723-2', 'BD-2019-04821-5', 'again')", 1644);
+
+
+-- =====================================================================
+-- 8. THE LAB WORKLIST AND THE BREAK-GLASS SCOPE   (decisions 5 and 2)
+-- =====================================================================
+
+CALL t_expect('A receptionist may not open the lab worklist',
+  "CALL lab_worklist(1)", 5403);
+CALL t_expect('A lab technician opens their hospital''s worklist',
+  "CALL lab_worklist(4)", 0);
+CALL t_expect('A doctor at Square orders a test…',
+  "CALL order_lab(11, 10, 'Haemoglobin')", 0);
+CALL t_expect('…which a lab technician at Dhaka Medical may not report',
+  "CALL report_lab_result(4, (SELECT MAX(order_id) FROM lab_order), 12.5, NULL)", 5404);
+CALL t_expect('A hospital admin may not review a break-glass read made at another hospital',
+  "CALL review_break_glass(2, 5)", 5403);
+CALL t_value('…so it stays in the queue',
+  "SELECT COUNT(*) FROM v_break_glass_queue WHERE id = 5", '1');
+CALL t_expect('The system admin reviews break-glass reads at any hospital',
+  "CALL review_break_glass(5, 5)", 0);
+CALL t_expect('Reviewing an entry that does not exist is not found',
+  "CALL review_break_glass(5, 999999)", 5404);
 
 
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message

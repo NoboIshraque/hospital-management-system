@@ -18,11 +18,11 @@ laptop is short of memory. Details below.
 
 | Part | Where | Verified by |
 |---|---|---|
-| Database: 40 tables, 21 triggers, 27 procedures + 4 functions, 8 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 64 tests, all pass |
+| Database: 40 tables, 21 triggers, 28 procedures + 4 functions, 8 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 72 tests, all pass |
 | Sample data: 8 hospitals, 11 doctors, 18 patients | `database/seed.sql` | loads clean in `npm run db:reset` |
 | Least-privilege app user `uhid_app` | `database/grants.sql` | denied SELECT on `patient`, UPDATE on `bed`, DELETE/TRUNCATE on `access_log` |
 | 20 demonstration queries | `database/queries.sql` | all run and return sensible rows |
-| Express API, 27 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 59 checks, all pass |
+| Express API, 28 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 64 checks, all pass |
 | Booking under concurrency | `server/scripts/race-booking.js` | `npm run race` — 5 of 5 rounds, exactly one booking each |
 | Frontend on the API (and offline on sample data) | `public/`, switch in `public/js/api.js` | 25-step headless browser test, no JavaScript errors; all 21 standalone screens captured with no errors |
 | Print stylesheet, 404 page | `public/css/responsive.css`, `public/404.html` | rendered in headless Edge |
@@ -114,8 +114,8 @@ cd E:\hospital-management-system
 git pull                          # in case Abir or Noria pushed practice work
 cd server
 npm run db:reset                  # fresh data; also checks MySQL and .env are working
-npm run db:test                   # 64 PASS
-npm run api:test                  # 59 passed, 0 failed
+npm run db:test                   # 72 PASS
+npm run api:test                  # 64 passed, 0 failed
 npm start                         # http://localhost:3000 — only when you need the site
 ```
 

@@ -13,9 +13,16 @@ const { requireLogin, requirePermission } = require('../auth');
 
 const router = express.Router();
 
+/* A hospital admin sees reads made at their own hospital; the system
+   admin, who has no hospital, sees the country. review_break_glass()
+   enforces the same rule in the database, so this filter is only what
+   the list shows, not what protects it. */
 router.get('/audit/break-glass', requirePermission('audit.review'), ah(async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM v_break_glass_queue ORDER BY at DESC');
-  res.json(rows);
+  const hospitalId = req.session.account.hospitalId;
+  const [rows] = hospitalId
+    ? await pool.query('SELECT * FROM v_break_glass_queue WHERE hospitalId = ? ORDER BY at DESC', [hospitalId])
+    : await pool.query('SELECT * FROM v_break_glass_queue ORDER BY at DESC');
+  res.json(rows.map(r => ({ ...r, hoursWaiting: Number(r.hoursWaiting) })));
 }));
 
 /* review_break_glass() makes the one change the access log's triggers

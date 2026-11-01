@@ -35,7 +35,7 @@ database refused (see `server/db/errors.js`):
 | `GET /api/departments` | public | — | `department` |
 | `GET /api/districts` | public | — | `v_district_list` |
 | `GET /api/doctors` | public | — | `v_doctor_directory` + `doctor_availability()` for `nextFree` |
-| `GET /api/doctors/:postingId/availability` | public | `?days=7` | `doctor_availability()` |
+| `GET /api/doctors/:postingId/availability` | public | `?days=8` (default 7, max 31; the booking screen asks for 8) | `doctor_availability()` |
 | `GET /api/catalogue` | signed in | — | `allergen`, `medicine`, `diagnosis`, `lab_test` |
 | `GET /api/patients` | reception, doctors, admin | — | `v_patient_directory` (after `has_permission`) |
 | `POST /api/patients` | reception | `{ name, dob, sex, blood, phone, nid, district, address, kinName, kinRelation, kinPhone, allergies[] }` | `register_patient()` |
@@ -49,11 +49,12 @@ database refused (see `server/db/errors.js`):
 | `POST /api/admissions/:id/discharge` | doctor | `{ summary, outcome }` | `discharge_patient()` |
 | `POST /api/beds/clean` | reception, admin | `{ wardId, bedNo }` | `mark_bed_clean()` |
 | `POST /api/encounters` | doctor | `{ uhid, type, complaint, notes, diagnoses[], vitals, prescriptions[], labTests[], end }` | `start_encounter()` … `end_encounter()` in **one transaction** |
-| `POST /api/lab-results` | lab technician | `{ orderId, valueNum, valueText }` | `report_lab_result()` |
+| `GET /api/lab-orders` | lab technician | — | `lab_worklist()` — the caller's hospital only; a procedure, not a view, because test names are clinical content |
+| `POST /api/lab-results` | lab technician | `{ orderId, valueNum, valueText }` → `{ reported, abnormal }` | `report_lab_result()`; `abnormal` is what `trg_lab_result_bi` decided |
 | `POST /api/referrals` | doctor | `{ encounterId, toHospitalId, dept, reason, urgency }` | `refer_patient()` |
 | `GET /api/referrals/inbox` | doctors | — | `v_referral_inbox` |
-| `GET /api/audit/break-glass` | admin | — | `v_break_glass_queue` |
-| `POST /api/audit/break-glass/:id/review` | admin | — | `review_break_glass()` |
+| `GET /api/audit/break-glass` | hospital admin (own hospital), system admin (all) | — | `v_break_glass_queue` |
+| `POST /api/audit/break-glass/:id/review` | hospital admin (own hospital), system admin (all) | — | `review_break_glass()` — refuses another hospital's read with 403 |
 
 "Who" is what the seed data's role permissions allow. The permission check itself is in the
 database (`require_permission()` inside each procedure, or `has_permission()` in front of a view),

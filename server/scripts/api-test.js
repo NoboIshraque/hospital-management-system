@@ -205,8 +205,15 @@ async function signIn(base, username) {
 
     // ---------- labs, referrals, audit, merge ----------
     const rumana = await signIn(base, 'rumana');
+    r = await rumana('GET', '/api/lab-orders');
+    check('The lab technician\'s worklist has the waiting orders at their hospital',
+      r.status === 200 && r.body.some(o => o.id === 7) && r.body.some(o => o.test === 'Haemoglobin' && o.uhid === 'BD-2019-04821-5'));
     r = await rumana('POST', '/api/lab-results', { orderId: 7, valueNum: 1.9 });
-    check('The lab technician reports a result', r.status === 201);
+    check('The lab technician reports a result, and the database says it is abnormal', r.status === 201 && r.body.abnormal === true);
+    r = await rumana('GET', '/api/lab-orders');
+    check('…and it leaves the worklist', r.status === 200 && !r.body.some(o => o.id === 7));
+    r = await rezaul('GET', '/api/lab-orders');
+    check('A receptionist has no lab worklist (403)', r.status === 403);
     r = await anisur('POST', '/api/referrals', { encounterId: 21, toHospitalId: 7, dept: 'Cardiology', reason: 'Angiography', urgency: 'urgent' });
     check('A doctor refers a patient to another hospital', r.status === 201 && r.body.referralId > 0);
     const tahmina = await signIn(base, 'tahmina');
@@ -215,10 +222,16 @@ async function signIn(base, username) {
     r = await tahmina('GET', '/api/patients/BD-2022-23590-9');
     check('…and can read that patient under consent from the referral', r.status === 200 && r.body.access.basis === 'consent');
     r = await nasima('GET', '/api/audit/break-glass');
-    check('The hospital admin sees the break-glass queue', r.status === 200 && r.body.length >= 2);
+    check('The hospital admin sees their own hospital\'s break-glass queue, and only that',
+      r.status === 200 && r.body.length >= 1 && r.body.every(x => x.hospitalId === 1));
     const logId = r.body[0].id;
     r = await nasima('POST', `/api/audit/break-glass/${logId}/review`);
     check('…and reviews one', r.status === 200);
+    r = await nasima('POST', '/api/audit/break-glass/5/review');
+    check('…but not one made at another hospital (403)', r.status === 403);
+    const sysadmin = await signIn(base, 'sysadmin');
+    r = await sysadmin('GET', '/api/audit/break-glass');
+    check('The system admin sees the whole country\'s queue', r.status === 200 && r.body.some(x => x.id === 5));
     r = await rezaul('GET', '/api/audit/break-glass');
     check('A receptionist cannot see the queue (403)', r.status === 403);
     r = await nasima('POST', '/api/patients/merge', { losingUhid: 'BD-2018-00723-2', survivingUhid: 'BD-2019-04821-5', reason: 'Confirmed same person' });

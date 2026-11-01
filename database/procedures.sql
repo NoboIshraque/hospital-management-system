@@ -945,6 +945,50 @@ BEGIN
   END IF;
   INSERT INTO lab_result (order_id, value_num, value_text, reported_by)
   VALUES (p_order_id, p_value_num, NULLIF(TRIM(p_value_text), ''), p_account_id);
+  -- Hand back what the trigger decided, so the screen can say "abnormal"
+  -- without the application ever comparing a value to a range itself.
+  SELECT is_abnormal AS abnormal FROM lab_result WHERE order_id = p_order_id;
+END $$
+
+-- The lab technician's worklist: tests ordered at their hospital and not
+-- yet reported. A procedure, not a view, because a test name is clinical
+-- content and views.sql keeps clinical content out of every view: a view
+-- cannot check who is asking. This checks lab.report and limits the rows to
+-- the caller's own hospital, in the database. It returns only what is needed
+-- to collect and run the sample — who, which test, which bed — and no
+-- diagnosis or history, so it is not a record read and writes no access_log.
+DROP PROCEDURE IF EXISTS lab_worklist $$
+CREATE PROCEDURE lab_worklist(IN p_account_id INT UNSIGNED)
+BEGIN
+  CALL require_permission(p_account_id, 'lab.report');
+  SELECT o.order_id   AS id,
+         o.ordered_at AS orderedAt,
+         o.status,
+         t.name       AS test,
+         t.specimen,
+         t.unit,
+         t.ref_low    AS refLow,
+         t.ref_high   AS refHigh,
+         p.uhid,
+         p.name       AS patient,
+         p.sex,
+         p.dob,
+         et.code      AS encounterType,
+         account_name(o.ordered_by) AS orderedBy,
+         CONCAT(w.name, ' · ', bo.bed_no) AS bed,
+         TIMESTAMPDIFF(HOUR, o.ordered_at, NOW()) AS hoursWaiting
+    FROM user_account ua
+    JOIN encounter e       ON e.hospital_id = ua.hospital_id
+    JOIN lab_order o       ON o.encounter_id = e.encounter_id
+    JOIN lab_test t        ON t.test_id = o.test_id
+    JOIN patient p         ON p.patient_id = e.patient_id
+    JOIN encounter_type et ON et.type_id = e.type_id
+    LEFT JOIN admission a      ON a.encounter_id = e.encounter_id AND a.discharged_at IS NULL
+    LEFT JOIN bed_occupancy bo ON bo.admission_id = a.admission_id AND bo.to_at IS NULL
+    LEFT JOIN ward w           ON w.ward_id = bo.ward_id
+   WHERE ua.account_id = p_account_id
+     AND o.status IN ('ordered', 'collected')
+   ORDER BY o.ordered_at;
 END $$
 
 DROP PROCEDURE IF EXISTS end_encounter $$
@@ -1285,12 +1329,27 @@ END $$
 DROP PROCEDURE IF EXISTS review_break_glass $$
 CREATE PROCEDURE review_break_glass(IN p_account_id INT UNSIGNED, IN p_log_id BIGINT UNSIGNED)
 BEGIN
+  DECLARE v_mine BOOLEAN;
+
   CALL require_permission(p_account_id, 'audit.review');
-  -- trg_access_log_bu allows exactly this change, once, on a break-glass row.
-  UPDATE access_log SET reviewed_by = p_account_id, reviewed_at = NOW() WHERE log_id = p_log_id;
-  IF ROW_COUNT() = 0 THEN
+
+  -- A hospital admin answers for reads made at their own hospital; the
+  -- system admin (no hospital) answers for the whole country. Without this,
+  -- an admin at one hospital could clear another hospital's emergency reads
+  -- unseen by the admin who is meant to question them.
+  SELECT ua.hospital_id IS NULL OR ua.hospital_id <=> l.hospital_id INTO v_mine
+    FROM access_log l JOIN user_account ua ON ua.account_id = p_account_id
+   WHERE l.log_id = p_log_id;
+  IF v_mine IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such access-log entry.', MYSQL_ERRNO = 5404;
   END IF;
+  IF NOT v_mine THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'That read was made at another hospital. Its own administrator reviews it.', MYSQL_ERRNO = 5403;
+  END IF;
+
+  -- trg_access_log_bu allows exactly this change, once, on a break-glass row.
+  UPDATE access_log SET reviewed_by = p_account_id, reviewed_at = NOW() WHERE log_id = p_log_id;
 END $$
 
 DELIMITER ;

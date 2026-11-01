@@ -2,7 +2,8 @@
    Clinical writes — decisions 5 and 6.
 
    POST /api/encounters      a whole visit, in ONE transaction
-   POST /api/lab-results     { orderId, valueNum, valueText }
+   GET  /api/lab-orders      the lab technician's worklist at their hospital
+   POST /api/lab-results     { orderId, valueNum, valueText } → { abnormal }
    POST /api/referrals       { encounterId, toHospitalId, dept, reason, urgency }
    GET  /api/referrals/inbox patients referred to this hospital, not yet arrived
    ============================================================ */
@@ -11,6 +12,7 @@ const express = require('express');
 const { pool, call } = require('../db/pool');
 const { ah, httpError } = require('../db/errors');
 const { requireLogin, requirePermission } = require('../auth');
+const { bool, num } = require('../lib/format');
 
 const router = express.Router();
 
@@ -66,11 +68,20 @@ router.post('/encounters', requireLogin, ah(async (req, res) => {
   }
 }));
 
+/* lab_worklist() checks lab.report and keeps to the caller's hospital
+   itself — a test name is clinical content, so it is not in a view. */
+router.get('/lab-orders', requireLogin, ah(async (req, res) => {
+  const [rows] = await call('lab_worklist', [req.session.account.id]);
+  res.json(rows.map(r => ({ ...r, refLow: num(r.refLow), refHigh: num(r.refHigh), hoursWaiting: num(r.hoursWaiting) })));
+}));
+
+/* The answer says whether the result is abnormal — decided by
+   trg_lab_result_bi from the test's reference range, not by this code. */
 router.post('/lab-results', requireLogin, ah(async (req, res) => {
   const { orderId, valueNum, valueText } = req.body;
   if (!orderId || (valueNum == null && !valueText)) throw httpError(400, 'orderId and a value are required.');
-  await call('report_lab_result', [req.session.account.id, orderId, valueNum ?? null, valueText || null]);
-  res.status(201).json({ reported: true });
+  const [[r]] = await call('report_lab_result', [req.session.account.id, orderId, valueNum ?? null, valueText || null]);
+  res.status(201).json({ reported: true, abnormal: bool(r.abnormal) });
 }));
 
 /* refer_patient() writes the referral AND a 24-hour consent grant to the
