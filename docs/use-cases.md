@@ -32,14 +32,14 @@ Every demo password is `demo1234`. What each actor may do is decided by `role_pe
 | UC7 | Book an appointment | Patient, Receptionist | `book_appointment()` | 4 |
 | UC8 | Cancel an appointment | Patient, Receptionist | `cancel_appointment()` | 4 |
 | UC9 | Record an encounter | Doctor | `start_encounter()`, `add_diagnosis()`, `prescribe()`, `record_vitals()`, `order_lab()`, `end_encounter()` | 5 |
-| UC10 | Report a lab result | Lab Technician | `report_lab_result()` | 5 |
+| UC10 | Report a lab result | Lab Technician | `lab_worklist()`, `report_lab_result()` | 5 |
 | UC11 | Admit a patient to a bed | Receptionist | `admit_patient()` | 7 |
 | UC12 | Transfer an inpatient | Receptionist, Doctor | `transfer_patient()` | 7 |
 | UC13 | Discharge an inpatient | Doctor | `discharge_patient()` | 7 |
 | UC14 | Mark a bed clean | Receptionist, Admin | `mark_bed_clean()` | 7 |
 | UC15 | Refer a patient to another hospital | Doctor | `refer_patient()`, `v_referral_inbox` | 6 |
 | UC16 | Review break-glass access | Hospital Admin, System Admin | `v_break_glass_queue`, `review_break_glass()` | 2 |
-| UC17 | Merge two UHIDs for one person | Hospital Admin, System Admin | `merge_patients()` | 1 |
+| UC17 | Merge two UHIDs for one person | Hospital Admin, System Admin | `v_possible_duplicates`, `merge_patients()` | 1 |
 
 ---
 
@@ -186,9 +186,11 @@ the allergy.
 
 ## UC10 — Report a lab result
 
-**Actor:** Lab Technician. `report_lab_result()` stores the value. `trg_lab_result_bi` flags it
+**Actor:** Lab Technician. `lab_worklist()` lists the tests waiting at their own hospital (a
+procedure, not a view: test names are clinical content). `report_lab_result()` stores the value. `trg_lab_result_bi` flags it
 abnormal if it is outside the test's reference range, and `trg_lab_result_ai` marks the order
-`reported`. A cancelled order cannot receive a result.
+`reported`. A cancelled order cannot receive a result. The procedure returns the abnormal flag, so
+the screen (`pages/lab.html`) shows the database's verdict.
 
 ## UC11 — Admit a patient to a bed
 
@@ -240,14 +242,17 @@ the bed to **cleaning**.
 **Actor:** Hospital Admin, System Admin. The admin works through `v_break_glass_queue`, reading
 each justification, and calls `review_break_glass()` for each. That stamps `reviewed_by` and
 `reviewed_at`, which is the **only** change `trg_access_log_bu` allows on the log, and only once.
-No log row can ever be deleted (`trg_access_log_bd`).
+No log row can ever be deleted (`trg_access_log_bd`). A hospital admin sees and reviews reads
+made at their own hospital only; the system admin, who has no hospital, reviews every hospital's.
+`review_break_glass()` refuses anything else with error 5403. Screen: `pages/audit.html`.
 
 ## UC17 — Merge two UHIDs for one person
 
 **Actor:** Hospital Admin, System Admin. **Goal:** repair the failure decision 1 exists to prevent.
 
-1. The admin identifies two records for one person. The seed data contains exactly this case:
-   `BD-2019-04821-5` and `BD-2018-00723-2`.
+1. The admin identifies two records for one person. `v_possible_duplicates` (a self-join: same name
+   and date of birth, or same mobile) suggests pairs on `pages/merge.html`. The seed data contains
+   exactly this case: `BD-2019-04821-5` and `BD-2018-00723-2`.
 2. `merge_patients(losing, surviving, reason)` runs as one transaction: it moves encounters,
    appointments, referrals, consent grants and allergies to the surviving record, moves the NID if
    only the losing record had one, and records the merge in `patient_merge`.
