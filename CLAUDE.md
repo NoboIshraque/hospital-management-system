@@ -306,6 +306,11 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 
 ## Open items — do not lose these
 
+- **Read `handover.md` first.** Written 1 Nov 2026: what is verified, and the four things not
+  yet done — the ER document and diagrams lag the schema (five changes), some features have no
+  screen, the team's guides are not started, and the laptop is short of memory. Update or
+  delete it when those are dealt with.
+
 - **`CHECKLIST.md` is complete** (written 31 Oct 2026, every item done and verified by
   1 Nov 2026). New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
