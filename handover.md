@@ -27,6 +27,8 @@ have not started their guides; and the laptop is short of memory. Details below.
 | Print stylesheet, 404 page | `public/css/responsive.css`, `public/404.html` | rendered in headless Edge |
 | Documentation | `docs/use-cases.md`, `data-dictionary.md`, `normalization.md`, `api.md`, `demo-script.md` | — |
 | Learning guides | `docs/guides/nobo.md`, `abir.md`, `noria.md` | every code block run against the real database and its output copied in |
+| Project explainer (plain-language guide to everything) | Claude Docs: https://claude.ai/artifact/DUBUDir3h1ACyH4YPTRQjD | written 1 Nov 2026 from the code; each claim checked against it |
+| Complete demo guide (11 parts, about 25 minutes) | Claude Docs: https://claude.ai/artifact/B6G2q8WTQVwoLaUAkrpSdU | the new screens' steps browser-tested 1 Nov 2026; the fuller version of `docs/demo-script.md`, for rehearsing |
 | Frontend report for submission | Claude Docs: https://claude.ai/artifact/C8xcUhqZniSFzf6ipK8XFh | 25 screenshots, 34 file snippets; export via the doc's name → Export → PDF or Word |
 
 The browser test and screenshot scripts lived in a temporary folder and are **not** in the repo.

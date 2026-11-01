@@ -19,7 +19,7 @@ Do these in order. The reset matters: the referral consent Dr. Anisur uses in st
 hours from the moment the seed data is loaded.
 
 ```powershell
-cd hospital-management-system\server
+cd E:\hospital-management-system\server
 npm run db:reset          # fresh sample data — ends "Database rebuilt: 40 tables, …"
 npm run db:test           # 74 database tests — every line PASS
 npm run api:test          # 66 API checks — "66 passed, 0 failed"

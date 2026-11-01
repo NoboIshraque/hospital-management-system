@@ -45,10 +45,12 @@ looked only on `PATH`, missed XAMPP, and logged "no database" for two weeks.
 - **Node.js 24.20.0 LTS** (winget `OpenJS.NodeJS.LTS`) at `C:\Program Files\nodejs`, with
   npm 11. `mysql2` 3.x connects to the MySQL above with its default `caching_sha2_password`
   login — tested 11 Oct 2026, so no `mysql_native_password` workaround is needed.
-- **PowerShell execution policy is `RemoteSigned` for the author's user.** The machine
-  default is `Restricted`, which blocks `npm.ps1`, so `npm install` failed in any normal
-  PowerShell or VS Code terminal. If `npm` reports "running scripts is disabled", this setting
-  has been lost; `npm.cmd` works regardless.
+- **PowerShell execution policy: the author's `RemoteSigned` setting was lost by 1 Nov 2026**
+  (CurrentUser shows `Undefined`, so the machine default `Restricted` blocks `npm.ps1` and `npm`
+  fails with "running scripts is disabled"). The fix is the author's to run, since it is a
+  security setting: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Until then `npm.cmd`
+  works regardless. Give full paths in instructions (`cd E:\hospital-management-system\server`):
+  an administrator PowerShell starts in `C:\Windows\system32`.
 
 ## Architecture — the decision that shapes everything
 
