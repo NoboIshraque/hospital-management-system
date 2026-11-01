@@ -11,6 +11,10 @@ the database decided.
 
 ## The morning of the demo
 
+Use an ordinary PowerShell window (an administrator one starts in `C:Windowssystem32`, so a
+relative `cd` fails there). If `npm` says *running scripts is disabled*, run
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or type `npm.cmd` for `npm`.
+
 Do these in order. The reset matters: the referral consent Dr. Anisur uses in step 6 lasts 24
 hours from the moment the seed data is loaded.
 
