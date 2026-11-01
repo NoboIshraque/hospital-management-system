@@ -318,6 +318,15 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 - **Read `handover.md` first.** Written 1 Nov 2026; items 1 (ER docs) and 2 (screens) done the
   same day. Still open there: the team's guides, and the laptop is short of memory. Update or
   delete it when those are dealt with.
+- **Security review, 1 Nov 2026 — open findings, not yet fixed.** Full list (33 items, by priority):
+  https://claude.ai/artifact/5DUs8QRcx7Ztc31xjqNZE5 . The four High ones, A1 and A3 confirmed against
+  the database: **A1** `start_encounter()` checks no access basis, so any doctor can open an encounter
+  for any UHID and then read the full record as `treating`, never flagged (bypasses decision 2);
+  **A3** `discharge_patient()`, `transfer_patient()`, `mark_bed_clean()` check the role but not that the
+  admission/bed is at the caller's hospital (a Square doctor discharged a DMCH inpatient);
+  **L1** `GET /api/patients` hands the whole national directory (NID, phone) to any staff account,
+  unlogged; **W1** record reads are a `GET`, so a cross-site link can force a break-glass read
+  (SameSite=Lax sends cookies on navigation). Each DB fix needs a `tests.sql` test with its errno.
 - **`CHECKLIST.md` is complete** (written 31 Oct 2026, every item done and verified by
   1 Nov 2026). New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a

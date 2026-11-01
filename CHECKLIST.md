@@ -86,3 +86,16 @@ Tick an item only when it has been run and checked, not when it has been written
 - [x] **F5. Bed transfer** on the bed board, online and offline.
 - [x] **F6. `ROLES` blurbs** match the screens; browser-tested as every role and offline.
 - [x] **F7. `docs/demo-script.md`** walks through the new screens (steps 5–9); the SQL step is now 11.
+
+## G. Security review findings (added 1 November 2026)
+
+The review: https://claude.ai/artifact/5DUs8QRcx7Ztc31xjqNZE5 — 33 items in four groups. Group 1
+("fix before the viva") first:
+
+- [ ] **G1. A1** — `start_encounter()` requires an existing basis or a logged, reviewed reason.
+- [ ] **G2. A3** — discharge, transfer and mark-clean limited to the caller's hospital.
+- [ ] **G3. L1** — national patient list replaced by a limited, masked, logged search.
+- [ ] **G4. W1** — opening a record (and break-glass) becomes a POST.
+- [ ] **G5. A4, A2, A5, A6, I2** — cancel scope, narrower "treating", author-only encounter writes,
+      merge scope, two missing `esc()` calls.
+- [ ] **G6.** Groups 2–4 of the review (going live, hardening, accepted risks) — decide with the author.
