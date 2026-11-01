@@ -87,8 +87,8 @@ async function openSlots(docId) {
   const root = $('#view');
   let days;
   if (API.online) {
-    root.innerHTML = loadingHtml(`Working out ${d.name}’s free slots for the next week.`);
-    try { days = await API.get(`/doctors/${d.id}/availability?days=7`); }
+    root.innerHTML = loadingHtml(`Working out ${d.name}’s free slots for the coming week.`);
+    try { days = await API.get(`/doctors/${d.id}/availability?days=8`); }
     catch (e) { root.innerHTML = errorHtml('Availability could not be loaded', e.message); return; }
   } else {
     days = buildSlots();
@@ -120,7 +120,7 @@ async function openSlots(docId) {
           `<button class="slot" data-t="${esc(day.label + ' · ' + s.time)}" data-start="${esc(s.start || '')}"${s.taken ? ' disabled' : ''}>${esc(s.time)}</button>`
         ).join('')}</div>
       </div>`).join('')
-    : `<div class="card empty-state"><b>No clinics in the next 7 days</b>${esc(d.name)} has no scheduled sessions here this week, or is on leave. Try another doctor.</div>`}
+    : `<div class="card empty-state"><b>No clinics in the coming week</b>${esc(d.name)} has no scheduled sessions here this week, or is on leave. Try another doctor.</div>`}
     <div class="form-actions" style="border:0;padding-top:4px">
       <button class="btn primary" id="confirm" disabled>Confirm appointment</button>
       <span id="picked" style="align-self:center;font-size:13px;color:var(--ink-3)">No slot selected</span>

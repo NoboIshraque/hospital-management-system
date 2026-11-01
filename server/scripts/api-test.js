@@ -68,7 +68,9 @@ async function signIn(base, username) {
     r = await anon('GET', '/api/doctors');
     check('GET /api/doctors returns one row per current posting', r.status === 200 && r.body.length === 12);
     check('…with a numeric fee and a next free slot', typeof r.body[0].fee === 'number' && typeof r.body[0].nextFree === 'string');
-    r = await anon('GET', '/api/doctors/1/availability?days=7');
+    // 8 days, not 7: seed.sql puts the bookings on "the coming Sunday", which
+    // on a Sunday is a week away — one day past a 7-day window.
+    r = await anon('GET', '/api/doctors/1/availability?days=8');
     check('GET /api/doctors/1/availability returns days of slots',
       r.status === 200 && r.body.length > 0 && r.body[0].slots.length > 0 && 'taken' in r.body[0].slots[0]);
     const freeSlot = r.body.flatMap(d => d.slots).find(s => !s.taken);
@@ -144,14 +146,14 @@ async function signIn(base, username) {
     check('Booking it again is 409 "just been taken"', r.status === 409 && /taken/.test(r.body.error));
     r = await rezaul('POST', '/api/appointments', { postingId: 1, uhid: 'BD-2023-38104-6', slotStart: takenSlot.start });
     check('A slot the grid shows as taken is refused', r.status === 409);
-    r = await anon('GET', '/api/doctors/1/availability?days=7');
+    r = await anon('GET', '/api/doctors/1/availability?days=8');
     check('The grid now shows the new booking as taken',
       r.body.flatMap(d => d.slots).find(s => s.start === freeSlot.start).taken === true);
     r = await rahim('DELETE', `/api/appointments/${apptId}`);
     check('A patient cancelling someone else\'s appointment is 403', r.status === 403);
     r = await rezaul('DELETE', `/api/appointments/${apptId}`);
     check('Reception cancels it', r.status === 200);
-    r = await anon('GET', '/api/doctors/1/availability?days=7');
+    r = await anon('GET', '/api/doctors/1/availability?days=8');
     check('…and the slot is free again', r.body.flatMap(d => d.slots).find(s => s.start === freeSlot.start).taken === false);
 
     // ---------- wards ----------

@@ -9,7 +9,8 @@ health-record system. Every patient gets one **UHID** on first contact with any 
 and their record follows them to every other connected hospital in the country.
 
 Author: Nobo Ishraque, Dept. of ICT, Bangladesh University of Professionals.
-Final deadline: **25 October 2026.** Frontend must be presentable **immediately** — it is
+Final deadline: **7 November 2026** (the original 25 October date passed; the team's target,
+confirmed by the author 1 Nov 2026). Frontend must be presentable **immediately** — it is
 being shown to the course teacher.
 
 **This is a DBMS course, not a web development course.** The database carries the marks.
@@ -299,7 +300,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Use cases | Done — `docs/use-cases.md` |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched). The crow's-foot file is no longer maintained |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (27 + 4 functions), views (8), seed — all built and loaded together on MySQL 8.4.6, 31 Oct 2026. Not yet written: grants.sql, queries.sql, tests.sql. Follow `CHECKLIST.md`** |
+| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (27 + 4 functions), views (8), seed, grants, 20 demonstration queries, 64 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 64/64** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
 | Express API | Done 31 Oct 2026 — 27 endpoints, `docs/api.md`; `npm run api:test` passes 59/59; `npm run race` shows 5/5 single bookings |
 | Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
@@ -321,7 +322,13 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   was run against the real database on 31 Oct 2026 and its output copied in. **If you change a
   procedure, view or seed row the guides use, re-check the guide's expected output.** Practice
   objects are prefixed `nb_` / `ab_` / `nr_` and live in `server/practice/<name>/`; `db:reset`
-  wipes them, which is intended.
+  wipes them, which is intended. **The guides are for learning, not delivery:** the author put
+  Claude in charge of finishing the whole project (1 Nov 2026), so never wait on a teammate's
+  guide work before building something. Their pushes go only in `server/practice/` — `git pull`
+  before starting.
+- **The seed's demo bookings are on "the coming Sunday"** (`@sun` in `seed.sql`), which on a
+  Sunday is 7 days away. Any availability window must therefore be 8 days (today + a full
+  week) to be sure of showing them; `book.js` and `api-test.js` both ask for `?days=8`.
 - **MySQL 8.4 was reinstalled on 31 Oct 2026: 8.4.13**, service on 127.0.0.1:3306. The root
   password is in `server/.env` (git-ignored); code reads it from there and never prints it.
 - **The API must connect as `uhid_app`, never root.** `APP_DB_USER` / `APP_DB_PASSWORD` in
