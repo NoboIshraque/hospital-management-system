@@ -327,8 +327,8 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   **L1** `GET /api/patients` hands the whole national directory (NID, phone) to any staff account,
   unlogged; **W1** record reads are a `GET`, so a cross-site link can force a break-glass read
   (SameSite=Lax sends cookies on navigation). Each DB fix needs a `tests.sql` test with its errno.
-- **`CHECKLIST.md` is complete** (written 31 Oct 2026, every item done and verified by
-  1 Nov 2026). New work: add it there first, then tick it when it is run and checked.
+- **`CHECKLIST.md`**: sections A–F done and verified by 1 Nov 2026; section G (the security
+  findings) is open. New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
   small version of one slice of the database and backend: Nobo the hardest (transactions,
   locking, recursive CTEs, derived-state triggers, the logged read, the backend core), Abir the
