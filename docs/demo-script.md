@@ -1,6 +1,6 @@
 # Demo script — UHID National Hospital Management System
 
-A click-by-click demonstration for the viva, about 15 minutes. It shows each of the seven design
+A click-by-click demonstration for the viva, about 20 minutes. It shows each of the seven design
 decisions working, in the order a hospital would meet them. Every step says what to click, what
 appears, and the one sentence to say about it.
 
@@ -17,7 +17,7 @@ hours from the moment the seed data is loaded.
 ```powershell
 cd hospital-management-system\server
 npm run db:reset          # fresh sample data — ends "Database rebuilt: 40 tables, …"
-npm run db:test           # 64 database tests — every line PASS
+npm run db:test           # 74 database tests — every line PASS
 npm run api:test          # 66 API checks — "66 passed, 0 failed"
 npm start                 # "UHID running at http://localhost:3000"
 ```
@@ -26,7 +26,7 @@ npm start                 # "UHID running at http://localhost:3000"
 `npm start` without leaving test data behind.
 
 Open **http://localhost:3000** in the browser. Keep a second PowerShell window open in
-`server` for step 4 and step 9, and a MySQL prompt (`mysql -u root -p uhid`) for step 9.
+`server` for step 4 and step 11, and a MySQL prompt (`mysql -u root -p uhid`) for step 11.
 
 Every demo password is `demo1234`.
 
@@ -89,12 +89,18 @@ Every demo password is `demo1234`.
 2. Click a green bed, e.g. **GM-04**. Choose Abdul Karim Mia and a consultant, click **Admit
    patient**. GM-04 turns red. **Say:** "The page never set that colour. Admitting inserts a
    bed-occupancy row; a trigger on that table set the bed to occupied."
-3. Click **GM-04** again → **Discharge**. Red toast: *"Your role is not allowed to do this (it
-   needs the bed.discharge permission)."* **Say:** "Receptionist admits, doctor discharges. That
+3. Click **GM-04** again → **Transfer…** → choose **GF-03** (the female ward) → **Transfer**.
+   Red toast: *"That ward is restricted to the other sex."* GM-04 is still red. **Say:** "The
+   transfer closes one bed stay and opens another in one transaction. The trigger refused the
+   new bed, so the close was rolled back too — the patient never left GM-04."
+4. **Transfer…** again → choose **GM-08** → **Transfer**. GM-04 turns grey (*cleaning*), GM-08
+   red. **Say:** "Two status changes, both made by triggers."
+5. Click **GM-08** → **Discharge**. Red toast: *"Your role is not allowed to do this (it needs
+   the bed.discharge permission)."* **Say:** "Receptionist admits, doctor discharges. That
    difference is two rows in the role-permission table, and the procedure checks it."
-4. **Sign out.**
+6. **Sign out.**
 
-## 6. The national record — decisions 2, 5 and 6 — 3 minutes
+## 6. The national record — decisions 2, 5 and 6 — 5 minutes
 
 1. Sign in as `anisur` (doctor at Dhaka Medical). Open **Md. Rahim Uddin, BD-2019-04821-5**.
 2. The button reads *Access basis: active consent grant*. At the top of the timeline: a referral
@@ -110,28 +116,76 @@ Every demo password is `demo1234`.
    **Say:** "Opening the record wrote that line first. MySQL has no trigger that fires on a
    read, so the read itself is a stored procedure that logs and then returns the rows — and the
    web server's database account has no other way to read these tables."
-5. **Find patient** → open **Fatema Begum, BD-2021-11904-5**. Refused: *no consent grant or open
+5. Click **Record encounter** (top right). The side panel shows the **Penicillin** allergy, and
+   lists the procedure calls *Save* will make. Fill in: complaint `Hypertension follow-up`, BP
+   `150` / `95`; diagnosis `I10` → **Add**; medicine **Amlodipine** → **Add**, then
+   **Amoxicillin** → **Add**; tick **Haemoglobin**. Click **Save and close the visit**.
+6. A red banner: *Nothing was saved — Allergy conflict … Penicillin … Amoxicillin.* **Say:**
+   "Seven procedure calls in one transaction. The fifth hit the allergy trigger, so the
+   encounter and the Amlodipine line before it were rolled back too. Saved whole or not at all —
+   and the form kept everything, so I fix one line."
+7. Click **×** on the Amoxicillin line → **Save and close the visit**. Back on the record, the new
+   encounter tops the timeline, and the Square referral now reads **Arrived**. **Say:**
+   "Opening an encounter here is what marks the referral arrived — the null in to_encounter_id
+   is the difference between referred and arrived."
+8. On the new encounter, **Refer…** → **Square Hospital**, Cardiology, *urgent*, reason
+   `Echocardiogram` → **Refer**. **Say:** "The referral and a 24-hour consent grant for Square
+   are written in one transaction. Square's doctors see the patient in their referral inbox now, with
+   access to everything before the patient arrives."
+9. **Find patient** → open **Fatema Begum, BD-2021-11904-5**. Refused: *no consent grant or open
    encounter*, with **Use break-glass**.
-6. Click it, type a reason (`Unconscious in emergency`), **Open the record**. A red banner:
+10. Click it, type a reason (`Unconscious in emergency`), **Open the record**. A red banner:
    *Opened under break-glass.* In **Who has viewed this**, the line shows the reason and
    *awaiting review*. **Say:** "Emergency access is allowed, never silent: a reason is
    compulsory, and the read joins the administrator's review queue."
-7. **Wards & beds** → click **GM-04** → **Discharge**. It turns grey: *cleaning*. **Say:** "A
+11. **Wards & beds** → click **GM-08** → **Discharge**. It turns grey: *cleaning*. **Say:** "A
    doctor may discharge; closing the bed stay fired the trigger that sets cleaning."
+12. **Sign out.**
 
-## 7. The patient's own view — 30 seconds
+## 7. The lab — decision 5 — 1 minute
+
+1. Sign in as `rumana` (lab technician). **Lab worklist** lists the tests waiting at Dhaka
+   Medical, including Rahim's **Haemoglobin** from step 6.
+2. Type `10.2` → **Report**. It moves to *Reported just now* marked **Abnormal**. **Say:** "I
+   did not decide that, and nor did the page. A trigger compared the value with the test's
+   reference range, 12 to 15.5, and another marked the order reported. The worklist is a stored
+   procedure, not a view, because which tests a patient is having is clinical information — the
+   procedure checks the technician's permission and hospital first."
+3. **Sign out.**
+
+## 8. The administrator — decisions 2 and 1 — 2 minutes
+
+1. Sign in as `nasima` (hospital admin, Dhaka Medical). **Break-glass review** shows Dr.
+   Anisur's read of Fatema Begum from step 6, with the reason given. **Say:** "Every emergency read
+   waits here. A hospital admin sees reads made at their own hospital only — Chattogram has one
+   waiting too, and the procedure would refuse an attempt to clear it from here. The system admin sees the
+   country."
+2. **Mark reviewed** → **Mark reviewed**. **Say:** "That is the one change the access log's
+   triggers allow: stamping who reviewed it, once. The entry itself can never be edited."
+3. **Merge records**. Under *Possible duplicates*: the two **Md. Rahim Uddin** records, *same
+   name and date of birth*. **Say:** "The database found these with a self-join on the patient
+   table — the same pair the registration panel warned about in step 2."
+4. **Compare**: the verified 2019 record is suggested as the one to keep; matching fields are
+   green. Reason `Same person: NID checked` → **Merge…** → **Merge the records**. **Say:**
+   "One transaction moves the patient's encounters, appointments, referrals, consents and allergies. The
+   old UHID still works — it opens the surviving record. The access log is not moved: who read
+   the old record is a fact about the past." (This cannot be undone without `db:reset`, so it
+   is done once, near the end.)
+5. **Sign out.**
+
+## 9. The patient's own view — 30 seconds
 
 1. **Sign out**, sign in as `rahim`. He lands on **Find a doctor**; **My health record** shows his
    own timeline, and **Who has viewed this** lists every doctor and receptionist who has opened
-   it. **Say:** "A patient sees their record and who read it,
-   and cannot open anyone else's."
+   it — and, after the merge, the 2018 visit to Savar from the old record is in it too. **Say:** "A patient sees
+   their record and who read it, and cannot open anyone else's."
 
-## 8. Print — 15 seconds
+## 10. Print — 15 seconds
 
 On any record, **Print record**. The preview is dark ink on white with no menus, ending with
 *"Printed from the UHID national health record by …, access basis …"*.
 
-## 9. The database itself — 3 minutes, in the MySQL prompt
+## 11. The database itself — 3 minutes, in the MySQL prompt
 
 This is the part that carries the marks: show the rules refusing things directly, with no web
 page involved.
@@ -181,6 +235,8 @@ finishes, so do it last, or restart `npm start` afterwards.)
 | Step 2 issues `BD-2026-00002-2`, not `00001-1` | Someone registered a patient since the reset | Nothing is wrong — the counter moved on |
 | "The server is not answering" toast | `npm start` was stopped | Start it again |
 | Login refused for every account | The database was rebuilt while the server ran | Restart `npm start` |
+| Nasima's break-glass queue is empty in step 8 | The break-glass read in step 6 was skipped | Do step 6.9–6.10 first, or sign in as `sysadmin`, who also sees Chattogram's |
+| Merge says "already been merged away" | The merge was done in an earlier run | `npm run db:reset`, then restart `npm start` |
 | The pages show only 5 patients and no break-glass | The site was opened from disk, not from http://localhost:3000 | Open the localhost address |
 
 ## Where the answers are

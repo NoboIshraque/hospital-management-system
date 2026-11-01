@@ -85,4 +85,4 @@ Tick an item only when it has been run and checked, not when it has been written
 - [x] **F4. Admins:** `audit.html` break-glass review, `merge.html` merge records.
 - [x] **F5. Bed transfer** on the bed board, online and offline.
 - [x] **F6. `ROLES` blurbs** match the screens; browser-tested as every role and offline.
-- [ ] **F7. `docs/demo-script.md`** shows the new screens instead of SQL for step 9.
+- [x] **F7. `docs/demo-script.md`** walks through the new screens (steps 5–9); the SQL step is now 11.
