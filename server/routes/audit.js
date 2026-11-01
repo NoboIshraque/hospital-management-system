@@ -3,6 +3,7 @@
 
    GET  /api/audit/break-glass             unreviewed break-glass reads
    POST /api/audit/break-glass/:id/review  mark one reviewed
+   GET  /api/audit/duplicates              pairs that may be one person
    POST /api/patients/merge                { losingUhid, survivingUhid, reason }
    ============================================================ */
 
@@ -30,6 +31,13 @@ router.get('/audit/break-glass', requirePermission('audit.review'), ah(async (re
 router.post('/audit/break-glass/:id/review', requireLogin, ah(async (req, res) => {
   await call('review_break_glass', [req.session.account.id, Number(req.params.id)]);
   res.json({ reviewed: true });
+}));
+
+/* Pairs the database thinks may be one person (a self-join view). Only for
+   those who may merge: the list itself is a hint, merge_patients() is the act. */
+router.get('/audit/duplicates', requirePermission('patient.merge'), ah(async (req, res) => {
+  const [rows] = await pool.query('SELECT * FROM v_possible_duplicates ORDER BY name');
+  res.json(rows);
 }));
 
 router.post('/patients/merge', requireLogin, ah(async (req, res) => {

@@ -234,6 +234,11 @@ async function signIn(base, username) {
     check('The system admin sees the whole country\'s queue', r.status === 200 && r.body.some(x => x.id === 5));
     r = await rezaul('GET', '/api/audit/break-glass');
     check('A receptionist cannot see the queue (403)', r.status === 403);
+    r = await nasima('GET', '/api/audit/duplicates');
+    check('The admin sees the two Md. Rahim Uddin records flagged as possible duplicates',
+      r.status === 200 && r.body.some(d => d.uhidA === 'BD-2019-04821-5' && d.uhidB === 'BD-2018-00723-2'));
+    r = await rezaul('GET', '/api/audit/duplicates');
+    check('A receptionist cannot list possible duplicates (403)', r.status === 403);
     r = await nasima('POST', '/api/patients/merge', { losingUhid: 'BD-2018-00723-2', survivingUhid: 'BD-2019-04821-5', reason: 'Confirmed same person' });
     check('The admin merges the duplicate Rahim records', r.status === 200);
     r = await anisur('GET', '/api/patients/BD-2018-00723-2');

@@ -144,7 +144,7 @@ You should see:
   seed.sql — 54 statements
   grants.sql — 26 statements
 
-Database rebuilt: 40 tables, 8 views, 21 triggers, 32 procedures/functions, 18 patients, 24 encounters.
+Database rebuilt: 40 tables, 9 views, 21 triggers, 32 procedures/functions, 18 patients, 24 encounters.
 ```
 
 The first line appears only the first time. `grants.sql` creates a second MySQL user,

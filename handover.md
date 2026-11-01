@@ -8,9 +8,8 @@ running system. Read this first in the next session, then `CLAUDE.md`.
 Every item in `CHECKLIST.md` is done, verified, committed and pushed (last commit `d1574fb`).
 The database, the Express API, the frontend wired to the API, the documentation, the viva demo
 script and the three learning guides all exist and are tested. Item 1 below (the ER document and
-diagrams lagging the schema) was **finished on 1 November 2026**. **Three things are still not
-done**: some features have no screen; Abir and Noria have not started their guides; and the
-laptop is short of memory. Details below.
+diagrams lagging the schema) was **finished on 1 November 2026**. Item 2 (screens) was **finished the same day**. **Two things are still not done**: Abir and Noria
+have not started their guides; and the laptop is short of memory. Details below.
 
 ---
 
@@ -18,11 +17,11 @@ laptop is short of memory. Details below.
 
 | Part | Where | Verified by |
 |---|---|---|
-| Database: 40 tables, 21 triggers, 28 procedures + 4 functions, 8 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 72 tests, all pass |
+| Database: 40 tables, 21 triggers, 28 procedures + 4 functions, 9 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 74 tests, all pass |
 | Sample data: 8 hospitals, 11 doctors, 18 patients | `database/seed.sql` | loads clean in `npm run db:reset` |
 | Least-privilege app user `uhid_app` | `database/grants.sql` | denied SELECT on `patient`, UPDATE on `bed`, DELETE/TRUNCATE on `access_log` |
 | 20 demonstration queries | `database/queries.sql` | all run and return sensible rows |
-| Express API, 28 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 64 checks, all pass |
+| Express API, 29 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 66 checks, all pass |
 | Booking under concurrency | `server/scripts/race-booking.js` | `npm run race` — 5 of 5 rounds, exactly one booking each |
 | Frontend on the API (and offline on sample data) | `public/`, switch in `public/js/api.js` | 25-step headless browser test, no JavaScript errors; all 21 standalone screens captured with no errors |
 | Print stylesheet, 404 page | `public/css/responsive.css`, `public/404.html` | rendered in headless Edge |
@@ -66,30 +65,34 @@ everything else, but the choice of spot was a program's, not yours.
 **The crow's-foot file `uhid-er.drawio` was not updated**, by your decision. CLAUDE.md now
 says it is no longer maintained.
 
-### 2. Some features work in the database and API but have no screen
+### 2. ~~Some features had no screen~~ — done 1 November 2026
 
-Tested and working through procedures and `/api`, but not reachable by clicking in the website:
+The team chose to build the screens. Every feature in the old table now has one, and every
+role's `ROLES` description in `public/js/data.js` matches what its screens do:
 
-| Feature | Procedure | Endpoint |
+| Feature | Screen | Who |
 |---|---|---|
-| Doctor records an encounter: diagnoses, vitals, prescriptions, lab orders | `start_encounter()` … `end_encounter()` | `POST /api/encounters` |
-| Doctor refers a patient to another hospital | `refer_patient()` | `POST /api/referrals` |
-| Referral inbox for the receiving hospital | `v_referral_inbox` | `GET /api/referrals/inbox` |
-| Lab technician enters a result | `report_lab_result()` | `POST /api/lab-results` |
-| Admin reviews break-glass reads | `v_break_glass_queue`, `review_break_glass()` | `GET/POST /api/audit/break-glass` |
-| Admin merges duplicate UHIDs | `merge_patients()` | `POST /api/patients/merge` |
-| Transfer a patient between beds | `transfer_patient()` | `POST /api/admissions/:id/transfer` |
+| Record an encounter (diagnoses, vitals, prescriptions, lab orders, one transaction) | `pages/encounter.html`, and *Record encounter* on the record | doctor |
+| Refer to another hospital | *Refer…* on each encounter at the doctor's own hospital (record page) | doctor |
+| Referral inbox | `pages/referrals.html` | doctor |
+| Enter lab results | `pages/lab.html` — the worklist, from the new `lab_worklist()` procedure | lab technician |
+| Review break-glass reads | `pages/audit.html` — own hospital for a hospital admin, all for the system admin | admin |
+| Merge duplicate UHIDs | `pages/merge.html` — suggestions from the new self-join view `v_possible_duplicates` | admin |
+| Transfer between beds | *Transfer…* on an occupied bed (bed board) | receptionist, doctor |
 
-The problem: the console's role descriptions in `public/js/data.js` (`ROLES`) promise these. The
-doctor's says "records encounters, prescribes, refers, discharges". The lab technician and
-system admin logins land on screens with nothing role-specific.
+Database changes made on the way, each with a test: `lab_worklist()` (a procedure, because test
+names are clinical content and views hold none); `review_break_glass()` now refuses a read made
+at another hospital — before, Nasima at Dhaka Medical could clear Chattogram's;
+`report_lab_result()` returns the abnormal flag its trigger decided; and `v_possible_duplicates`.
 
-**A decision is needed from the team:**
-- **Build the screens** (most useful: the doctor's "record encounter" form on the record page,
-  and an admin break-glass review list), or
-- **Soften the `ROLES` blurbs** to match what the screens do, and demonstrate these features
-  through SQL and the API, as `docs/demo-script.md` step 9 already does. Defensible for a DBMS
-  course, where the database carries the marks.
+The five new screens need the server. Opened from disk they say so (`needsServerHtml()` in
+`js/shell.js`); bed transfer works offline too.
+
+**Browser-tested 1 November 2026**, as doctor (allergy refusal rolled the whole visit back; the
+corrected visit saved; referral sent), Square's doctor (it arrived in their inbox), lab technician
+(10.2 g/dL Haemoglobin flagged abnormal by the trigger), hospital admin (queue scoped; merge),
+receptionist (transfer to the female ward refused, then a valid transfer), system admin (reviewed
+the Chattogram read), and offline mode.
 
 ### 3. The team's part
 
@@ -114,12 +117,12 @@ cd E:\hospital-management-system
 git pull                          # in case Abir or Noria pushed practice work
 cd server
 npm run db:reset                  # fresh data; also checks MySQL and .env are working
-npm run db:test                   # 72 PASS
-npm run api:test                  # 64 passed, 0 failed
+npm run db:test                   # 74 PASS
+npm run api:test                  # 66 passed, 0 failed
 npm start                         # http://localhost:3000 — only when you need the site
 ```
 
-Then tell Claude: *"Read handover.md and CLAUDE.md, then start on item 2."*
+Then tell Claude: *"Read handover.md and CLAUDE.md, and pick up from there."*
 
 ## Facts the next session needs
 

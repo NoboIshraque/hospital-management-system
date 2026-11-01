@@ -109,14 +109,14 @@ database/     schema.sql (40 tables) → triggers.sql → procedures.sql → vie
               → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
               queries.sql — 20 demonstration queries (joins, ROLLUP, window functions, CTEs,
               INTERSECT), each tied to a design decision; run as root, not uhid_app
-              tests.sql — 72 tests of constraints, triggers and procedures (npm run db:test)
+              tests.sql — 74 tests of constraints, triggers and procedures (npm run db:test)
 server/       Express app — serves public/ AND the JSON API under /api (docs/api.md)
   app.js        wiring only: session, routes, static files, 404, error handler
   auth.js       sessions, requireLogin, requirePermission (asks has_permission() in MySQL)
   db/           pool.js (connects as uhid_app), errors.js (MYSQL_ERRNO → HTTP), run-sql.js, reset.js
   routes/       auth, reference, patients, appointments, wards, clinical, audit
   lib/format.js turns rows into the shapes public/ renders
-  scripts/      api-test.js (npm run api:test, 64 checks), race-booking.js (npm run race)
+  scripts/      api-test.js (npm run api:test, 66 checks), race-booking.js (npm run race)
   practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
 public/       Frontend, served as static files (also works opened straight from disk)
   index.html    public landing page
@@ -124,9 +124,12 @@ public/       Frontend, served as static files (also works opened straight from 
   privacy.html  data-handling statement
   404.html      sent by Express for any unknown address; uses /-rooted paths for that reason
   favicon.svg   brand mark
-  css/          tokens, base, components, shell, site, per-screen, responsive
+  css/          tokens, base, components, shell, site, per-screen (clinical.css: the five screens
+                added 1 Nov 2026), responsive
   js/           data, seed, store, api (the fetch wrapper + online/offline switch), util, shell, auth, home
-  pages/        the clinical console — one .html + one .js per screen
+  pages/        the clinical console — one .html + one .js per screen: register, search, record,
+                book, wards (the prototype's five); encounter, referrals, lab, audit, merge (added
+                1 Nov 2026, server-only — opened from disk they show needsServerHtml())
 mock/         empty — the pages read js/data.js and js/seed.js instead (see Architecture)
 prototype/    uhid-prototype.html — single-file working prototype (see below)
 ```
@@ -294,24 +297,25 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 |---|---|
 | Frontend prototype | Built (single file) |
 | Console split into `public/` | Done — 5 screens, shared shell. Wired to the API 31 Oct 2026 (25-step browser test passed, no JS errors); still runs on sample data when opened from disk |
+| Screens for every role | Done 1 Nov 2026 — record encounter, refer (on the record), referral inbox, lab worklist, break-glass review, merge records, bed transfer (on the bed board). Every role's `ROLES` blurb in `js/data.js` now matches what its screens do. Browser-tested end to end as doctor, lab technician, hospital admin, receptionist and system admin, plus offline mode |
 | Public landing page | Done — nav, dropdown, hero, services, hospitals, doctors, FAQ, footer |
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |
 | Use cases | Done — `docs/use-cases.md` |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched). The crow's-foot file is no longer maintained |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (28 + 4 functions), views (8), seed, grants, 20 demonstration queries, 72 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 72/72** |
+| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (28 + 4 functions), views (9), seed, grants, 20 demonstration queries, 74 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 74/74** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
-| Express API | Done 31 Oct 2026 — 28 endpoints, `docs/api.md`; `npm run api:test` passes 64/64; `npm run race` shows 5/5 single bookings |
+| Express API | Done 31 Oct 2026 — 29 endpoints, `docs/api.md`; `npm run api:test` passes 66/66; `npm run race` shows 5/5 single bookings |
 | Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
 | Demo script, README | Done 1 Nov 2026 — `docs/demo-script.md`; README rewritten for the running system |
 | Print stylesheet, 404 page | Done 1 Nov 2026 |
 
 ## Open items — do not lose these
 
-- **Read `handover.md` first.** Written 1 Nov 2026, item 1 done the same day: what is
-  verified, and what is still open — some features have no screen, the team's guides are not
-  started, and the laptop is short of memory. Update or delete it when those are dealt with.
+- **Read `handover.md` first.** Written 1 Nov 2026; items 1 (ER docs) and 2 (screens) done the
+  same day. Still open there: the team's guides, and the laptop is short of memory. Update or
+  delete it when those are dealt with.
 - **`CHECKLIST.md` is complete** (written 31 Oct 2026, every item done and verified by
   1 Nov 2026). New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a

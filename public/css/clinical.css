@@ -1,0 +1,93 @@
+/* ============================================================
+   UHID — the clinical screens added after the prototype
+   encounter.html, referrals.html, lab.html, audit.html, merge.html,
+   and the refer / transfer dialogs on record.html and wards.html.
+
+   No prototype counterpart, so these follow its rules rather than
+   copy its code: tokens only, the same card / row / pill pieces,
+   and the same 5px radius. Media queries are in responsive.css.
+   ============================================================ */
+
+/* A form beside a sticky summary — the registration screen's layout. */
+.side-grid { display: grid; grid-template-columns: 1fr 330px; gap: 18px; align-items: start; }
+.side-panel { position: sticky; top: 84px; display: flex; flex-direction: column; gap: 12px; }
+.side-panel .card { padding: 15px 17px; }
+.side-panel h3 { margin: 0 0 8px; font-size: 13.5px; }
+.side-panel .banner { margin: 0; }
+
+/* .form-card and .form-sec come from register.css, which encounter.html links. */
+.form-sec > h3 .opt { color: var(--ink-3); font-weight: 400; }
+textarea.field { resize: vertical; min-height: 64px; font-family: var(--f-ui); }
+
+/* "Add a line" rows: diagnoses and drug lines. */
+.adder { display: grid; gap: 9px; align-items: end; margin-bottom: 11px; }
+.adder.dx { grid-template-columns: 1fr 150px auto; }
+.adder.rx { grid-template-columns: 1.6fr 1fr 1.1fr 78px auto; }
+.adder.rx-note { grid-template-columns: 1fr; margin-top: -2px; }
+.lines { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); }
+.lines:empty::before {
+  content: attr(data-empty); display: block;
+  padding: 12px 14px; font-size: 12.5px; color: var(--ink-3);
+}
+.line {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 13px;
+}
+.line:last-child { border-bottom: 0; }
+.line .grow { flex: 1; min-width: 180px; }
+.line .sub { color: var(--ink-3); font-size: 12px; }
+.line label { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; color: var(--ink-2); cursor: pointer; }
+.x {
+  border: 0; background: transparent; color: var(--ink-3); cursor: pointer;
+  font-size: 17px; line-height: 1; padding: 2px 6px; border-radius: var(--r);
+}
+.x:hover { color: var(--crit); background: var(--crit-soft); }
+
+/* Tick-box chips for lab tests. */
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  display: inline-flex; gap: 6px; align-items: center; cursor: pointer;
+  border: 1px solid var(--line-2); border-radius: 999px;
+  padding: 5px 11px; font-size: 12.5px; background: var(--surface);
+}
+.chip:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-ink); }
+.chip input { accent-color: var(--brand); margin: 0; }
+.chip .sub { color: var(--ink-3); font-size: 11px; }
+
+/* What "Save" will run — the transaction, spelled out. */
+.steps { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); line-height: 1.75; }
+.steps .mono { font-size: 11.5px; color: var(--ink); }
+
+/* One row of a work queue: inbox, worklist, review queue. */
+.queue { padding: 4px 0; }
+.qrow {
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  padding: 13px 18px; border-bottom: 1px solid var(--line);
+}
+.qrow:last-child { border-bottom: 0; }
+.qrow .who { min-width: 190px; }
+.qrow .who b { display: block; font-size: 14px; }
+.qrow .what { flex: 1; min-width: 220px; font-size: 13px; color: var(--ink-2); }
+.qrow .what b { color: var(--ink); font-weight: 600; }
+.qrow .meta { font-size: 12px; color: var(--ink-3); }
+.qrow .acts { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+.qrow.done { background: var(--surface-2); }
+
+/* The result box on the lab worklist. */
+.result-in { display: flex; gap: 7px; align-items: center; }
+.result-in .field { width: 128px; }
+.result-in .unit { font-size: 12px; color: var(--ink-3); min-width: 44px; }
+
+/* Two records side by side, before a merge. */
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.compare .card { padding: 16px 18px; }
+.compare h3 { margin: 0 0 10px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.compare .card.keep { border-color: var(--ok); }
+.compare .card.lose { border-color: var(--warn); }
+.compare .kv { margin-top: 12px; }
+.compare .same { color: var(--ok); }
+
+/* Small section heading inside a page. */
+.sec-h { display: flex; align-items: baseline; gap: 10px; margin: 22px 0 10px; }
+.sec-h h3 { margin: 0; font-size: 14.5px; }
+.sec-h span { font-size: 12.5px; color: var(--ink-3); }

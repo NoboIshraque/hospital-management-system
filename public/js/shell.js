@@ -23,7 +23,12 @@ const CRUMBS = {
   search:   'Patient search',
   record:   'Patient record',
   book:     'Appointments',
-  wards:    'Wards &amp; beds'
+  wards:    'Wards &amp; beds',
+  encounter: 'Record encounter',
+  referrals: 'Referral inbox',
+  lab:      'Lab worklist',
+  audit:    'Break-glass review',
+  merge:    'Merge records'
 };
 
 /* ------------------------------------------------------------
@@ -71,6 +76,16 @@ function boot(render) {
 /* While anything is being fetched, the screen says so. */
 const loadingHtml = what => `<div class="card empty-state" aria-busy="true"><b>Loading&hellip;</b>${esc(what)}</div>`;
 const errorHtml = (title, msg) => `<div class="card empty-state"><b>${esc(title)}</b>${esc(msg)}</div>`;
+
+/* The screens added after the prototype write straight to MySQL and have
+   no sample-data stand-in. Opened from disk, they say so plainly rather
+   than pretend: what the screen does, and how to see it work. */
+const needsServerHtml = what => `
+  <div class="card empty-state">
+    <b>This screen runs on the database</b>
+    ${esc(what)} It has no sample-data version. Start the server (<span class="mono">npm start</span> in
+    <span class="mono">server/</span>) and open <span class="mono">http://localhost:3000</span> to use it.
+  </div>`;
 
 /* ------------------------------------------------------------
    PAGE START-UP

@@ -80,6 +80,28 @@ SELECT p.uhid,
   LEFT JOIN district d ON d.district_id = p.district_id
  WHERE NOT EXISTS (SELECT 1 FROM patient_merge m WHERE m.losing_patient_id = p.patient_id);
 
+-- Decision 1's safety net, found by the database: pairs of live records that
+-- look like one person — the same name and date of birth, or the same mobile
+-- number once the dashes are stripped. A self-join; a.patient_id <
+-- b.patient_id makes each pair appear once, not twice, and never pairs a
+-- record with itself. NID is not compared: uq_patient_nid already makes two
+-- records with one NID impossible. Demographics only, so it may be a view.
+-- The merge screen lists these; a person, not this view, decides.
+CREATE OR REPLACE VIEW v_possible_duplicates AS
+SELECT a.uhid AS uhidA,
+       b.uhid AS uhidB,
+       a.name AS name,
+       CONCAT_WS(' and ',
+         IF(a.name = b.name AND a.dob = b.dob, 'same name and date of birth', NULL),
+         IF(REPLACE(a.phone, '-', '') = REPLACE(b.phone, '-', ''), 'same mobile number', NULL)) AS matchedOn
+  FROM patient a
+  JOIN patient b
+    ON a.patient_id < b.patient_id
+   AND (   (a.name = b.name AND a.dob = b.dob)
+        OR REPLACE(a.phone, '-', '') = REPLACE(b.phone, '-', ''))
+ WHERE NOT EXISTS (SELECT 1 FROM patient_merge m
+                    WHERE m.losing_patient_id IN (a.patient_id, b.patient_id));
+
 -- The bed board in pages/wards.js: every bed, its status, and — when it is
 -- occupied — who is in it. The patient columns come from the OPEN
 -- bed_occupancy row (to_at IS NULL), which is exactly one row per occupied

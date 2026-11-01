@@ -55,7 +55,8 @@ const ROLES = {
   doctor: {
     label: 'Doctor', who: 'Dr. Anisur Rahman', hospital: 1,
     blurb: 'Reads the national record, records encounters, prescribes, refers, discharges.',
-    nav: [['search','Find patient'], ['record','Patient record'], ['wards','Wards &amp; beds']]
+    nav: [['search','Find patient'], ['record','Patient record'], ['encounter','Record encounter'],
+          ['referrals','Referral inbox'], ['wards','Wards &amp; beds']]
   },
   patient: {
     label: 'Patient', who: 'Md. Rahim Uddin', hospital: null,
@@ -64,20 +65,21 @@ const ROLES = {
   },
   admin: {
     label: 'Hospital Admin', who: 'Nasima Sultana', hospital: 1,
-    blurb: 'Manages doctors, departments, schedules, wards and beds.',
-    nav: [['wards','Wards &amp; beds'], ['search','Find patient'], ['book','Appointments']]
+    blurb: 'Oversees wards and appointments, reviews break-glass access, merges duplicate records.',
+    nav: [['audit','Break-glass review'], ['merge','Merge records'], ['wards','Wards &amp; beds'],
+          ['search','Find patient'], ['book','Appointments']]
   },
-  /* These two exist in the database (seed.sql) but had no screens in the
-     prototype. They can sign in when the site is served by Express. */
+  /* These two exist in the database (seed.sql) but not in the prototype's
+     ACCOUNTS above, so they sign in only when the site is served by Express. */
   lab_technician: {
     label: 'Lab Technician', who: 'Rumana Parvin', hospital: 1,
-    blurb: 'Enters lab results for the hospital.',
-    nav: [['search','Find patient'], ['wards','Wards &amp; beds']]
+    blurb: 'Works through the hospital’s lab orders and enters each result.',
+    nav: [['lab','Lab worklist'], ['search','Find patient']]
   },
   system_admin: {
     label: 'System Admin', who: 'System Administrator', hospital: null,
-    blurb: 'National administration and audit.',
-    nav: [['search','Find patient']]
+    blurb: 'Reviews break-glass access at every hospital, merges duplicate records nationally.',
+    nav: [['audit','Break-glass review'], ['merge','Merge records'], ['search','Find patient']]
   }
 };
 

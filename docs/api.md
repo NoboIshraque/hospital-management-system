@@ -40,6 +40,7 @@ database refused (see `server/db/errors.js`):
 | `GET /api/patients` | reception, doctors, admin | — | `v_patient_directory` (after `has_permission`) |
 | `POST /api/patients` | reception | `{ name, dob, sex, blood, phone, nid, district, address, kinName, kinRelation, kinPhone, allergies[] }` | `register_patient()` |
 | `GET /api/patients/:uhid` | signed in | `?breakGlass=1&reason=…` | `get_patient_record()` — logged |
+| `GET /api/audit/duplicates` | hospital admin, system admin | — | `v_possible_duplicates` — a self-join: same name + date of birth, or same mobile (after `has_permission('patient.merge')`) |
 | `POST /api/patients/merge` | admin | `{ losingUhid, survivingUhid, reason }` | `merge_patients()` |
 | `POST /api/appointments` | reception, patient (own) | `{ postingId, uhid, slotStart }` | `book_appointment()` |
 | `DELETE /api/appointments/:id` | reception, patient (own) | — | `cancel_appointment()` |

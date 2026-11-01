@@ -120,8 +120,10 @@ function openBed(wi, bi) {
       ${API.online ? '<p class="hint">Only a doctor may discharge. The database checks this, not the screen.</p>' : ''}</div>
       <div class="modal-f">
         <button class="btn" data-close>Close</button>
+        <button class="btn" data-transfer>Transfer&hellip;</button>
         <button class="btn primary" data-discharge>Discharge</button>
       </div>`);
+    $('[data-transfer]', sc).addEventListener('click', () => { sc.remove(); openTransfer(wi, bi); });
     $('[data-discharge]', sc).addEventListener('click', async () => {
       if (API.online) {
         try { await API.post(`/admissions/${b.admissionId}/discharge`, { outcome: 'recovered' }); }
@@ -201,6 +203,50 @@ function openBed(wi, bi) {
     }
     sc.remove();
     afterChange('Patient admitted', `${chosen ? chosen.name : uhid} into ${b.no}, ${w.name}.`);
+  });
+}
+
+/* Move an inpatient to another bed. Online, transfer_patient() closes the
+   old bed_occupancy row and opens a new one in one transaction; the
+   triggers then set the old bed to cleaning and the new one to occupied,
+   and refuse a bed that is not free, the wrong sex's ward, or an adult in
+   paediatrics — in which case the patient stays exactly where they were. */
+function openTransfer(wi, bi) {
+  const w = WARDS[wi];
+  const b = w.beds[bi];
+  const groups = WARDS.map((ward, i) => {
+    const free = ward.beds.map((bed, j) => ({ bed, j })).filter(x => x.bed.status === 'free');
+    return free.length
+      ? `<optgroup label="${esc(ward.name)}">${free.map(x => `<option value="${i}:${x.j}">${esc(x.bed.no)}</option>`).join('')}</optgroup>`
+      : '';
+  }).join('');
+
+  if (!groups) { toast('No free bed', 'Every bed in this hospital is taken or being cleaned.', 'err'); return; }
+
+  const sc = modal(`
+    <div class="modal-h"><h3>Transfer ${esc(b.patient)}</h3><p>From ${esc(b.no)}, ${esc(w.name)}</p></div>
+    <div class="modal-b">
+      <div class="row"><div>
+        <label class="label" for="tr-bed">Move to</label>
+        <select class="field" id="tr-bed">${groups}</select>
+      </div></div>
+      <p class="hint">The old bed goes for cleaning and the new one is occupied in one transaction. ${API.online ? 'The database refuses a ward for the other sex, or an adult in paediatrics, and then nothing moves.' : ''}</p>
+    </div>
+    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Transfer</button></div>`);
+
+  $('[data-ok]', sc).addEventListener('click', async () => {
+    const [ti, tj] = $('#tr-bed', sc).value.split(':').map(Number);
+    const tw = WARDS[ti];
+    const tb = tw.beds[tj];
+    if (API.online) {
+      try { await API.post(`/admissions/${b.admissionId}/transfer`, { wardId: tw.id, bedNo: tb.no }); }
+      catch (e) { toast('Not transferred', e.message, 'err'); return; }
+    } else {
+      Object.assign(tb, { status: 'occupied', patient: b.patient, uhid: b.uhid, dx: b.dx, days: b.days });
+      Object.assign(b, { status: 'cleaning', patient: null, uhid: null, dx: null, days: null });
+    }
+    sc.remove();
+    afterChange('Patient transferred', `${tb.patient || b.patient || 'Patient'} moved from ${b.no} to ${tb.no}, ${tw.name}.`);
   });
 }
 

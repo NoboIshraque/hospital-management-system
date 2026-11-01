@@ -75,7 +75,12 @@ function icon(id) {
     search:   '<circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4L14.2 14.2"/>',
     book:     '<rect x="1.8" y="3" width="12.4" height="11.2" rx="1.6"/><path d="M1.8 6.6h12.4M5.2 1.6v2.6M10.8 1.6v2.6"/>',
     record:   '<path d="M3.5 1.8h9v12.4h-9z"/><path d="M6 5.2h4M6 8h4M6 10.8h2.4"/>',
-    wards:    '<path d="M1.6 12.4V6.6l6.4-4.2 6.4 4.2v5.8"/><path d="M1.6 12.4h12.8M5.6 12.4V9h4.8v3.4"/>'
+    wards:    '<path d="M1.6 12.4V6.6l6.4-4.2 6.4 4.2v5.8"/><path d="M1.6 12.4h12.8M5.6 12.4V9h4.8v3.4"/>',
+    encounter: '<path d="M10.6 1.8l3.6 3.6-7.8 7.8H2.8V9.6z"/><path d="M8.8 3.6l3.6 3.6"/>',
+    referrals: '<path d="M1.8 8h9.6M8 4.4L11.6 8 8 11.6"/><path d="M14.2 2.4v11.2"/>',
+    lab:      '<path d="M6 1.8h4M6.6 1.8v4.6L2.6 13a1 1 0 00.9 1.4h9a1 1 0 00.9-1.4L9.4 6.4V1.8"/><path d="M4.4 10h7.2"/>',
+    audit:    '<path d="M8 1.6l5.6 2.2v4c0 3.4-2.4 5.6-5.6 6.6-3.2-1-5.6-3.2-5.6-6.6v-4z"/><path d="M5.6 8l1.7 1.7L10.6 6.4"/>',
+    merge:    '<path d="M3.2 1.8v3.6c0 2 1.6 3.2 4.8 4.4M12.8 1.8v3.6c0 2-1.6 3.2-4.8 4.4V14.2"/>'
   };
   return `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${paths[id] || ''}</svg>`;

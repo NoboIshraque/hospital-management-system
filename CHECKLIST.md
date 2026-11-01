@@ -73,3 +73,16 @@ Tick an item only when it has been run and checked, not when it has been written
 - [x] **E3. `docs/normalization.md`**
 - [x] **E4. `docs/demo-script.md`** — the click-by-click viva demonstration.
 - [x] **E5. README and CLAUDE.md** brought up to date.
+
+## F. A screen for every role (added 1 November 2026)
+
+- [x] **F1. Database:** `lab_worklist()`, `v_possible_duplicates`, `review_break_glass()` limited
+      to the admin's own hospital, `report_lab_result()` returns the abnormal flag — tested in
+      `tests.sql` (74 pass) and `api-test.js` (66 pass).
+- [x] **F2. Doctor:** `encounter.html` (one-transaction visit), *Refer…* on the record,
+      `referrals.html` inbox.
+- [x] **F3. Lab technician:** `lab.html` worklist.
+- [x] **F4. Admins:** `audit.html` break-glass review, `merge.html` merge records.
+- [x] **F5. Bed transfer** on the bed board, online and offline.
+- [x] **F6. `ROLES` blurbs** match the screens; browser-tested as every role and offline.
+- [ ] **F7. `docs/demo-script.md`** shows the new screens instead of SQL for step 9.

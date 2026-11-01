@@ -380,6 +380,9 @@ CALL t_expect('A doctor refers from an encounter at their hospital',
 CALL t_value('…and the receiving hospital gets a consent grant with it',
   "SELECT COUNT(*) FROM consent_grant WHERE patient_id = 1 AND to_hospital_id = 3 AND granted_via = 'referral'", '1');
 
+CALL t_value('The database flags the two Md. Rahim Uddin records as possible duplicates',
+  "SELECT matchedOn FROM v_possible_duplicates WHERE uhidA = 'BD-2019-04821-5' AND uhidB = 'BD-2018-00723-2'",
+  'same name and date of birth');
 CALL t_expect('A receptionist may not merge records',
   "CALL merge_patients(1, 'BD-2018-00723-2', 'BD-2019-04821-5', 'x')", 5403);
 CALL t_expect('A hospital admin merges the two Md. Rahim Uddin records',
@@ -390,6 +393,8 @@ CALL t_value('…his 2018 encounter moved to the surviving record',
   "SELECT patient_id FROM encounter WHERE encounter_id = 1", '1');
 CALL t_value('…and the merged-away record no longer appears in search',
   "SELECT COUNT(*) FROM v_patient_directory WHERE uhid = 'BD-2018-00723-2'", '0');
+CALL t_value('…nor as a possible duplicate',
+  "SELECT COUNT(*) FROM v_possible_duplicates WHERE 'BD-2018-00723-2' IN (uhidA, uhidB)", '0');
 CALL t_expect('A record cannot be merged away twice',
   "CALL merge_patients(2, 'BD-2018-00723-2', 'BD-2019-04821-5', 'again')", 1644);
 

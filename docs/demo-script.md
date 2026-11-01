@@ -18,7 +18,7 @@ hours from the moment the seed data is loaded.
 cd hospital-management-system\server
 npm run db:reset          # fresh sample data — ends "Database rebuilt: 40 tables, …"
 npm run db:test           # 64 database tests — every line PASS
-npm run api:test          # 64 API checks — "64 passed, 0 failed"
+npm run api:test          # 66 API checks — "66 passed, 0 failed"
 npm start                 # "UHID running at http://localhost:3000"
 ```
 
@@ -167,7 +167,7 @@ Then open `database/queries.sql` and run two or three: **1** (one patient, every
 **5** (possible duplicate patients — a self-join), **7** (busiest departments — a window
 function), **11** (a calendar from a recursive CTE).
 
-Finally, in the second PowerShell window: `npm run db:test` — **72 tests, every one PASS**, each
+Finally, in the second PowerShell window: `npm run db:test` — **74 tests, every one PASS**, each
 proving a rule refuses what it must with the exact error number. (It resets the database when it
 finishes, so do it last, or restart `npm start` afterwards.)
 

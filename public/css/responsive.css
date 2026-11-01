@@ -57,8 +57,9 @@
 /* ---- clinical console ---- */
 
 @media (max-width: 1000px) {
-  .reg-grid { grid-template-columns: 1fr; }
-  .match-panel { position: static; }
+  .reg-grid, .side-grid { grid-template-columns: 1fr; }
+  .match-panel, .side-panel { position: static; }
+  .adder.rx { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 780px) {
   #app { grid-template-columns: 1fr; }
@@ -68,6 +69,8 @@
   .rail-foot { margin-top: 14px; }
   .content { padding: 18px; }
   .row.c2, .row.c3 { grid-template-columns: 1fr; }
+  .adder.dx, .adder.rx, .compare { grid-template-columns: 1fr; }
+  .qrow .who, .qrow .what { min-width: 0; flex-basis: 100%; }
   .gsearch { width: 100%; order: 3; margin-left: 0; }
   .topbar { flex-wrap: wrap; }
 }

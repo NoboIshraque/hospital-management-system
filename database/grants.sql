@@ -52,6 +52,7 @@ GRANT SELECT ON uhid.v_ward_occupancy     TO 'uhid_app'@'localhost';
 GRANT SELECT ON uhid.v_break_glass_queue  TO 'uhid_app'@'localhost';
 GRANT SELECT ON uhid.v_referral_inbox     TO 'uhid_app'@'localhost';
 GRANT SELECT ON uhid.v_district_list      TO 'uhid_app'@'localhost';
+GRANT SELECT ON uhid.v_possible_duplicates TO 'uhid_app'@'localhost';
 
 -- Lookup tables: catalogues with no personal data in them.
 GRANT SELECT ON uhid.division       TO 'uhid_app'@'localhost';

@@ -15,6 +15,7 @@
   cursor: pointer; white-space: nowrap;
   transition: background .12s, border-color .12s;
 }
+a.btn { text-decoration: none; }   /* a link styled as a button, e.g. "Record encounter" */
 .btn:hover { background: var(--surface-2); border-color: var(--ink-3); }
 .btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
 .btn.primary:hover { background: var(--brand-ink); border-color: var(--brand-ink); }

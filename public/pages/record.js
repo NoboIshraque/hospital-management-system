@@ -115,6 +115,7 @@ function drawRecord(root, p) {
         </div>
       </div>
       <div class="pt-actions">
+        ${S.role === 'doctor' && API.online ? `<a class="btn primary" href="encounter.html?uhid=${encodeURIComponent(p.uhid)}">Record encounter</a>` : ''}
         ${isSelf ? '' : `<button class="btn" id="consent-btn">Access basis: ${esc((BASIS_LABEL[access.basis] || access.basis).toLowerCase())}</button>`}
         <button class="btn ghost" id="print-btn">Print record</button>
       </div>
@@ -205,6 +206,7 @@ function renderRecordBody() {
               <span class="pill ${e.type === 'Emergency' ? 'crit' : e.type === 'Inpatient' ? 'warn' : 'info'}">${esc(e.type)}</span>
               <span class="pill mute">${esc(h.div)}</span>
               ${e.isOpen ? '<span class="pill ok"><i class="dot"></i>Open</span>' : ''}
+              ${canRefer(e) ? `<button class="btn sm" style="margin-left:auto" data-refer="${Number(e.id)}">Refer&hellip;</button>` : ''}
             </div>
             <div class="enc-body">
               <span class="dx">${esc(e.dx)}</span>${e.notes ? ` &mdash; ${esc(e.notes)}` : ''}
@@ -217,6 +219,8 @@ function renderRecordBody() {
           </div>
         </div>`;
       }).join('')}</div>`;
+    $$('[data-refer]', box).forEach(b => b.addEventListener('click', () =>
+      openReferral(p, p.encounters.find(e => e.id === Number(b.dataset.refer)))));
 
   } else if (S.tab === 'rx') {
     if (demographicsOnly) {
@@ -261,6 +265,50 @@ function renderRecordBody() {
           <span class="pill ${esc(r.kind)}">${esc(r.basis)}</span>
         </div>`).join('')}</div>`;
   }
+}
+
+/* A doctor refers from an encounter at their own hospital — the same rule
+   require_own_encounter() applies inside refer_patient(). The button is a
+   convenience; the procedure is the check. */
+const canRefer = e => API.online && S.role === 'doctor' && e.id && e.hospitalId === S.account.hospitalId;
+
+/* Decision 6, the sending end. refer_patient() writes the referral AND a
+   24-hour consent grant to the receiving hospital, in one transaction. */
+function openReferral(p, e) {
+  const others = HOSPITALS.filter(h => h.id !== S.account.hospitalId);
+  const sc = modal(`
+    <div class="modal-h"><h3>Refer ${esc(p.name)}</h3><p>From the ${esc(fmtDate(e.date))} encounter &mdash; ${esc(e.dx)}</p></div>
+    <div class="modal-b">
+      <div class="row"><div>
+        <label class="label" for="rf-to">To hospital</label>
+        <select class="field" id="rf-to">${others.map(h => `<option value="${Number(h.id)}">${esc(h.name)} &mdash; ${esc(h.dist)}, ${esc(h.tier)}</option>`).join('')}</select>
+      </div></div>
+      <div class="row c2">
+        <div><label class="label" for="rf-dept">Department</label>
+          <select class="field" id="rf-dept"><option value="">Any</option>${DEPARTMENTS.map(d => `<option>${esc(d)}</option>`).join('')}</select></div>
+        <div><label class="label" for="rf-urg">Urgency</label>
+          <select class="field" id="rf-urg"><option>routine</option><option>urgent</option><option>emergency</option></select></div>
+      </div>
+      <div class="row"><div>
+        <label class="label" for="rf-reason">Reason</label>
+        <textarea class="field" id="rf-reason" rows="3" maxlength="300" placeholder="e.g. Echocardiogram and specialist review"></textarea>
+      </div></div>
+      <p class="hint">The receiving hospital can read this record for 24 hours from now, so it sees the full history before the patient arrives. That grant is written in the same transaction as the referral.</p>
+    </div>
+    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Refer</button></div>`);
+  $('#rf-reason', sc).focus();
+  $('[data-ok]', sc).addEventListener('click', async () => {
+    const reason = $('#rf-reason', sc).value.trim();
+    if (!reason) { toast('Reason required', 'A referral needs a reason.', 'err'); return; }
+    const to = Number($('#rf-to', sc).value);
+    $('[data-ok]', sc).disabled = true;
+    try {
+      await API.post('/referrals', { encounterId: e.id, toHospitalId: to, dept: $('#rf-dept', sc).value, reason, urgency: $('#rf-urg', sc).value });
+    } catch (err) { $('[data-ok]', sc).disabled = false; toast('Not referred', err.message, 'err'); return; }
+    sc.remove();
+    toast('Referral sent', `${p.name} referred to ${hospital(to).name}. It appears in their referral inbox now.`);
+    loadRecord($('#view'), p.uhid, null);
+  });
 }
 
 /* Decision 6, on screen: where this patient was sent, and whether they got there. */
