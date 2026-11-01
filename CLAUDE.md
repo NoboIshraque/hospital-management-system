@@ -102,6 +102,7 @@ docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
               data-dictionary.md (all 40 tables, generated from schema.sql),
               normalization.md (1NF → BCNF worked examples, and every deliberate redundancy)
               guides/nobo.md, abir.md, noria.md — the team's learning guides (see Team below)
+              api.md (every endpoint → its procedure), demo-script.md (the viva, click by click)
 database/     schema.sql (40 tables) → triggers.sql → procedures.sql → views.sql → seed.sql,
               loaded in that order
               → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
@@ -300,10 +301,13 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
 | Express API | Done 31 Oct 2026 — 27 endpoints, `docs/api.md`; `npm run api:test` passes 59/59; `npm run race` shows 5/5 single bookings |
 | Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
+| Demo script, README | Done 1 Nov 2026 — `docs/demo-script.md`; README rewritten for the running system |
+| Print stylesheet, 404 page | Done 1 Nov 2026 |
 
 ## Open items — do not lose these
 
-- **Work now follows `CHECKLIST.md`** (written 31 Oct 2026, target 7 Nov 2026).
+- **`CHECKLIST.md` is complete** (written 31 Oct 2026, every item done and verified by
+  1 Nov 2026). New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
   small version of one slice of the database and backend: Nobo the hardest (transactions,
   locking, recursive CTEs, derived-state triggers, the logged read, the backend core), Abir the
@@ -324,9 +328,6 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   order through `server/db/run-sql.js`, which does the mysql client's `DELIMITER` handling
   itself — mysql2 sends one statement per query and knows nothing about delimiters.
 
-- **README milestones slipped.** Its plan had the schema due 19 Sep and the API 26 Sep; on
-  11 Oct 2026 the schema was done but seed data, triggers, procedures and the API were not.
-  The README table states that honestly — keep it that way rather than moving the dates.
 
 ## Working rules
 

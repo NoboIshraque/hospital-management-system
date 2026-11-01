@@ -6,7 +6,7 @@ that identifier follows them for life — so a doctor in Chattogram can see a di
 recorded in Dhaka, an allergy recorded in Sylhet, and a prescription written in Savar.
 
 Database Management System course project · Department of ICT, Bangladesh University of
-Professionals · September–October 2026.
+Professionals · September–November 2026.
 
 ---
 
@@ -16,22 +16,26 @@ Hospital records in Bangladesh are per-hospital and mostly on paper. A patient t
 one district arrives at another with no history, no allergy record, and no medication list.
 This system puts every connected hospital on one database, behind one patient identity.
 
-Four design decisions carry the project:
+Seven design decisions carry the project. Each is enforced by the database itself — by a
+constraint, a trigger or a stored procedure — not by application code that could forget:
 
-1. **Identity before records.** A UHID is anchored to a national ID or birth registration
-   number. Registration runs a duplicate check on NID, name + date of birth, and mobile
-   before it will issue a new identifier — because a patient with two UHIDs is a national
-   record split silently in half.
-2. **Access is granted, not assumed.** Role-based permissions, patient consent grants with
-   an expiry, and an append-only access log with a row for every clinical read. MySQL has no
-   trigger that fires on a read, so clinical reads go through a stored procedure that writes
-   the log row and then returns the data — the application may call that procedure but never
-   read the clinical tables directly. Emergency "break-glass" access is allowed but flagged.
-3. **Availability is computed, never stored.** A doctor's free slots are derived from their
-   recurring schedule, their leave exceptions, and existing bookings.
-4. **Booking is transactional.** A unique constraint on `(doctor_id, slot_start)` plus a
-   stored procedure using `SELECT … FOR UPDATE`, so two patients clicking the same slot at
-   the same instant can never both succeed.
+1. **One UHID per person.** Registration checks NID, name + date of birth, and mobile before
+   it issues a UHID, and the UHID's serial comes from a counter row locked with
+   `SELECT … FOR UPDATE`. A CHECK constraint verifies the format and check digit.
+2. **Access is granted, not assumed.** Role permissions, patient consent grants that expire
+   after 24 hours, and an append-only access log. MySQL has no trigger that fires on a read,
+   so a clinical record can only be read through a stored procedure that writes the log row
+   first — the web server's database account has no other way in. Emergency break-glass
+   access is allowed, needs a written reason, and is queued for review.
+3. **Availability is computed, never stored** — a recursive CTE over the weekly schedule,
+   minus leave, minus bookings.
+4. **Booking is transactional.** A unique key on the doctor and slot, plus a procedure that
+   locks the doctor's row, so two bookings for one slot can never both succeed.
+5. **The encounter is the clinical hub.** Diagnoses (ICD-10), prescriptions, lab results and
+   vitals hang off it, coded against catalogues rather than free text.
+6. **Referrals make it national.** A referral carries a consent grant to the receiving
+   hospital, and is marked arrived when the patient is seen there.
+7. **Bed status changes only by trigger**, when a bed stay opens or closes.
 
 ---
 
@@ -39,97 +43,94 @@ Four design decisions carry the project:
 
 | Layer | Technology |
 |---|---|
-| Database | MySQL 8 (developed on 8.4 LTS; needs 8.0.16 or later) |
-| Backend | Node.js, Express, `mysql2` (developed on Node.js 24 LTS) |
-| Frontend | HTML, CSS, JavaScript — no framework |
-| Architecture | Static pages calling a REST API via `fetch`, served by Express |
+| Database | MySQL 8 (developed on 8.4 LTS; needs 8.0.31 or later) |
+| Backend | Node.js 20+, Express 4, `mysql2`, `bcryptjs`, `express-session` |
+| Frontend | HTML, CSS, JavaScript — no framework, no build step |
+| Architecture | Static pages calling a JSON API with `fetch`, both served by Express |
+
+In numbers: 40 tables, 21 triggers, 27 stored procedures and 4 functions, 8 views,
+20 demonstration queries, 64 database tests, 27 API endpoints with 59 end-to-end checks.
+
+---
+
+## Running it
+
+You need **MySQL 8** and **Node.js 20 or later**. It will not run on MariaDB (for example the
+one bundled with XAMPP), which lacks `REGEXP_LIKE()`, the `utf8mb4_0900_ai_ci` collation and
+`INTERSECT`.
+
+```powershell
+cd server
+npm install
+Copy-Item .env.example .env      # then put your MySQL root password in .env
+npm run db:reset                 # builds the database and loads the sample data
+npm start                        # http://localhost:3000
+```
+
+`npm run db:reset` drops and rebuilds the `uhid` database — **everything in it is replaced**.
+The first time, it also creates `uhid_app`, the limited MySQL user the server connects as,
+and adds its password to `.env`.
+
+| Command (in `server/`) | What it does |
+|---|---|
+| `npm start` | Runs the site and API at http://localhost:3000 |
+| `npm run db:reset` | Rebuilds the database from `database/*.sql` |
+| `npm run db:test` | Runs the 64 database tests, then resets |
+| `npm run api:test` | Runs the 59 API checks, then resets |
+| `npm run race` | Two receptionists booking one slot at once, five times |
+| `npm run db:run -- <file.sql>` | Runs any SQL file, e.g. `../database/queries.sql` |
+
+**Demo accounts** — password `demo1234` for every one:
+
+| Username | Role | Hospital |
+|---|---|---|
+| `rezaul` | Receptionist | Dhaka Medical College Hospital |
+| `anisur` | Doctor | Dhaka Medical College Hospital (and Square Hospital) |
+| `rahim` | Patient | — |
+| `nasima` | Hospital Admin | Dhaka Medical College Hospital |
+| `rumana` | Lab Technician | Dhaka Medical College Hospital |
+| `sysadmin` | System Admin | — |
+
+**Without MySQL:** open `public/index.html` straight from disk. The pages detect that there is
+no server and run on built-in sample data, as the original prototype did.
+
+For the viva, follow **`docs/demo-script.md`**.
 
 ---
 
 ## Repository layout
 
 ```
-docs/         er-design.md — the ER model and the reasoning behind every decision
-              er-diagram-guide.md — how the diagrams are drawn
-              er-diagrams/ — Chen and crow's-foot diagrams (draw.io)
-              planned: use cases, data dictionary, normalization write-up
-database/     schema.sql — phase 1, 32 tables
-              planned: seed data, triggers, stored procedures, views, queries
-server/       planned: the Express application
-  routes/       HTTP endpoints
-  controllers/  Request handling and validation
-  services/     Business logic and SQL
-  db/           Connection pool and config
-public/       The website: public landing page, sign-in, and the clinical console
-  css/  js/  pages/
-prototype/    Standalone clickable prototype (open the .html directly)
+database/   schema.sql      40 tables, CHECKs and foreign keys
+            triggers.sql    the rules a CHECK cannot express
+            procedures.sql  every write, and the logged read
+            views.sql       the read models the screens use
+            seed.sql        sample data: 8 hospitals, 11 doctors, 18 patients
+            grants.sql      the least-privilege uhid_app user
+            queries.sql     20 demonstration queries
+            tests.sql       64 tests
+server/     app.js, auth.js, routes/, db/, lib/, scripts/   the Express API
+public/     the website: landing page, sign-in, privacy, 404, and the clinical console
+docs/       er-design.md        the ER model and the reasoning behind it
+            er-diagrams/        Chen and crow's-foot diagrams (draw.io)
+            data-dictionary.md  every table and column
+            normalization.md    1NF to BCNF, and every deliberate redundancy
+            use-cases.md        17 use cases, each mapped to its procedure
+            api.md              every endpoint and the procedure behind it
+            demo-script.md      the viva demonstration, click by click
+            guides/             learning guides for each team member
+prototype/  the original single-file prototype
 ```
 
 ---
 
 ## Status
 
-As of 11 October 2026.
-
-| Milestone | Due | State |
-|---|---|---|
-| Use cases and ER diagram | 5 Sep 2026 | ER model and diagrams done (27 Sep). Use cases not started |
-| Frontend complete on mock data | 13 Sep 2026 | Done — public site plus a five-screen clinical console, running on in-browser sample data |
-| Database schema, seed data, views | 19 Sep 2026 | Schema done — 32 tables, verified on MySQL 8.4 on 11 Oct. Seed data and views not started |
-| Express API and authentication | 26 Sep 2026 | Not started |
-| Appointments and concurrency control | 3 Oct 2026 | The one-doctor-one-slot constraint is in the schema and tested. The booking procedure is not started |
-| Clinical records, wards, access control | 10 Oct 2026 | Tables and constraints are in the schema. Triggers and procedures not started |
-| Referrals and hardening | 17 Oct 2026 | Not started |
-| Documentation and demo | 25 Oct 2026 | Not started |
+As of 1 November 2026: the database, the API, the frontend wired to the API, and the
+documentation are complete and tested. `CHECKLIST.md` records each item.
 
 ---
 
-## Running the website
+## Team
 
-No server, no database, no install. Open either file in any browser:
-
-```
-public/index.html                 the website: landing page, sign-in, clinical console
-prototype/uhid-prototype.html     the original single-file prototype
-```
-
-Both run on sample data held in JavaScript and save registered patients to browser storage.
-The clinical console starts from `public/login.html`.
-
-**Demo accounts** — password `demo1234` for all four:
-
-| Username | Role |
-|---|---|
-| `rezaul` | Receptionist |
-| `anisur` | Doctor |
-| `rahim`  | Patient |
-| `nasima` | Hospital Admin |
-
-> The prototype's passwords sit in client-side JavaScript. That is a stand-in, not
-> security. The real system hashes passwords with bcrypt and verifies them on the server.
-
----
-
-## Creating the database
-
-Needs MySQL 8.0.16 or later — earlier versions accept `CHECK` constraints but silently
-ignore them, which would let malformed UHIDs in. It will not run on MariaDB (for example the
-one bundled with XAMPP), which lacks the `utf8mb4_0900_ai_ci` collation and `REGEXP_LIKE()`.
-
-```
-mysql -u root -p < database/schema.sql
-```
-
-This creates a database named `uhid` with the 32 phase-1 tables, empty. **It drops any
-existing `uhid` database first**, so do not run it against data you want to keep.
-
-## Running the full system
-
-Not yet available. Sample data, triggers, stored procedures and the Express API are still to
-come; instructions will be added here as each one lands.
-
----
-
-## Author
-
-Nobo Ishraque · Department of ICT, Bangladesh University of Professionals
+Nobo Ishraque · Abir · Noria — Department of ICT, Bangladesh University of Professionals

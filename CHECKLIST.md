@@ -71,5 +71,5 @@ Tick an item only when it has been run and checked, not when it has been written
 - [x] **E1. `docs/use-cases.md`**
 - [x] **E2. `docs/data-dictionary.md`**
 - [x] **E3. `docs/normalization.md`**
-- [ ] **E4. `docs/demo-script.md`** — the click-by-click viva demonstration.
-- [ ] **E5. README and CLAUDE.md** brought up to date.
+- [x] **E4. `docs/demo-script.md`** — the click-by-click viva demonstration.
+- [x] **E5. README and CLAUDE.md** brought up to date.
