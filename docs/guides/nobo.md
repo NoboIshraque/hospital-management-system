@@ -71,6 +71,27 @@ You should see something like `git version 2.x` and `v24.x`. Any number at least
    **never** be put in any file that goes to GitHub.
 4. Finish the configurator.
 
+**If the configurator asks you to *enter the current* root password** instead of letting you choose
+one, MySQL has been set up on this laptop before — usually by an earlier install whose data folder
+stayed behind when it was uninstalled. That folder holds the old password, so the configurator
+wants it. First try leaving it blank, and any password you might have used before. If neither
+works, start MySQL again from nothing. This deletes every database in that MySQL, which is fine
+on a laptop with none in it yet — ours is rebuilt by `npm run db:reset` whenever you want it.
+Close the configurator, then open PowerShell **as administrator** (right-click → *Run as
+administrator*) and run:
+
+```powershell
+Get-Service *mysql*                        # which MySQL services exist — note their names
+Get-Service *mysql* | Stop-Service         # stop them
+winget uninstall Oracle.MySQL
+Remove-Item -Recurse -Force "C:ProgramDataMySQL"   # the old data folder, with the old password in it
+```
+
+If `Get-Service *mysql*` still lists a service after the uninstall, remove it with
+`sc.exe delete MySQL84` (use the name it showed). **Restart the laptop**, run
+`winget install Oracle.MySQL` again, and go back to step 1. This time it asks you to choose a
+password.
+
 If you have **XAMPP** installed, open the XAMPP control panel and make sure its MySQL is
 **stopped**. It uses the same port (3306) and is a different database (MariaDB) that our files do
 not work on.
