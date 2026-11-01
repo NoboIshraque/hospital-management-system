@@ -2,7 +2,8 @@
 
 Nobo Ishraque · Dept. of ICT, Bangladesh University of Professionals
 Written 27 September 2026 · **Status: agreed. The five open questions were answered by the author on
-27 September 2026 and are recorded as decisions in §8.**
+27 September 2026 and are recorded as decisions in §8.** Revised 1 November 2026 to match the
+schema as built — six changes made while writing the procedures, recorded in §8.2.
 
 This is the conceptual model: entities, their attributes, their keys, and the relationships
 between them with cardinality and participation. It is the document `schema.sql`, the data
@@ -24,7 +25,7 @@ true — enforced by the database, not by hope and application code.
 | 1 | UHID is anchored to a national ID; one human must not get two UHIDs | `patient.nid` UNIQUE-when-present, the duplicate-candidate query over (nid), (name, dob), (phone), and `patient_merge` for when prevention has already failed |
 | 2 | Access is granted, not assumed | `role` / `permission` / `role_permission`, `consent_grant` with an expiry, `access_log` with a `basis` that includes break-glass, written on every clinical read (see §4.5 on how, given MySQL has no `SELECT` trigger) |
 | 3 | Doctor availability is computed, never stored | `doctor_schedule` (recurring) − `doctor_leave` (exceptions) − `appointment` (taken). **There is deliberately no `slot` table.** |
-| 4 | Booking is transactional | `UNIQUE(doctor_id, slot_start)` on `appointment`, plus `book_appointment()` using `SELECT … FOR UPDATE` |
+| 4 | Booking is transactional | `UNIQUE(doctor_id, active_slot)` on `appointment` (live bookings only), plus `book_appointment()` using `SELECT … FOR UPDATE` |
 | 5 | `encounter` is the clinical hub | `encounter_diagnosis`, `prescription` → `prescription_item`, `lab_order` → `lab_result`, `encounter_vitals` all hang off `encounter`; each references a catalogue, never free text |
 | 6 | Referrals are what make it national | `referral` spans two hospitals and links the sending encounter to the receiving one |
 | 7 | Bed state changes via trigger | `bed_occupancy` rows opened and closed by admission / transfer / discharge; a trigger on that table maintains `bed.status` |
@@ -189,9 +190,10 @@ flowchart LR
 | `role` | Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Technician | `role_id` | `code` UNIQUE, `label` |
 | `permission` | One capability — `patient.read_clinical`, `bed.admit`, `encounter.write` | `permission_id` | `code` UNIQUE, `description` |
 | `role_permission` | Which role may do what | `role_id`, `permission_id` | — |
-| `user_account` | A login | `account_id` | `username` UNIQUE, `password_hash`, `role_id`, `hospital_id` nullable, `patient_id` nullable **UNIQUE**, `doctor_id` nullable **UNIQUE**, `is_active`, `last_login_at` |
+| `user_account` | A login | `account_id` | `username` UNIQUE, `password_hash`, `staff_name` nullable, `role_id`, `hospital_id` nullable, `patient_id` nullable **UNIQUE**, `doctor_id` nullable **UNIQUE**, `is_active`, `last_login_at` |
 | `patient` | A human with a UHID | `patient_id` | `uhid` UNIQUE, `name`, `dob`, `sex`, `blood_group`, `phone`, `nid`, `district_id`, `address`, `kin_name`, `kin_relation`, `kin_phone`, `registered_at`, `registered_hospital_id`, `identity_verified`, `verified_by`, `verified_at` |
 | `patient_merge` | Records that two UHIDs were one human | `merge_id` | `losing_patient_id`, `surviving_patient_id`, `merged_at`, `merged_by`, `reason` |
+| `uhid_sequence` | The counter UHID serials are issued from, one row per year | `year` | `last_serial` (CHECK ≤ 99,999) |
 | `doctor` | A registered practitioner | `doctor_id` | `name`, `bmdc_reg` UNIQUE, `qualifications`, `is_active` |
 | `doctor_posting` | This doctor, at this hospital, in this speciality, for this fee | `posting_id` | `doctor_id`, `hospital_id`, `department_id`, `consultation_fee`, `valid_from`, `valid_to` nullable |
 
@@ -218,7 +220,11 @@ primary key, for two reasons:
 `uhid` is therefore `CHAR(15) NOT NULL UNIQUE` with a `CHECK` on its format:
 `BD-<year>-<5-digit serial>-<check digit>`, the check digit being the serial's digits summed
 mod 10. Issuing is a stored procedure, not application code, so the serial comes from one
-place under one lock.
+place under one lock: `register_patient()` takes this year's row of `uhid_sequence` with
+`SELECT … FOR UPDATE`, adds one, and builds the UHID from it. A second registration arriving at
+the same moment waits on that row, then reads the serial the first one wrote. A counter row,
+rather than `MAX(serial) + 1` over `patient`, because the lock is then on one row instead of a
+range of the busiest index in the schema.
 
 It is the one column that does not use the database's `utf8mb4` collation: it is
 `CHARACTER SET ascii COLLATE ascii_bin`. The default collation is case-insensitive, and a
@@ -250,12 +256,17 @@ practitioner's. No rendering code changes.
 One login table for all six roles, with `patient_id`, `doctor_id` and `hospital_id` all
 nullable, because which of them applies is determined by the role:
 
-| Role | `hospital_id` | `patient_id` | `doctor_id` |
-|---|---|---|---|
-| Patient | null | set | null |
-| Doctor | set | null | set |
-| Receptionist · Hospital Admin · Lab Technician | set | null | null |
-| System Admin | null | null | null |
+| Role | `hospital_id` | `patient_id` | `doctor_id` | `staff_name` |
+|---|---|---|---|---|
+| Patient | null | set | null | null |
+| Doctor | set | null | set | null |
+| Receptionist · Hospital Admin · Lab Technician | set | null | null | set |
+| System Admin | null | null | null | set |
+
+`staff_name` exists because staff have no other row to take a name from, and the access log has
+to say *who* read a record. A patient's or doctor's name is deliberately **not** copied into it:
+that would be a transitive dependency (`account → patient → name`) that could disagree with the
+patient's own row. The function `account_name()` returns whichever applies.
 
 The alternative — a supertype `person` with a subtype table per role, i.e. full
 generalization/specialization — is the textbook answer and is rejected on purpose: it turns
@@ -344,7 +355,7 @@ flowchart LR
 | `encounter_vitals` | One set of observations at a moment | `encounter_id`, `recorded_at` | `bp_systolic`, `bp_diastolic`, `pulse`, `temp_c`, `spo2`, `weight_kg`, `height_cm`, `recorded_by` |
 | `diagnosis` | Catalogue — ICD-10 code and term | `diagnosis_id` | `icd10_code` UNIQUE, `term`, `category` |
 | `encounter_diagnosis` | What was concluded | `encounter_id`, `diagnosis_id` | `is_primary`, `certainty` (provisional/confirmed), `note` |
-| `medicine` | Catalogue — generic, form, strength | `medicine_id` | `generic_name`, `brand_name`, `form`, `strength`, UNIQUE(`generic_name`,`form`,`strength`) |
+| `medicine` | Catalogue — generic, form, strength | `medicine_id` | `generic_name`, `brand_name`, `form`, `strength`, `drug_class` (matches `allergen.class`), UNIQUE(`generic_name`,`form`,`strength`) |
 | `prescription` | The header of one prescription | `prescription_id` | `encounter_id` UNIQUE, `prescribed_by`, `prescribed_at`, `advice`, `amended_at` nullable, `amended_by` nullable |
 | `prescription_item` | One drug line | `prescription_id`, `line_no` | `medicine_id`, `dose`, `frequency`, `duration_days`, `instruction` |
 | `lab_test` | Catalogue — name, specimen, reference range | `test_id` | `name` UNIQUE, `specimen`, `unit`, `ref_low`, `ref_high` |
@@ -382,7 +393,9 @@ hypertensive patients are there", because the same condition will be typed `Esse
 hypertension`, `HTN`, `hypertension (essential)` and `high BP`. Worse, the check that decision
 1 exists to protect — *this patient reacted to Penicillin, do not prescribe it* — cannot fire
 if the allergy holds the string `Penicillin` and the prescription holds the string
-`Amoxicillin` as two unrelated pieces of text.
+`Amoxicillin` as two unrelated pieces of text. As catalogue rows they share a class —
+`allergen.class` and `medicine.drug_class` are both `penicillin` — and the trigger
+`trg_prescription_item_bi` refuses the prescription line with a join.
 
 So `dx` becomes a foreign key to `diagnosis`, and each `rx` string decomposes into
 `prescription_item.medicine_id` plus dose, frequency and duration as separate columns. Free
@@ -451,7 +464,7 @@ flowchart LR
 |---|---|---|---|
 | `doctor_schedule` | A recurring weekly clinic | `schedule_id` | `posting_id`, `weekday` (0–6), `start_time`, `end_time`, `slot_minutes`, `valid_from`, `valid_to` nullable |
 | `doctor_leave` | An exception that removes availability | `leave_id` | `doctor_id`, `from_at`, `to_at`, `reason` |
-| `appointment` | A booked slot | `appointment_id` | `posting_id`, `doctor_id`, `patient_id`, `slot_start`, `slot_end`, `status` (booked/attended/cancelled/no_show), `booked_by`, `booked_at`, `encounter_id` nullable |
+| `appointment` | A booked slot | `appointment_id` | `posting_id`, `doctor_id`, `patient_id`, `slot_start`, `slot_end`, `status` (booked/attended/cancelled/no_show), `booked_by`, `booked_at`, `encounter_id` nullable, `active_slot` (generated: `slot_start` unless cancelled, else NULL) |
 | `ward_type` | General · ICU · Paeds · Isolation | `ward_type_id` | `code` UNIQUE, `label` |
 | `ward` | A ward in a hospital | `ward_id` | `hospital_id`, `name`, `ward_type_id`, `sex_restriction` nullable |
 | `bed_status` | free · occupied · reserved · cleaning | `status_id` | `code` UNIQUE, `label` |
@@ -508,7 +521,9 @@ flowchart LR
 #### Why the unique constraint is on the doctor, not the posting (decision 4)
 
 ```sql
-UNIQUE KEY uq_doctor_slot (doctor_id, slot_start)
+active_slot DATETIME GENERATED ALWAYS AS
+  (CASE WHEN status <> 'cancelled' THEN slot_start END) VIRTUAL,
+UNIQUE KEY uq_doctor_slot (doctor_id, active_slot)
 ```
 
 `appointment` references `posting_id`, so the naive constraint would be
@@ -520,16 +535,30 @@ once. The constraint therefore needs `doctor_id`, which is why `appointment` car
 constraint-enforced denormalization, and the one place in the model where a redundant column is
 the right answer, because a `UNIQUE` index cannot span a join.
 
+**Why `active_slot` and not `slot_start`.** The first version was `UNIQUE(doctor_id,
+slot_start)`, and writing `book_appointment()` exposed its flaw: a cancelled booking still holds
+the key, so a slot somebody cancelled could never be booked again. `active_slot` is a generated
+column — MySQL computes it, nothing writes it — equal to `slot_start` for a live booking and NULL
+for a cancelled one. NULLs never collide in a unique index, so cancelling frees the slot. It is
+the same property that lets many patients have no NID under `uq_patient_nid`.
+
 The constraint stops the double-booking; the stored procedure decides *who gets told what*:
 
 ```
-book_appointment(posting_id, patient_id, slot_start):
+book_appointment(account, posting_id, uhid, slot_start):
   START TRANSACTION
-  SELECT … FROM doctor_posting WHERE posting_id = ? FOR UPDATE   -- serialise on the doctor
-  verify the slot is inside doctor_schedule and outside doctor_leave
-  INSERT INTO appointment …                                      -- UNIQUE is the real guard
+  SELECT … FROM doctor WHERE doctor_id = ? FOR UPDATE      -- serialise on the doctor, not the posting
+  verify the slot is on a boundary inside doctor_schedule and outside doctor_leave
+  SELECT COUNT(*) … overlapping live bookings … FOR UPDATE -- a locking read: sees what just committed
+  INSERT INTO appointment …                                -- UNIQUE is the real guard
   COMMIT
 ```
+
+The lock is on the **doctor** row because one doctor's postings share one diary. The overlap
+check is itself a locking read because, under MySQL's default REPEATABLE READ isolation, an
+ordinary `SELECT` reads a snapshot and could miss a booking another session committed while this
+one waited. `npm run race` demonstrates both: two simultaneous bookings for one slot, exactly one
+succeeds, five times out of five.
 
 Without `FOR UPDATE`, two concurrent bookings both pass the availability check and the loser
 gets a duplicate-key error that reaches the user as a crash. With it, the second transaction
@@ -572,6 +601,7 @@ flowchart LR
   hospital["hospital"]
   user_account["user_account"]
   encounter["encounter"]
+  department["department"]
 
   consents{"consents"}
   reads{"reads"}
@@ -600,13 +630,14 @@ flowchart LR
   patient ---|M| refers
   refers ---|"N (from)"| hospital
   refers ---|"N (to)"| hospital
+  refers ---|"N (dept)"| department
   refers --- urgency
   refers --- ref_status
 ```
 
 | Entity | Purpose | Primary key | Notable attributes |
 |---|---|---|---|
-| `referral` | Hospital A sends a patient to Hospital B | `referral_id` | `patient_id`, `from_hospital_id`, `to_hospital_id`, `from_encounter_id`, `to_encounter_id` nullable, `reason`, `urgency` (routine/urgent/emergency), `referred_by`, `referred_at`, `status` (issued/arrived/completed/expired) |
+| `referral` | Hospital A sends a patient to Hospital B | `referral_id` | `patient_id`, `from_hospital_id`, `to_hospital_id`, `to_department_id` nullable, `from_encounter_id`, `to_encounter_id` nullable, `reason`, `urgency` (routine/urgent/emergency), `referred_by`, `referred_at`, `status` (issued/arrived/completed/expired) |
 | `consent_grant` | Permission to read a record | `grant_id` | `patient_id`, `to_hospital_id`, `to_doctor_id` nullable, `scope` (demographics/clinical/full), `granted_at`, `expires_at` (default `granted_at + INTERVAL 24 HOUR`), `revoked_at` nullable, `granted_via` (in_person/otp/referral) |
 | `access_log` | Every clinical read, ever | `log_id` | `patient_id`, `account_id`, `hospital_id`, `encounter_id` nullable, `action`, `basis`, `is_break_glass`, `justification` nullable, `at`, `ip_address`, `reviewed_by` nullable, `reviewed_at` nullable |
 
@@ -657,8 +688,12 @@ ones are a work queue (`reviewed_by IS NULL`).
 trigger, so "a trigger writes `access_log` on every clinical read" cannot be literally true.
 The resolution: clinical reads go through a stored procedure that inserts the `access_log` row
 and then returns the rows, and the application's database user is granted `EXECUTE` on that
-procedure rather than `SELECT` on the clinical tables. The trigger that does exist fires
-`AFTER INSERT` on `access_log` to flag break-glass rows for review. Decide the wording now and
+procedure rather than `SELECT` on the clinical tables. The triggers that do exist guard the log
+itself: `trg_access_log_bi` refuses a row that arrives already reviewed, so every break-glass read
+lands in the review queue; `trg_access_log_bu` allows exactly one change, stamping a break-glass
+row as reviewed, once; `trg_access_log_bd` refuses every delete. `TRUNCATE` fires no trigger, which
+is why the application's database user has no rights on the table beyond `INSERT` through the
+procedure (`database/grants.sql`). Decide the wording now and
 put it in the write-up — this is the obvious question to be asked about decision 2, and
 "a trigger does it" will not survive a follow-up.
 
@@ -688,6 +723,7 @@ partial — optional.
 | `encounter` admits via `admission` | (1,1) | (0,1) | 1 : 1 optional | Only `Inpatient` encounters admit |
 | `admission` occupies `bed_occupancy` | (1,1) | (1,n) | 1 : N total | Exactly one row open at a time |
 | `patient` is referred `referral` | (1,1) | (0,n) | 1 : N | — |
+| `department` receives `referral` | (0,1) | (0,n) | 1 : N | Optional: a referral may name only a hospital |
 | `patient` grants `consent_grant` | (1,1) | (0,n) | 1 : N | — |
 | `user_account` reads `access_log` | (1,1) | (0,n) | 1 : N | Append-only — no update, no delete |
 
@@ -753,9 +789,9 @@ which is the short answer if asked why there are no three-legged diamonds anywhe
 
 ## 7. Build order
 
-The model is bigger than the time left before **25 October 2026**, so it is split. Phase
-1 is everything the five existing screens need. Phase 2 is what makes the model score well but
-that no screen currently reads.
+The model was split in two so the screens could be served first. **Both phases are built**
+(`database/schema.sql`, 40 tables including `uhid_sequence`), tested by `database/tests.sql`, and
+exposed through the Express API.
 
 **Phase 1 — the spine (build, seed, expose over Express)**
 `division` · `district` · `hospital_tier` · `hospital` · `department` · `hospital_department` ·
@@ -769,13 +805,15 @@ that no screen currently reads.
 `lab_test` · `lab_order` · `lab_result` · `referral` · `consent_grant` · `patient_merge` ·
 `encounter_vitals`
 
-Then, in order: `schema.sql` (done — verified on MySQL 8.4.9, 11 Oct 2026) → `seed.sql` → the three
-triggers (`access_log` review flag, `bed.status`, UHID issue) → `book_appointment()` → the
-availability CTE → `queries.sql` → the views the screens read.
+Built in this order, which is also the order `npm run db:reset` loads them: `schema.sql` →
+`triggers.sql` → `procedures.sql` → `views.sql` → `seed.sql` → `grants.sql`; then `queries.sql`
+and `tests.sql` run against the result.
 
 ---
 
 ## 8. Decisions taken
+
+### 8.1 The five open questions (27 September 2026)
 
 The five questions this document opened with were answered by the author on 27 September 2026.
 They are recorded here as decisions, with what each one costs, because "we chose this" needs an
@@ -803,10 +841,27 @@ purpose rather than quietly rewritten:
   honest answer is that `amended_at` records *that* it changed but not *what it was before*, and
   a `prescription_history` table would be the fix. Say that before it is pointed out.
 
-Nothing in §8 is open. `database/schema.sql` implements phase 1 and was verified on MySQL 8.4.9
-on 11 October 2026: it builds every table, CHECK and foreign key in this model's phase 1, and
-the constraints reject what §4 says they must. The next thing to build is `database/seed.sql`
-(§7).
+### 8.2 Changes made while building (31 October 2026)
+
+Writing the triggers, procedures and seed data against the agreed model found six places where
+it was incomplete or wrong. Each is recorded here with its reason, as §8.1's decisions are,
+rather than changed silently. §4 has been updated to match.
+
+| # | Change | Why | Where it lives |
+|---|---|---|---|
+| 6 | New table `uhid_sequence (year, last_serial)`, drawn on page 4 of the Chen diagrams as a stand-alone entity | "The serial comes from one place under one lock" needed a place. A counter row locked with `SELECT … FOR UPDATE` is one row; `MAX(serial) + 1` would lock a range of `patient`'s index | §4.2; `register_patient()` |
+| 7 | `medicine.drug_class` | The allergy check of §4.3 needs a shared class on both sides; `allergen.class` existed but `medicine` had nothing to match it against | §4.3; `trg_prescription_item_bi` |
+| 8 | `user_account.staff_name`, required for staff roles, forbidden for patient and doctor accounts | Staff had no name anywhere, so the access log could not say who read a record. Copying patients' and doctors' names would be a transitive dependency | §4.2; `trg_user_account_bi`, `account_name()` |
+| 9 | `appointment.active_slot` (generated) and `UNIQUE(doctor_id, active_slot)` replacing `UNIQUE(doctor_id, slot_start)` | The old key counted cancelled bookings, so a cancelled slot could never be rebooked | §4.4 |
+| 10 | `referral.to_department_id`, nullable | A referral is addressed to a speciality as well as a hospital ("Cardiology at Dhaka Medical"), and the receiving inbox needs it | §4.5; `refer_patient()` |
+| 11 | The access-log trigger refuses pre-reviewed rows (`BEFORE INSERT`), instead of "flagging" them `AFTER INSERT` | An `AFTER INSERT` trigger cannot modify the row it fires on, and the review queue is already `reviewed_by IS NULL`; what needed guaranteeing is that no break-glass row can skip it | §4.5; `trg_access_log_bi` |
+
+None of these weakens one of the seven decisions in §1; each makes one of them hold. The data
+dictionary (`docs/data-dictionary.md`) was generated from the schema after all six and already
+shows them.
+
+Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
+64 tests that check every constraint, trigger and procedure rejects what §4 says it must.
 
 ---
 
@@ -817,5 +872,12 @@ the constraints reject what §4 says they must. The next thing to build is `data
 3. ~~Write `database/schema.sql` for phase 1~~ — done 27 Sep 2026.
 4. ~~Write `docs/data-dictionary.md`~~ — done 31 Oct 2026.
 5. ~~Write `docs/normalization.md`~~ — done 31 Oct 2026.
-6. Build the rest of phase 1 in the order given at the end of §7, starting with
-   `database/seed.sql`.
+6. ~~Build the rest of both phases~~ — done 31 Oct 2026: triggers, procedures, views, seed,
+   grants, queries and tests (§7).
+7. ~~Bring this document and the diagrams in line with the schema~~ — done 1 Nov 2026 (§8.2).
+
+Nothing is outstanding in the model. A change to it now means: change §4 here, the two
+Chen diagrams in `docs/er-diagrams/`, `database/schema.sql` and `docs/data-dictionary.md` together,
+and add a row to §8.2. The diagrams kept in step are the two Chen files
+(`uhid-er-chen-boxed.drawio`, the one handed in, and `uhid-er-chen.drawio`); the crow's-foot
+file `uhid-er.drawio` is no longer maintained (author's decision, 1 November 2026).

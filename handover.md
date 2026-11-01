@@ -7,10 +7,10 @@ running system. Read this first in the next session, then `CLAUDE.md`.
 
 Every item in `CHECKLIST.md` is done, verified, committed and pushed (last commit `d1574fb`).
 The database, the Express API, the frontend wired to the API, the documentation, the viva demo
-script and the three learning guides all exist and are tested. **Four things are not done**, in
-the order to tackle them: the ER document and diagrams have fallen behind the schema; some
-features have no screen; Abir and Noria have not started their guides; and the laptop is short of
-memory. Details below.
+script and the three learning guides all exist and are tested. Item 1 below (the ER document and
+diagrams lagging the schema) was **finished on 1 November 2026**. **Three things are still not
+done**: some features have no screen; Abir and Noria have not started their guides; and the
+laptop is short of memory. Details below.
 
 ---
 
@@ -37,31 +37,34 @@ The browser test and screenshot scripts lived in a temporary folder and are **no
 
 ## What is NOT done — the next session's work
 
-### 1. `docs/er-design.md` and the diagrams no longer match the schema — do this first
+### 1. ~~The ER document and diagrams no longer matched the schema~~ — done 1 November 2026
 
-`er-design.md` calls itself the authority ("if schema.sql and it disagree, the document is
-right"). It is now the one that is wrong. Building the procedures and seed data led to five
-schema changes that the ER document and the three draw.io files do not show:
+Building the procedures led to six changes that `docs/er-design.md` and the Chen diagrams did
+not show. All six are now in both:
 
-| Change in `schema.sql` | Why it was made | Where it is explained today |
-|---|---|---|
-| New table `uhid_sequence (year, last_serial)` | UHID serials are taken from a counter row locked with `SELECT … FOR UPDATE`, so two receptionists never get the same serial | schema.sql §9 comment; `register_patient()` |
-| `medicine.drug_class` | Lets `trg_prescription_item_bi` refuse a drug in the same class as a recorded allergy (Amoxicillin vs Penicillin) | schema.sql comment on the column |
-| `user_account.staff_name` | Staff (receptionist, admin, lab tech, sysadmin) had no name anywhere; patients and doctors take theirs from their own row | schema.sql comment; normalization.md §4 example 3 |
-| `appointment.active_slot` (generated) and `UNIQUE(doctor_id, active_slot)` | The old `UNIQUE(doctor_id, slot_start)` counted cancelled bookings, so a cancelled slot could never be rebooked | schema.sql comment on `uq_doctor_slot`; normalization.md §6 |
-| `referral.to_department_id` | A referral is addressed to a department (Cardiology) as well as a hospital | schema.sql §9 |
+| Change | `er-design.md` | Chen diagrams (both files) |
+| --- | --- | --- |
+| New table `uhid_sequence (year, last_serial)` | §4.2 entity table, and the UHID-issuing paragraph | Page 4: a stand-alone entity, top right, with a note that it has no relationship |
+| `medicine.drug_class` | §4.3 entity table, and the catalogue-rule paragraph | Page 2: attribute of `medicine` |
+| `user_account.staff_name` | §4.2 entity table and role table, with why it is not a copy of the patient's or doctor's name | Page 4: attribute of `user_account` |
+| `appointment.active_slot` and `UNIQUE(doctor_id, active_slot)` | §1 decision 4, §4.4 entity table, and the unique-constraint section | Page 3: a derived attribute (dashed ellipse in the ellipse version) |
+| `referral.to_department_id` | §4.5 entity table, §4.5 diagram, §5 relationship table | Page 5: a `department` entity joined to `refers` with "N (dept)" |
+| Access-log trigger refuses pre-reviewed rows, instead of "flagging" after insert | §4.5 | — (triggers are not drawn) |
 
-To fix:
-- `er-design.md`: §4.2 (`user_account` row), §4.3 (`medicine` row), §4.4 (`appointment` row
-  and the "Why the unique constraint is on the doctor" section, which still shows
-  `UNIQUE KEY uq_doctor_slot (doctor_id, slot_start)`), §4.5 (`referral` row), and a short
-  entry for `uhid_sequence`. Record the five changes in §8 "Decisions taken", dated, with their
-  reasons, as the existing decisions are.
-- The three diagrams in `docs/er-diagrams/`: add `uhid_sequence` and the new attributes.
-  `CLAUDE.md` says cardinality lives in three places that must agree: `er-design.md` §4,
-  `uhid-er-chen-boxed.drawio` (the one to hand in) and `uhid-er.drawio`.
-- `docs/data-dictionary.md` is already correct. It was generated from `schema.sql` after these
-  changes.
+Also corrected in `er-design.md`: `book_appointment()` locks the doctor's row, not the
+posting's, and its overlap check is a locking read (§4.4). §7 says both phases are built. §8.2 is
+new: the six changes, each with its reason, as the original decisions in §8.1 are recorded. §9
+is all done.
+
+**How it was checked.** The diagrams were edited as XML, since draw.io could not be run here:
+every new shape was placed by measured free space (at least 40 px from every other shape, with no
+line through it), both files re-parse as valid draw.io XML, page 1 of each is byte-for-byte
+unchanged, and pages 2 to 5 were rendered to images and looked at. **Open the two Chen files in
+draw.io once** and nudge anything you would place differently. The positions are clear of
+everything else, but the choice of spot was a program's, not yours.
+
+**The crow's-foot file `uhid-er.drawio` was not updated**, by your decision. CLAUDE.md now
+says it is no longer maintained.
 
 ### 2. Some features work in the database and API but have no screen
 
@@ -116,7 +119,7 @@ npm run api:test                  # 59 passed, 0 failed
 npm start                         # http://localhost:3000 — only when you need the site
 ```
 
-Then tell Claude: *"Read handover.md and CLAUDE.md, then start on item 1."*
+Then tell Claude: *"Read handover.md and CLAUDE.md, then start on item 2."*
 
 ## Facts the next session needs
 

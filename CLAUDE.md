@@ -97,7 +97,7 @@ What exists today. Anything marked *planned* is an empty folder or a file not ye
 docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
               er-diagrams/uhid-er-chen-boxed.drawio (Chen, the one to hand in),
               er-diagrams/uhid-er-chen.drawio (Chen, ellipse styling),
-              er-diagrams/uhid-er.drawio (crow's foot, logical)
+              er-diagrams/uhid-er.drawio (crow's foot, logical — no longer maintained since 1 Nov 2026)
               use-cases.md (17 use cases, each mapped to its procedure/trigger/view),
               data-dictionary.md (all 40 tables, generated from schema.sql),
               normalization.md (1NF → BCNF worked examples, and every deliberate redundancy)
@@ -204,10 +204,12 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
   A new rule in a trigger or procedure gets a test that proves it refuses what it should, with the
   exact error number. On 31 Oct 2026 the suite caught a real bug: `transfer_patient()` violated
   `ck_occupancy_dates` when called in the same second as the admission.
-- **Cardinality now lives in three places and they must agree:** `docs/er-design.md` §4,
-  `docs/er-diagrams/uhid-er-chen-boxed.drawio`, and `docs/er-diagrams/uhid-er.drawio`. The
-  crow's-foot file used to be generated from the document's mermaid blocks, but those blocks
-  are Chen now, so nothing enforces agreement any more. Change a cardinality in all three.
+- **Cardinality lives in two places and they must agree:** `docs/er-design.md` §4 and
+  `docs/er-diagrams/uhid-er-chen-boxed.drawio` (the one handed in); keep
+  `uhid-er-chen.drawio` (the ellipse version) in step too. **The crow's-foot file
+  `uhid-er.drawio` is no longer maintained** — the author's decision on 1 Nov 2026 — so it lacks
+  the six changes in er-design.md §8.2; do not update it unless asked. Never edit page 1 of the
+  Chen files (the author's own styling) without asking.
 - **localStorage keys carry a version suffix** (`uhid.patients.v2`). When cached data becomes
   wrong — a changed shape, or corrected seed values — bump the suffix in `js/store.js` so every
   browser starts again from the seed. Do not write a migration for prototype data. The
@@ -295,7 +297,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |
 | Use cases | Done — `docs/use-cases.md` |
-| ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. `er-design.md` §4 is Chen too |
+| ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched). The crow's-foot file is no longer maintained |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
 | **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (27 + 4 functions), views (8), seed — all built and loaded together on MySQL 8.4.6, 31 Oct 2026. Not yet written: grants.sql, queries.sql, tests.sql. Follow `CHECKLIST.md`** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
@@ -306,11 +308,9 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 
 ## Open items — do not lose these
 
-- **Read `handover.md` first.** Written 1 Nov 2026: what is verified, and the four things not
-  yet done — the ER document and diagrams lag the schema (five changes), some features have no
-  screen, the team's guides are not started, and the laptop is short of memory. Update or
-  delete it when those are dealt with.
-
+- **Read `handover.md` first.** Written 1 Nov 2026, item 1 done the same day: what is
+  verified, and what is still open — some features have no screen, the team's guides are not
+  started, and the laptop is short of memory. Update or delete it when those are dealt with.
 - **`CHECKLIST.md` is complete** (written 31 Oct 2026, every item done and verified by
   1 Nov 2026). New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
