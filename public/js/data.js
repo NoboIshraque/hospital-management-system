@@ -49,25 +49,26 @@ const ACCOUNTS = [
 const ROLES = {
   receptionist: {
     label: 'Receptionist', who: 'Rezaul Karim', hospital: 1,
-    blurb: 'Registers patients, issues UHIDs, books appointments, admits to beds.',
-    nav: [['register','Register patient'], ['search','Find patient'], ['book','Book appointment'], ['wards','Wards &amp; beds']]
+    blurb: 'Registers patients, issues UHIDs and portal logins, books and keeps the appointment list, admits to beds.',
+    nav: [['register','Register patient'], ['search','Find patient'], ['book','Book appointment'],
+          ['appointments','Appointment list'], ['wards','Wards &amp; beds']]
   },
   doctor: {
     label: 'Doctor', who: 'Dr. Anisur Rahman', hospital: 1,
     blurb: 'Reads the national record, records encounters, prescribes, refers, discharges.',
-    nav: [['search','Find patient'], ['record','Patient record'], ['encounter','Record encounter'],
-          ['referrals','Referral inbox'], ['wards','Wards &amp; beds']]
+    nav: [['search','Find patient'], ['appointments','My appointments'], ['record','Patient record'],
+          ['encounter','Record encounter'], ['referrals','Referral inbox'], ['wards','Wards &amp; beds']]
   },
   patient: {
     label: 'Patient', who: 'Md. Rahim Uddin', hospital: null,
-    blurb: 'Books appointments at any connected hospital, views their own history.',
-    nav: [['book','Find a doctor'], ['record','My health record']]
+    blurb: 'Books and cancels appointments at any connected hospital, views their own history.',
+    nav: [['book','Find a doctor'], ['appointments','My appointments'], ['record','My health record']]
   },
   admin: {
     label: 'Hospital Admin', who: 'Nasima Sultana', hospital: 1,
     blurb: 'Oversees wards and appointments, reviews break-glass access, merges duplicate records.',
     nav: [['audit','Break-glass review'], ['merge','Merge records'], ['wards','Wards &amp; beds'],
-          ['search','Find patient'], ['book','Appointments'], ['accounts','Staff accounts']]
+          ['search','Find patient'], ['book','Appointments'], ['appointments','Appointment list'], ['accounts','Staff accounts']]
   },
   /* These two exist in the database (seed.sql) but not in the prototype's
      ACCOUNTS above, so they sign in only when the site is served by Express. */

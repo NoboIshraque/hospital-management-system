@@ -373,6 +373,24 @@ async function signIn(base, username) {
     r = await rezaul('POST', '/api/patients/BD-2020-27615-1/login', { username: 'shirin' });
     check('Reception issues a patient her portal login', r.status === 201 && r.body.username === 'shirin' && r.body.oneTimePassword.length === 12);
 
+    // ---------- appointment lists (I2) ----------
+    r = await rahim('GET', '/api/appointments?days=8');
+    check('A patient\'s list holds only their own appointments',
+      r.status === 200 && r.body.length > 0 && r.body.every(a => a.uhid === 'BD-2019-04821-5'));
+    r = await anisur('GET', '/api/appointments?days=8');
+    check('A doctor\'s list holds only their own',
+      r.status === 200 && r.body.length > 0 && r.body.every(a => a.doctorName === 'Dr. Anisur Rahman'));
+    r = await rezaul('GET', '/api/appointments?days=8');
+    check('Reception\'s list holds only its own hospital, each with canCancel',
+      r.status === 200 && r.body.length > 0 && r.body.every(a => a.hospitalId === 1 && typeof a.canCancel === 'boolean'));
+    r = await (await signIn(base, 'rumana'))('GET', '/api/appointments');
+    check('A lab technician has no appointment list (403)', r.status === 403);
+    r = await rezaul('GET', '/api/appointments?from=yesterday');
+    check('A malformed date is refused (400)', r.status === 400);
+    const upcoming = (await rezaul('GET', '/api/appointments?days=8')).body.find(a => a.status === 'booked');
+    r = await rezaul('POST', `/api/appointments/${upcoming.id}/no-show`);
+    check('A future appointment cannot be marked missed (409)', r.status === 409);
+
     // ---------- least privilege ----------
     let denied = false;
     try { await pool.query('SELECT * FROM patient'); } catch (e) { denied = e.errno === 1142; }

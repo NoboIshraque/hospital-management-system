@@ -253,9 +253,11 @@ first items block shipping outright. Hosting (I14) is the only part that needs a
       offline.
 
 **Everyday work that has no screen**
-- [ ] **I2. Appointment lists.** A doctor's day list, a patient's own appointments (with cancel),
-      reception's list for the hospital (cancel, no-show). Cancelling exists in the API but no
-      screen offers it.
+- [x] **I2. Appointment lists.** Built 7 Nov 2026: one screen, `appointments.html`, three lists
+      decided by `list_appointments()` — a patient's own (cancel), a doctor's own (start today's
+      visit), a hospital's for reception and the admin (cancel, *Did not come* via
+      `mark_no_show()`). A slot that has started can no longer be cancelled. 12 database tests,
+      6 API checks; browser-tested as receptionist, doctor and patient, and at phone width.
 - [ ] **I3. Discharge form.** Discharge always records "recovered" with no summary.
 - [ ] **I4. Update a patient's details** (phone, address, next of kin) and verify their identity
       after registration.

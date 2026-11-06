@@ -45,6 +45,7 @@ Every demo password is `demo1234`. What each actor may do is decided by `role_pe
 | UC20 | Manage staff accounts | Hospital Admin, System Admin | `create_staff_account()`, `reset_password()`, `set_account_active()`, `list_accounts()` | 2 |
 | UC21 | Give a patient a portal login | Receptionist | `issue_patient_login()` | 2 |
 | UC22 | Change your own password | Everyone | `change_password()` | 2 |
+| UC23 | See an appointment list, and mark a missed appointment | Patient, Doctor, Receptionist, Hospital Admin | `list_appointments()`, `mark_no_show()` | 4 |
 
 ---
 
@@ -175,7 +176,8 @@ past the procedure, `UNIQUE(doctor_id, active_slot)` would still refuse the seco
 **Actor:** Patient (own appointments), Receptionist (appointments at their own hospital, or ones
 they booked themselves). `cancel_appointment()` sets the status to
 `cancelled`. The generated column `active_slot` becomes NULL, which frees the slot in the unique
-index for the next patient.
+index for the next patient. Only before the slot starts: after that it was attended or missed
+(UC23), and cancelling it would erase that.
 
 ## UC9 — Record an encounter
 
@@ -363,3 +365,23 @@ off their own account → refused.
 
 **Why the rule is length, not symbols:** a long phrase is harder to guess than a short password
 with a digit and a capital, and people do not write it on a note.
+
+## UC23 — See an appointment list, and mark a missed appointment
+
+**Actors:** Patient, Doctor, Receptionist, Hospital Admin. **Goal:** everyone sees the bookings
+that concern them, and a patient who did not come is on the record.
+
+1. *My appointments* / *Appointment list* asks `list_appointments()` for a day, a week or a month.
+   The procedure decides whose list it is from the role: a patient's own appointments at every
+   hospital; a doctor's own across all their postings; everything at a receptionist's or hospital
+   admin's own hospital.
+2. Each row says whether it can be cancelled or marked missed, by the same rules the two
+   procedures apply, so the screen shows only buttons that will work.
+3. Once a slot's time has passed and the patient has not come, reception chooses *Did not come*.
+   `mark_no_show()` sets the status to `no_show`. The slot stays taken — its time is over, and the
+   missed visit stays on the record.
+4. A doctor's list has *Start visit* for today's bookings; opening the visit marks the booking
+   attended (UC9).
+
+**Alternatives:** a lab technician or the system admin → no list (5403); a period over 62 days →
+refused; marking before the slot starts, at another hospital, or by a patient → refused.

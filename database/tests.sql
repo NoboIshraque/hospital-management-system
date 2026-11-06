@@ -706,7 +706,7 @@ CALL t_expect('H3.1: (switched back on)',
 
 
 -- =====================================================================
--- 11. ACCOUNTS AND PASSWORDS (checklist I1, 8 November 2026)
+-- 11. ACCOUNTS AND PASSWORDS (checklist I1, 7 November 2026)
 -- =====================================================================
 
 SET @h = '$2a$10$Ri1jUMV5vb3X5UiO7bjaGuEeMkc6q58NH8Qe/YQIz6W3Pv73Ivboy';
@@ -758,6 +758,46 @@ CALL t_expect('I1: a hospital admin lists their accounts',
   "CALL list_accounts(2)", 0);
 CALL t_expect('I1: a receptionist may not',
   "CALL list_accounts(1)", 5403);
+
+
+-- =====================================================================
+-- 12. APPOINTMENT LISTS AND MISSED APPOINTMENTS (checklist I2, 7 November 2026)
+-- =====================================================================
+
+-- Two bookings whose time has passed, written directly (as root) because
+-- book_appointment() rightly refuses a slot in the past.
+INSERT INTO appointment (posting_id, doctor_id, patient_id, slot_start, slot_end, booked_by)
+VALUES (1, 1, 5, TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '10:00'), TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '10:20'), 1),
+       (1, 1, 4, TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '10:20'), TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '10:40'), 1);
+SET @past1 = (SELECT appointment_id FROM appointment WHERE doctor_id = 1 AND slot_start = TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '10:00'));
+SET @past2 = (SELECT appointment_id FROM appointment WHERE doctor_id = 1 AND slot_start = TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '10:20'));
+SET @future = (SELECT MIN(a.appointment_id) FROM appointment a JOIN doctor_posting dp ON dp.posting_id = a.posting_id
+                WHERE dp.hospital_id = 1 AND a.status = 'booked' AND a.slot_start > NOW());
+
+CALL t_expect('I2: a patient lists their own appointments',
+  "CALL list_appointments(17, CURDATE(), 8)", 0);
+CALL t_expect('I2: a doctor lists their own',
+  "CALL list_appointments(6, CURDATE(), 8)", 0);
+CALL t_expect('I2: reception lists its hospital''s',
+  "CALL list_appointments(1, CURDATE(), 8)", 0);
+CALL t_expect('I2: a lab technician has no appointment list',
+  "CALL list_appointments(4, CURDATE(), 8)", 5403);
+CALL t_expect('I2: a list longer than 62 days is refused',
+  "CALL list_appointments(1, CURDATE(), 400)", 1644);
+CALL t_expect('I2: an appointment cannot be missed before it starts',
+  CONCAT("CALL mark_no_show(1, ", @future, ")"), 1644);
+CALL t_expect('I2: a patient cannot mark a missed appointment',
+  CONCAT("CALL mark_no_show(17, ", @past1, ")"), 5403);
+CALL t_expect('I2: another hospital''s receptionist cannot',
+  CONCAT("CALL mark_no_show(3, ", @past1, ")"), 5403);
+CALL t_expect('I2: the hospital''s own receptionist marks it missed',
+  CONCAT("CALL mark_no_show(1, ", @past1, ")"), 0);
+CALL t_value('I2: …and it is recorded as a no-show',
+  CONCAT("SELECT status FROM appointment WHERE appointment_id = ", @past1), 'no_show');
+CALL t_expect('I2: …only once',
+  CONCAT("CALL mark_no_show(1, ", @past1, ")"), 1644);
+CALL t_expect('I2: an appointment that has started cannot be cancelled',
+  CONCAT("CALL cancel_appointment(1, ", @past2, ")"), 1644);
 
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message
   FROM t_result ORDER BY test_no;

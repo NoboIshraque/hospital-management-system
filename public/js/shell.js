@@ -29,6 +29,7 @@ const CRUMBS = {
   lab:      'Lab worklist',
   audit:    'Break-glass review',
   merge:    'Merge records',
+  appointments: 'Appointment list',
   account:  'My account',
   accounts: 'Staff accounts'
 };

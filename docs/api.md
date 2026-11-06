@@ -62,7 +62,9 @@ database refused (see `server/db/errors.js`):
 | `GET /api/audit/duplicates` | hospital admin, system admin | — | `v_possible_duplicates` — a self-join: same name + date of birth, or same mobile (after `has_permission('patient.merge')`) |
 | `POST /api/patients/merge` | admin | `{ losingUhid, survivingUhid, reason }` | `merge_patients()` |
 | `POST /api/appointments` | reception, patient (own) | `{ postingId, uhid, slotStart }` | `book_appointment()` |
-| `DELETE /api/appointments/:id` | reception, patient (own) | — | `cancel_appointment()` |
+| `GET /api/appointments` | patient (own), doctor (own), reception and hospital admin (own hospital) | `?from=YYYY-MM-DD&days=1..62` (default today, 1 day) | `list_appointments()` — whose list it is is decided in the procedure; each row carries `canCancel` and `canNoShow` |
+| `DELETE /api/appointments/:id` | reception, patient (own) | — | `cancel_appointment()` — only before the slot starts |
+| `POST /api/appointments/:id/no-show` | reception, hospital admin (own hospital) | — | `mark_no_show()` — only once the slot has started |
 | `GET /api/wards` | reception, doctors, hospital admin (`bed.view`) | — | `bed_board()` — the signed-in hospital only; a procedure because the board shows diagnoses |
 | `POST /api/admissions` | reception | `{ uhid, postingId, wardId, bedNo, complaint }` | `admit_patient()` |
 | `POST /api/admissions/:id/transfer` | reception, doctor | `{ wardId, bedNo }` | `transfer_patient()` |

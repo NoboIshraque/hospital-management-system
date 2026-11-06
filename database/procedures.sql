@@ -321,7 +321,7 @@ BEGIN
 END $$
 
 -- =====================================================================
--- 3b. ACCOUNTS AND PASSWORDS (checklist I1, 8 November 2026)
+-- 3b. ACCOUNTS AND PASSWORDS (checklist I1, 7 November 2026)
 --
 -- Passwords are hashed with bcrypt in Node; the database only ever sees the
 -- 60-character hash. A password set by someone else (a new account, a
@@ -1055,10 +1055,119 @@ BEGIN
   IF v_st <> 'booked' THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only a booked appointment can be cancelled.';
   END IF;
+  -- Checklist I2: a slot that has already started is attended or missed,
+  -- not cancelled — cancelling it would erase that the patient did not come.
+  IF (SELECT slot_start FROM appointment WHERE appointment_id = p_appointment_id) <= NOW() THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'This appointment has already started. Mark it as missed instead.';
+  END IF;
 
   -- active_slot becomes NULL with this UPDATE, which frees the slot in
   -- uq_doctor_slot for the next patient.
   UPDATE appointment SET status = 'cancelled' WHERE appointment_id = p_appointment_id;
+END $$
+
+-- The appointment lists (checklist I2, 7 November 2026). Who sees what is
+-- decided here, by role, never by the screen:
+--   patient                      their own appointments, at every hospital
+--   doctor                       their own list (all their postings)
+--   receptionist, hospital admin the appointments at their own hospital
+-- Anyone without appointment.book (lab technician, system admin) is refused.
+-- No clinical content: who, when, with which doctor — what the front desk
+-- already sees when it books. canCancel / canNoShow apply the same rules as
+-- cancel_appointment() and mark_no_show(), so the screen offers only what
+-- those will allow; the procedures check again when they are called.
+DROP PROCEDURE IF EXISTS list_appointments $$
+CREATE PROCEDURE list_appointments(IN p_account_id INT UNSIGNED, IN p_from DATE, IN p_days SMALLINT)
+BEGIN
+  DECLARE v_role VARCHAR(30);
+  DECLARE v_pat  INT UNSIGNED;
+  DECLARE v_hosp SMALLINT UNSIGNED;
+  DECLARE v_doc  SMALLINT UNSIGNED;
+
+  CALL require_permission(p_account_id, 'appointment.book');
+  IF p_from IS NULL OR p_days IS NULL OR p_days < 1 OR p_days > 62 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Give a start date and between 1 and 62 days.';
+  END IF;
+
+  SELECT r.code, ua.patient_id, ua.hospital_id, ua.doctor_id INTO v_role, v_pat, v_hosp, v_doc
+    FROM user_account ua JOIN role r ON r.role_id = ua.role_id
+   WHERE ua.account_id = p_account_id;
+
+  SELECT a.appointment_id AS id,
+         a.slot_start     AS slotStart,
+         a.slot_end       AS slotEnd,
+         a.status,
+         p.uhid,
+         p.name           AS patientName,
+         d.name           AS doctorName,
+         dept.name        AS dept,
+         dp.hospital_id   AS hospitalId,
+         a.posting_id     AS postingId,
+         a.encounter_id   AS encounterId,
+         a.booked_at      AS bookedAt,
+         -- the same rules as cancel_appointment()
+         (a.status = 'booked' AND a.slot_start > NOW()
+           AND (v_role = 'patient' OR dp.hospital_id <=> v_hosp OR a.booked_by = p_account_id)
+           AND has_permission(p_account_id, 'appointment.cancel')) AS canCancel,
+         -- the same rules as mark_no_show()
+         (a.status = 'booked' AND a.slot_start <= NOW() AND v_role <> 'patient'
+           AND dp.hospital_id <=> v_hosp
+           AND has_permission(p_account_id, 'appointment.cancel')) AS canNoShow
+    FROM appointment a
+    JOIN doctor_posting dp ON dp.posting_id = a.posting_id
+    JOIN doctor d          ON d.doctor_id = a.doctor_id
+    JOIN department dept   ON dept.department_id = dp.department_id
+    JOIN patient p         ON p.patient_id = a.patient_id
+   WHERE a.slot_start >= p_from
+     AND a.slot_start <  p_from + INTERVAL p_days DAY
+     AND CASE v_role
+           WHEN 'patient' THEN a.patient_id = v_pat
+           WHEN 'doctor'  THEN a.doctor_id = v_doc
+           ELSE dp.hospital_id <=> v_hosp
+         END
+   ORDER BY a.slot_start, d.name;
+END $$
+
+-- The patient did not come. Only after the slot has started, only by staff
+-- at the appointment's own hospital, only for a booking still 'booked'.
+-- The slot stays taken (active_slot is not NULL for 'no_show'): the time
+-- has passed, and the record of the missed visit is kept.
+DROP PROCEDURE IF EXISTS mark_no_show $$
+CREATE PROCEDURE mark_no_show(IN p_account_id INT UNSIGNED, IN p_appointment_id INT UNSIGNED)
+BEGIN
+  DECLARE v_role  VARCHAR(30);
+  DECLARE v_mine  SMALLINT UNSIGNED;
+  DECLARE v_hosp  SMALLINT UNSIGNED;
+  DECLARE v_st    VARCHAR(20);
+  DECLARE v_start DATETIME;
+
+  CALL require_permission(p_account_id, 'appointment.cancel');
+  SELECT r.code, ua.hospital_id INTO v_role, v_mine
+    FROM user_account ua JOIN role r ON r.role_id = ua.role_id
+   WHERE ua.account_id = p_account_id;
+  IF v_role = 'patient' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only hospital staff record a missed appointment.', MYSQL_ERRNO = 5403;
+  END IF;
+
+  SELECT dp.hospital_id, a.status, a.slot_start INTO v_hosp, v_st, v_start
+    FROM appointment a JOIN doctor_posting dp ON dp.posting_id = a.posting_id
+   WHERE a.appointment_id = p_appointment_id;
+  IF v_st IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such appointment.', MYSQL_ERRNO = 5404;
+  END IF;
+  IF NOT (v_hosp <=> v_mine) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'You can mark only appointments at your own hospital.', MYSQL_ERRNO = 5403;
+  END IF;
+  IF v_st <> 'booked' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only a booked appointment can be marked as missed.';
+  END IF;
+  IF v_start > NOW() THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'An appointment cannot be missed before it starts.';
+  END IF;
+
+  -- AND status = 'booked' again: if the doctor opened the visit a moment
+  -- ago, this changes nothing rather than overwrite 'attended'.
+  UPDATE appointment SET status = 'no_show' WHERE appointment_id = p_appointment_id AND status = 'booked';
 END $$
 
 

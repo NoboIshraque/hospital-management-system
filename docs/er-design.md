@@ -964,7 +964,7 @@ Until now every account shared one demo password. A real installation cannot wor
 - The demo accounts are listed on the sign-in page only when the server runs with `DEMO_MODE=1`.
 
 Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
-220 tests that check every constraint, trigger and procedure rejects what §4 says it must.
+232 tests that check every constraint, trigger and procedure rejects what §4 says it must.
 
 ---
 
