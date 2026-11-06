@@ -86,6 +86,18 @@ async function signIn(base, username) {
     r = await anon('GET', '/index.html');
     check('The static site is served too', r.status === 200 && r.text.includes('<html'));
 
+    // ---------- web-layer protections (security.js) ----------
+    let raw = await fetch(base + '/index.html');
+    check('Pages carry a Content-Security-Policy that forbids framing (W3)',
+      /frame-ancestors 'none'/.test(raw.headers.get('content-security-policy') || '') &&
+      raw.headers.get('x-content-type-options') === 'nosniff');
+    raw = await fetch(base + '/api/patients/search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'http://evil.example' }, body: '{"q":"rahim"}' });
+    check('A write started by another website is refused (W2)', raw.status === 403);
+    for (let i = 0; i < 5; i++) await anon('POST', '/api/login', { username: 'nosuchuser', password: 'guess' + i });
+    r = await anon('POST', '/api/login', { username: 'nosuchuser', password: 'guess5' });
+    check('After 5 failed sign-ins for one username, the next is refused with 429 (S1)', r.status === 429);
+
     const rezaul = await signIn(base, 'rezaul');
     const anisur = await signIn(base, 'anisur');
     const rahim  = await signIn(base, 'rahim');
@@ -147,6 +159,7 @@ async function signIn(base, username) {
     check('Break-glass with a reason is allowed and flagged', r.status === 200 && r.body.access.breakGlass === true);
     r = await read(rezaul, 'BD-2019-04821-5');
     check('A receptionist gets demographics only', r.status === 200 && r.body.access.basis === 'demographics_only' && r.body.encounters.length === 0);
+    check('…with the NID masked to its last 4 digits (A7)', r.body.nid === '•••••••••3041', r.body.nid);
     r = await read(rahim, 'BD-2019-04821-5');
     check('A patient reads their own record', r.status === 200 && r.body.access.basis === 'own_record');
     r = await read(rahim, 'BD-2021-11904-5');
@@ -167,6 +180,8 @@ async function signIn(base, username) {
       r.body.flatMap(d => d.slots).find(s => s.start === freeSlot.start).taken === true);
     r = await rahim('DELETE', `/api/appointments/${apptId}`);
     check('A patient cancelling someone else\'s appointment is 403', r.status === 403);
+    r = await rezaul('DELETE', '/api/appointments/abc');
+    check('An id that is not a whole number is 400 (I3)', r.status === 400);
     r = await rezaul('DELETE', `/api/appointments/${apptId}`);
     check('Reception cancels it', r.status === 200);
     r = await anon('GET', '/api/doctors/1/availability?days=8');
@@ -221,6 +236,13 @@ async function signIn(base, username) {
     check('A valid encounter is saved whole', r.status === 201 && await count() === before + 1);
     r = await anisur('POST', '/api/encounters', { uhid: 'BD-2019-04821-5' });
     check('An encounter with no diagnosis is 400', r.status === 400);
+    r = await anisur('POST', '/api/encounters', { uhid: 'BD-2019-04821-5', diagnoses: [{ icd10: 'I10' }],
+      prescriptions: Array.from({ length: 21 }, () => ({ medicineId: 4, dose: '1', frequency: 'once daily' })) });
+    check('More than 20 drug lines in one visit is 400 (I3)', r.status === 400);
+    r = await anisur('POST', '/api/encounters', { uhid: 'BD-2019-04821-5', diagnoses: [{ icd10: 'I10' }],
+      vitals: { systolic: 80, diastolic: 120 } });
+    check('A CHECK refusal comes back as a plain sentence, not a constraint name (W4)',
+      r.status === 409 && !/ck_|constraint/i.test(r.body.error), r.body && r.body.error);
     const visit = { uhid: 'BD-2021-11904-5', complaint: 'Chest pain', diagnoses: [{ icd10: 'I10' }], end: true };
     r = await anisur('POST', '/api/encounters', visit);
     check('An encounter with no basis and no reason is 423 (A1)', r.status === 423);
@@ -269,6 +291,19 @@ async function signIn(base, username) {
     check('The admin merges the duplicate Rahim records', r.status === 200);
     r = await read(anisur, 'BD-2018-00723-2');
     check('…and the old UHID now opens the surviving record', r.status === 200 && r.body.uhid === 'BD-2019-04821-5');
+
+    // ---------- consent, the patient's side (A9) ----------
+    r = await rahim('GET', '/api/consents');
+    const live = r.body && r.body.find(g => g.status === 'active' && g.hospital === 'Dhaka Medical College Hospital');
+    check('A patient lists their consent grants', r.status === 200 && Boolean(live), JSON.stringify(r.body));
+    r = await anisur('GET', '/api/consents');
+    check('A doctor has no consents to list (403)', r.status === 403);
+    r = await anisur('POST', `/api/consents/${live.id}/revoke`);
+    check('A doctor cannot revoke a patient\'s consent (403)', r.status === 403);
+    r = await rahim('POST', `/api/consents/${live.id}/revoke`);
+    check('The patient revokes it', r.status === 200);
+    r = await rahim('GET', '/api/consents');
+    check('…and it now shows as revoked', r.body.find(g => g.id === live.id).status === 'revoked');
 
     // ---------- least privilege ----------
     let denied = false;

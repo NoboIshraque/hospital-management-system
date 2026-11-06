@@ -900,8 +900,32 @@ by someone other than the builders; and compliance with health-data law. A syste
 patients' records would need every one of these before it went live, and the landing page already
 says this project is not a live service.
 
+### 8.5 The review's remaining groups — what was done, and what was left on purpose (6 November 2026)
+
+**Done.** In the database: a demographics-only read (reception, admin) now shows the NID masked to
+its last four digits (A7, `get_patient_record()`); and a patient can see and revoke their consent
+grants (A9, `list_consents()` and `revoke_consent()`, UC18) — the `revoked_at` column had existed
+since phase 2 and nothing used it. In the web layer (`server/security.js`, `auth.js`): a login rate
+limit (S1), a sign-in that takes as long for an unknown username as for a wrong password (S6), a
+30-minute idle timeout on top of the 8-hour limit (S5), security headers and a Content-Security-Policy
+(W3), refusal of writes started by another website (W2), plain messages instead of MySQL's text for
+duplicate, foreign-key and CHECK errors (W4), and type and size checks on ids and lists (I3). The
+`secure` cookie flag and HSTS are switched on by `COOKIE_SECURE=1` in `.env`, for when the site has
+HTTPS (S3). `npm audit` reports 0 vulnerabilities (D5).
+
+**Left on purpose**, each a decision rather than an oversight:
+
+| ID | Item | Why it is not done now |
+|---|---|---|
+| S2 | A strong password for each account | The four demo accounts with one shared, published password are what lets the teacher sign in as each role. Before the site is ever public, every account gets its own password and the login page stops listing them. |
+| S4 | Sessions in MySQL instead of server memory | The site runs as one process on one laptop; memory sessions are correct there. It matters only with several servers. |
+| D3 | The MySQL root password off the machine that runs the site | `npm run db:reset` needs root, and it runs on the same laptop. On a server, the running site's `.env` would hold only the `uhid_app` credentials. |
+| — | `privacy.html` for a hosted site | There is no hosted site. The page describes the system as it runs today. |
+| L2, A8, L5 | A verdict and note on each break-glass review; recording that the patient agreed to a referral; who cancelled an appointment | Each needs new columns, and so a change to the ER diagrams handed in. Worth doing after submission; none of them changes a rule the database enforces today. |
+| L3 | Paging through more than the latest 25 access-log entries | A screen convenience; the full log is in the database and `queries.sql` can read it. |
+
 Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
-135 tests that check every constraint, trigger and procedure rejects what §4 says it must.
+145 tests that check every constraint, trigger and procedure rejects what §4 says it must.
 
 ---
 

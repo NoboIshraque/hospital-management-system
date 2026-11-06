@@ -13,7 +13,7 @@
 
 const express = require('express');
 const { call } = require('../db/pool');
-const { ah, httpError } = require('../db/errors');
+const { ah, httpError, id } = require('../db/errors');
 const { requireLogin } = require('../auth');
 
 const router = express.Router();
@@ -21,12 +21,12 @@ const router = express.Router();
 router.post('/appointments', requireLogin, ah(async (req, res) => {
   const { postingId, uhid, slotStart } = req.body;
   if (!postingId || !uhid || !slotStart) throw httpError(400, 'postingId, uhid and slotStart are all required.');
-  const [[booked]] = await call('book_appointment', [req.session.account.id, postingId, uhid, slotStart]);
+  const [[booked]] = await call('book_appointment', [req.session.account.id, id(postingId, 'postingId'), String(uhid), String(slotStart)]);
   res.status(201).json({ appointmentId: booked.appointment_id, slotStart: booked.slot_start, slotEnd: booked.slot_end });
 }));
 
 router.delete('/appointments/:id', requireLogin, ah(async (req, res) => {
-  await call('cancel_appointment', [req.session.account.id, Number(req.params.id)]);
+  await call('cancel_appointment', [req.session.account.id, id(req.params.id, 'The appointment id')]);
   res.json({ cancelled: true });
 }));
 

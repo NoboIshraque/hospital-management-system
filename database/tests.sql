@@ -530,6 +530,30 @@ CALL t_value('L1: the web server''s account cannot read the national directory v
   "SELECT COUNT(*) FROM information_schema.TABLE_PRIVILEGES
     WHERE GRANTEE LIKE '%uhid_app%' AND TABLE_NAME = 'v_patient_directory'", '0');
 
+-- A9 · the patient sees their consents and can take one back.
+SET @rahim_dmch_grant = (SELECT grant_id FROM consent_grant
+                          WHERE patient_id = 1 AND to_hospital_id = 1 AND granted_via = 'referral');
+CALL t_expect('A9: a patient lists their own consent grants',
+  "CALL list_consents(17)", 0);
+CALL t_expect('A9: a doctor has no consents of their own to list',
+  "CALL list_consents(6)", 5403);
+CALL t_expect('A9: before revoking, a Dhaka Medical doctor reads Rahim under consent',
+  "CALL get_patient_record(7, 'BD-2019-04821-5', FALSE, NULL, NULL)", 0);
+CALL t_value('A9: …logged under basis consent',
+  "SELECT basis FROM access_log ORDER BY log_id DESC LIMIT 1", 'consent');
+CALL t_expect('A9: a patient may not revoke someone else''s consent',
+  "CALL revoke_consent(17, (SELECT MIN(grant_id) FROM consent_grant WHERE patient_id = 2))", 5403);
+CALL t_expect('A9: nor may staff revoke it for them',
+  CONCAT("CALL revoke_consent(1, ", @rahim_dmch_grant, ")"), 5403);
+CALL t_expect('A9: the patient revokes the referral''s grant to Dhaka Medical',
+  CONCAT("CALL revoke_consent(17, ", @rahim_dmch_grant, ")"), 0);
+CALL t_expect('A9: …and the same doctor now has no basis',
+  "CALL get_patient_record(7, 'BD-2019-04821-5', FALSE, NULL, NULL)", 5423);
+CALL t_expect('A9: a grant cannot be revoked twice',
+  CONCAT("CALL revoke_consent(17, ", @rahim_dmch_grant, ")"), 1644);
+CALL t_expect('A9: nor can an expired one',
+  "CALL revoke_consent(17, (SELECT grant_id FROM consent_grant WHERE patient_id = 1 AND to_hospital_id = 7 AND granted_via = 'in_person'))", 1644);
+
 
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message
   FROM t_result ORDER BY test_no;

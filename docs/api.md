@@ -11,17 +11,26 @@ npm run race             # two receptionists booking one slot at once, five time
 
 **Who is asking** always comes from the login session, never from the request. Sign in with
 `POST /api/login`; the server sets an httpOnly cookie that the browser sends back automatically.
+A session ends after **30 minutes without a request**, and **8 hours after sign-in** whatever
+happens; then every endpoint answers 401 and the console sends the user to the sign-in page.
+
+**Every response** carries a Content-Security-Policy (scripts only from this site, fonts only from
+Google Fonts, no framing by another site), `X-Content-Type-Options: nosniff` and
+`Referrer-Policy: same-origin`. A `POST` or `DELETE` whose `Origin` or `Sec-Fetch-Site` header
+shows it came from another website is refused with 403 — a backstop behind the `SameSite=Lax`
+cookie. All of this is `server/security.js`.
 
 **Errors** come back as `{ "error": "…" }`, with the database's own message wherever the
 database refused (see `server/db/errors.js`):
 
 | Status | Meaning | Comes from |
 |---|---|---|
-| 400 | The request is missing something | the route |
+| 400 | The request is missing something, or an id is not a whole number, or a list is too long (at most 10 diagnoses, 20 drug lines, 20 lab tests per visit) | the route (`id()`, `list()` in `db/errors.js`) |
 | 401 | Not signed in | `requireLogin` |
-| 403 | Your role may not do this | `require_permission()` — MYSQL_ERRNO 5403 |
+| 403 | Your role may not do this — or the write came from another website | `require_permission()` — MYSQL_ERRNO 5403; `sameOriginWrites` in `security.js` |
 | 404 | No such patient / thing | MYSQL_ERRNO 5404 |
-| 409 | A rule said no (slot taken, NID registered, allergy conflict, bed not free…) | SIGNAL (1644), CHECK (3819), duplicate (1062) |
+| 409 | A rule said no (slot taken, NID registered, allergy conflict, bed not free…) | SIGNAL (1644), CHECK (3819), duplicate (1062). For 1062, 1451, 1452 and 3819 the browser gets a plain sentence, not MySQL's text, which names tables and constraints; the server log keeps the original |
+| 429 | Too many failed sign-ins: 5 for one username, or 30 from one address, in 15 minutes | `loginLimiter` in `security.js`; the `Retry-After` header says how many seconds to wait |
 | 423 | No access basis for this record — break-glass is possible | `get_patient_record()` — MYSQL_ERRNO 5423; the body has `"breakGlassAvailable": true`. Also from `start_encounter()`: no appointment, referral, consent or admission, and no reason given |
 
 ## Endpoints
@@ -41,6 +50,8 @@ database refused (see `server/db/errors.js`):
 | `POST /api/patients/matches` | reception | `{ name, dob, phone, nid }` | `registration_matches()` — decision 1's duplicate check, masked and logged |
 | `POST /api/patients` | reception | `{ name, dob, sex, blood, phone, nid, district, address, kinName, kinRelation, kinPhone, allergies[] }` | `register_patient()` |
 | `POST /api/patients/:uhid/read` | signed in | `{}` or `{ breakGlass: true, reason }` | `get_patient_record()` — logged. A POST on purpose: see below |
+| `GET /api/consents` | patient | — | `list_consents()` — the signed-in patient's own grants, with `status` active / expired / revoked |
+| `POST /api/consents/:id/revoke` | patient (own grants) | — | `revoke_consent()` — stamps `revoked_at`; the hospital loses that basis at once |
 | `GET /api/audit/duplicates` | hospital admin, system admin | — | `v_possible_duplicates` — a self-join: same name + date of birth, or same mobile (after `has_permission('patient.merge')`) |
 | `POST /api/patients/merge` | admin | `{ losingUhid, survivingUhid, reason }` | `merge_patients()` |
 | `POST /api/appointments` | reception, patient (own) | `{ postingId, uhid, slotStart }` | `book_appointment()` |

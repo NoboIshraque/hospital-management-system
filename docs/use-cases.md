@@ -40,6 +40,7 @@ Every demo password is `demo1234`. What each actor may do is decided by `role_pe
 | UC15 | Refer a patient to another hospital | Doctor | `refer_patient()`, `v_referral_inbox` | 6 |
 | UC16 | Review break-glass access | Hospital Admin, System Admin | `v_break_glass_queue`, `review_break_glass()` | 2 |
 | UC17 | Merge two UHIDs for one person | Hospital Admin, System Admin | `v_possible_duplicates`, `merge_patients()` | 1 |
+| UC18 | See and revoke a consent | Patient | `list_consents()`, `revoke_consent()` | 2 |
 
 ---
 
@@ -274,3 +275,20 @@ made at their own hospital only; the system admin, who has no hospital, reviews 
 3. The losing record stays, and its UHID still opens the surviving record through
    `resolve_patient()`. `access_log` is **not** moved: who read the old record is a fact about
    the past.
+
+## UC18 — See and revoke a consent
+
+**Actor:** Patient. **Goal:** know which hospitals may read the record, and take a permission back.
+
+1. On their own record, the patient opens *Who may read it*. `list_consents()` finds the patient
+   from the signed-in account — never from the request — and returns every grant on the record:
+   the hospital (and doctor, if the grant names one), the scope, how it was given (in person, by
+   one-time code, with a referral), and whether it is active, expired or revoked.
+2. The patient chooses **Revoke** on an active grant. `revoke_consent()` checks the grant is theirs
+   and still live, and stamps `revoked_at`.
+3. From that moment `get_patient_record()` and `start_encounter()` no longer count the grant as a
+   basis: a doctor at that hospital who relied on it is refused (5423) and must use break-glass.
+
+**Alternatives:** a grant that has expired or was already revoked → refused (1644); another
+patient's grant, or a staff account trying → refused (5403). The row is never deleted: that the
+grant existed, and when it ended, stays part of the record.

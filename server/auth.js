@@ -8,9 +8,15 @@
    req.session — never from the request body or the URL — so a user
    cannot claim to be someone else.
 
+   Two time limits (security review S5): a session ends after 30
+   minutes with no request (the cookie's maxAge, renewed on every
+   request by rolling: true), and after 8 hours whatever happens
+   (loginAt, checked in requireLogin) — a shift, not for ever.
+
    Sessions live in memory: restarting the server signs everyone
-   out. Fine for a course project; a real deployment would keep them
-   in a store such as Redis or a MySQL table.
+   out. Fine for one laptop (accepted, review item S4); a site on
+   several servers would keep them in a shared store such as a MySQL
+   table.
    ============================================================ */
 
 const session = require('express-session');
@@ -22,16 +28,29 @@ if (!process.env.SESSION_SECRET) {
   process.exit(1);
 }
 
+const IDLE_MS  = 30 * 60 * 1000;          // 30 minutes without a request
+const SHIFT_MS = 8 * 60 * 60 * 1000;      // 8 hours from sign-in, at most
+
 const sessionMiddleware = session({
   name: 'uhid.sid',
   secret: process.env.SESSION_SECRET,   // signs the cookie so it cannot be forged
   resave: false,
   saveUninitialized: false,             // no cookie until someone signs in
-  cookie: { httpOnly: true, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 }
+  rolling: true,                        // each request restarts the idle clock
+  cookie: {
+    httpOnly: true,                     // page JavaScript cannot read it
+    sameSite: 'lax',                    // not sent on another site's POST
+    secure: process.env.COOKIE_SECURE === '1',   // S3: HTTPS only, once the site has HTTPS
+    maxAge: IDLE_MS
+  }
 });
 
 function requireLogin(req, res, next) {
-  if (!req.session.account) return res.status(401).json({ error: 'Please sign in.' });
+  const account = req.session.account;
+  if (!account) return res.status(401).json({ error: 'Please sign in.' });
+  if (Date.now() - (account.loginAt || 0) > SHIFT_MS) {
+    return req.session.destroy(() => res.status(401).json({ error: 'Your session has ended. Please sign in again.' }));
+  }
   next();
 }
 

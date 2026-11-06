@@ -14,7 +14,7 @@
 
 const express = require('express');
 const { pool, call } = require('../db/pool');
-const { ah, httpError } = require('../db/errors');
+const { ah, httpError, id } = require('../db/errors');
 const { requireLogin } = require('../auth');
 const { num } = require('../lib/format');
 
@@ -45,19 +45,20 @@ router.get('/wards', requireLogin, ah(async (req, res) => {
 router.post('/admissions', requireLogin, ah(async (req, res) => {
   const { uhid, postingId, wardId, bedNo, complaint } = req.body;
   if (!uhid || !postingId || !wardId || !bedNo) throw httpError(400, 'uhid, postingId, wardId and bedNo are all required.');
-  const [[r]] = await call('admit_patient', [req.session.account.id, uhid, postingId, wardId, bedNo, complaint || null]);
+  const [[r]] = await call('admit_patient', [req.session.account.id, String(uhid), id(postingId, 'postingId'),
+    id(wardId, 'wardId'), String(bedNo), complaint ? String(complaint) : null]);
   res.status(201).json({ admissionId: r.admission_id, encounterId: r.encounter_id });
 }));
 
 router.post('/admissions/:id/transfer', requireLogin, ah(async (req, res) => {
   const { wardId, bedNo } = req.body;
   if (!wardId || !bedNo) throw httpError(400, 'wardId and bedNo are required.');
-  await call('transfer_patient', [req.session.account.id, Number(req.params.id), wardId, bedNo]);
+  await call('transfer_patient', [req.session.account.id, id(req.params.id, 'The admission id'), id(wardId, 'wardId'), String(bedNo)]);
   res.json({ transferred: true });
 }));
 
 router.post('/admissions/:id/discharge', requireLogin, ah(async (req, res) => {
-  await call('discharge_patient', [req.session.account.id, Number(req.params.id),
+  await call('discharge_patient', [req.session.account.id, id(req.params.id, 'The admission id'),
     req.body.summary || null, req.body.outcome || null]);
   res.json({ discharged: true });
 }));
@@ -65,7 +66,7 @@ router.post('/admissions/:id/discharge', requireLogin, ah(async (req, res) => {
 router.post('/beds/clean', requireLogin, ah(async (req, res) => {
   const { wardId, bedNo } = req.body;
   if (!wardId || !bedNo) throw httpError(400, 'wardId and bedNo are required.');
-  await call('mark_bed_clean', [req.session.account.id, wardId, bedNo]);
+  await call('mark_bed_clean', [req.session.account.id, id(wardId, 'wardId'), String(bedNo)]);
   res.json({ status: 'free' });
 }));
 

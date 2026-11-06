@@ -129,6 +129,7 @@ function drawRecord(root, p) {
       <button data-tab="timeline" class="on">Encounter timeline</button>
       <button data-tab="rx">Prescriptions</button>
       <button data-tab="access">Who has viewed this</button>
+      ${isSelf && API.online ? '<button data-tab="consents">Who may read it</button>' : ''}
     </div>
     <div id="rec-body"></div>
     <p class="print-only print-foot">Printed from the UHID national health record by ${esc(S.account.name)} (${esc(ROLES[S.role].label)}), ${esc(fmtDateTime(new Date()))}. Access basis: ${esc(BASIS_LABEL[access.basis] || access.basis)}. Confidential clinical information.</p>`;
@@ -240,6 +241,9 @@ function renderRecordBody() {
         <span style="font-size:12px;color:var(--ink-3)">${esc(hospital(x.e.hospitalId).name)}</span>
       </div>`).join('')}</div>`;
 
+  } else if (S.tab === 'consents') {
+    drawConsents(box);
+
   } else {
     /* Online this is the real access_log, newest first, including the read
        that just opened this page. Offline it is the prototype's sample list. */
@@ -266,6 +270,55 @@ function renderRecordBody() {
           <span class="pill ${esc(r.kind)}">${esc(r.basis)}</span>
         </div>`).join('')}</div>`;
   }
+}
+
+/* The patient's own consent grants (security review A9). A grant is the
+   patient's permission, so the patient can see each one and take it back.
+   revoke_consent() stamps revoked_at, and from that moment the database
+   stops counting the grant as an access basis. The row stays, so the
+   record shows that the grant existed and when it ended. */
+async function drawConsents(box) {
+  box.innerHTML = loadingHtml('Loading the hospitals you have allowed to read your record.');
+  let grants;
+  try { grants = await API.get('/consents'); }
+  catch (e) { box.innerHTML = errorHtml('Your consents could not be loaded', e.message); return; }
+  if (S.tab !== 'consents') return;            // the patient moved to another tab meanwhile
+  if (!grants.length) {
+    box.innerHTML = `<div class="card empty-state"><b>No consents on your record</b>No hospital has been given permission to read your record. A referral, or your agreement at a hospital, creates one.</div>`;
+    return;
+  }
+  const VIA = { referral: 'with a referral', in_person: 'in person', otp: 'by one-time code' };
+  const PILL = { active: 'ok', expired: 'mute', revoked: 'warn' };
+  box.innerHTML = `
+    <p style="font-size:12.5px;color:var(--ink-3);margin:0 0 12px">
+      Each line is a permission you gave a hospital to read your clinical record. It ends on its own when it expires, or now, if you revoke it. The doctor treating you in person, and emergency break-glass reads, do not depend on these &mdash; break-glass reads appear under <i>Who has viewed this</i>.
+    </p>
+    <div class="card" style="padding:6px 0">${grants.map(g => `
+      <div style="padding:11px 18px;border-bottom:1px solid var(--line);display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+        <span class="pill ${PILL[g.status] || 'mute'}"><i class="dot"></i>${esc(g.status)}</span>
+        <span style="flex:1;min-width:220px">
+          <b>${esc(g.hospital)}</b>${g.doctor ? ` &middot; ${esc(g.doctor)} only` : ''}<br>
+          <span style="font-size:12px;color:var(--ink-3)">${esc(g.scope)} record, given ${esc(VIA[g.via] || g.via)} on ${esc(fmtDateTime(g.grantedAt))} &middot; ${
+            g.status === 'revoked' ? `revoked ${esc(fmtDateTime(g.revokedAt))}` : `${g.status === 'active' ? 'expires' : 'expired'} ${esc(fmtDateTime(g.expiresAt))}`}</span>
+        </span>
+        ${g.status === 'active' ? `<button class="btn sm" data-revoke="${Number(g.id)}">Revoke</button>` : ''}
+      </div>`).join('')}</div>`;
+
+  $$('[data-revoke]', box).forEach(b => b.addEventListener('click', () => {
+    const g = grants.find(x => x.id === Number(b.dataset.revoke));
+    const sc = modal(`
+      <div class="modal-h"><h3>Revoke this consent?</h3><p>${esc(g.hospital)} will no longer be able to read your record on this permission.</p></div>
+      <div class="modal-b">If you are being treated there now, the doctor seeing you can still read it while your visit is open. You can give a new consent at the hospital at any time.</div>
+      <div class="modal-f"><button class="btn" data-close>Keep it</button><button class="btn primary" data-ok>Revoke</button></div>`);
+    $('[data-ok]', sc).addEventListener('click', async () => {
+      $('[data-ok]', sc).disabled = true;
+      try { await API.post('/consents/' + Number(g.id) + '/revoke'); }
+      catch (e) { sc.remove(); toast('Not revoked', e.message, 'err'); return; }
+      sc.remove();
+      toast('Consent revoked', `${g.hospital} can no longer read your record on that permission.`);
+      drawConsents(box);
+    });
+  }));
 }
 
 /* A doctor refers from an encounter at their own hospital — the same rule

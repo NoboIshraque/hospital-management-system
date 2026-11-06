@@ -120,14 +120,15 @@ database/     schema.sql (40 tables) → triggers.sql → procedures.sql → vie
               → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
               queries.sql — 20 demonstration queries (joins, ROLLUP, window functions, CTEs,
               INTERSECT), each tied to a design decision; run as root, not uhid_app
-              tests.sql — 135 tests of constraints, triggers and procedures (npm run db:test)
+              tests.sql — 145 tests of constraints, triggers and procedures (npm run db:test)
 server/       Express app — serves public/ AND the JSON API under /api (docs/api.md)
   app.js        wiring only: session, routes, static files, 404, error handler
   auth.js       sessions, requireLogin, requirePermission (asks has_permission() in MySQL)
-  db/           pool.js (connects as uhid_app), errors.js (MYSQL_ERRNO → HTTP), run-sql.js, reset.js
+  security.js   CSP and headers, refusal of cross-site writes, the login rate limit
+  db/           pool.js (connects as uhid_app), errors.js (MYSQL_ERRNO → HTTP, id/list checks), run-sql.js, reset.js
   routes/       auth, reference, patients, appointments, wards, clinical, audit
   lib/format.js turns rows into the shapes public/ renders
-  scripts/      api-test.js (npm run api:test, 76 checks), race-booking.js (npm run race)
+  scripts/      api-test.js (npm run api:test, 88 checks), race-booking.js (npm run race)
   practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
 public/       Frontend, served as static files (also works opened straight from disk)
   index.html    public landing page
@@ -320,10 +321,11 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Use cases | Done — `docs/use-cases.md` |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched). The crow's-foot file is no longer maintained |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (33 + 4 functions), views (9), seed, grants, 20 demonstration queries, 135 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 135/135 (6 Nov 2026: before then the 38 `t_value` checks silently recorded nothing — see the comment on `t_value` in tests.sql — so "74/74" was 74 of 101)** |
+| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (35 + 4 functions), views (9), seed, grants, 20 demonstration queries, 135 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 145/145 (6 Nov 2026: before then the 38 `t_value` checks silently recorded nothing — see the comment on `t_value` in tests.sql — so "74/74" was 74 of 101)** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
-| Express API | Done 31 Oct 2026 — 30 endpoints, `docs/api.md`; `npm run api:test` passes 76/76; `npm run race` shows 5/5 single bookings |
+| Express API | Done 31 Oct 2026 — 32 endpoints, `docs/api.md`; `npm run api:test` passes 88/88; `npm run race` shows 5/5 single bookings |
 | Security review, group 1 (fix before the viva) | Done 6 Nov 2026 — A1–A6, L1, W1, I2 (`er-design.md` §8.3). Each DB rule has a `tests.sql` §9 test with its errno; browser-tested as receptionist, doctor and hospital admin, plus offline mode |
+| Security review, groups 2–4 | Done 6 Nov 2026 — accepted risks written down (§8.4); S1, S3 (behind `COOKIE_SECURE=1`), S5, S6, W2, W3, W4, I3, A7, A9, D5 built and tested (`server/security.js`; §8.5). Left on purpose, with reasons in §8.5: S2, S4, D3, L2, A8, L5, L3 |
 | Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
 | Demo script, README | Done 1 Nov 2026 — `docs/demo-script.md`; README rewritten for the running system |
 | Print stylesheet, 404 page | Done 1 Nov 2026 |
@@ -335,16 +337,19 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   delete it when those are dealt with.
 - **Security review, 1 Nov 2026** (33 items: https://claude.ai/artifact/5DUs8QRcx7Ztc31xjqNZE5 ).
   Group 1, "fix before the viva", is **done** (6 Nov 2026; `er-design.md` §8.3 lists each rule).
-  Group 4, the accepted risks (A10, D2, L4) and what is out of scope, is **written down** in
-  `er-design.md` §8.4 (6 Nov 2026). **Still open: groups 2–3** — going live (login rate limit S1,
-  per-account passwords S2, HTTPS S3, security headers W3, MySQL session store S4, …) and
-  hardening (L2 review verdicts, A7 masked NID on the receptionist's record read, S5 idle
-  timeout, …). These are `CHECKLIST.md` G6: decide with the author which, if any, to do.
+  Groups 2–4 are **done or decided** too (6 Nov 2026): §8.4 the accepted risks, §8.5 what was
+  built and what was left on purpose. **Before the site is ever put on a public address:** give
+  every account its own password and take the list off the login page (S2), serve it over HTTPS
+  with `COOKIE_SECURE=1`, and keep root's password off that machine (D3). Not needed for the viva.
+- **The Content-Security-Policy (`server/security.js`) forbids inline scripts.** Never add a
+  `<script>` block or an `onclick=` attribute to a page — put the code in a `.js` file. A new
+  external resource (another font host, a CDN) must be added to the policy, or the browser
+  blocks it. `style="…"` attributes are allowed.
 - **Scope rules the procedures now enforce — keep them when changing a procedure:** an action
   checks the caller's hospital (wards, cancel, merge), an encounter is written only by its own
   doctor (or the admitting department for an inpatient), `start_encounter()` needs a basis or a
   reviewed reason, and `treating` means the reader's own encounter or department.
-- **`CHECKLIST.md`**: sections A–F done and verified by 1 Nov 2026; G1–G5 and G7 by 6 Nov 2026; G6 open.
+- **`CHECKLIST.md`**: every section, A–G, is done and verified (G by 6 Nov 2026).
   New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
   small version of one slice of the database and backend: Nobo the hardest (transactions,

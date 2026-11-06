@@ -15,6 +15,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
 const { sessionMiddleware } = require('./auth');
+const { securityHeaders, sameOriginWrites } = require('./security');
 const { errorHandler } = require('./db/errors');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -22,8 +23,10 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const app = express();
 app.disable('x-powered-by');                 // don't advertise the framework
 app.set('trust proxy', 'loopback');          // req.ip is the real client when run behind a local proxy
+app.use(securityHeaders);                    // W3: CSP, no framing, nosniff (security.js)
 app.use(express.json({ limit: '100kb' }));
 app.use(sessionMiddleware);
+app.use('/api', sameOriginWrites);           // W2: refuse writes started by another website
 
 // Every API response is about one user's data: never cache it.
 app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });

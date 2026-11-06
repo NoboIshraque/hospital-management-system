@@ -868,7 +868,12 @@ BEGIN
           IF(v_basis = 'break_glass', TRIM(p_justification), NULL), p_ip);
 
   -- 1. The patient, in the shape public/js/seed.js uses, plus the basis.
-  SELECT p.uhid, p.name, p.dob, p.sex, p.blood_group AS blood, p.phone, p.nid,
+  --    A demographics-only read (reception, admin) shows the NID masked to
+  --    its last 4 digits (security review A7): enough to confirm the card in
+  --    front of you, not enough to copy someone's national ID.
+  SELECT p.uhid, p.name, p.dob, p.sex, p.blood_group AS blood, p.phone,
+         IF(v_basis = 'demographics_only' AND p.nid IS NOT NULL,
+            CONCAT(REPEAT('•', CHAR_LENGTH(p.nid) - 4), RIGHT(p.nid, 4)), p.nid) AS nid,
          d.name AS district, p.address,
          CONCAT_WS(' · ',
            CONCAT(p.kin_name, IF(p.kin_relation IS NULL, '', CONCAT(' (', p.kin_relation, ')'))),
@@ -1624,6 +1629,66 @@ BEGIN
 
   SET @uhid_merging = NULL;
   COMMIT;
+END $$
+
+
+-- =====================================================================
+-- 11b. CONSENT — the patient's side (security review A9)
+--
+-- A consent grant is the patient's permission, so the patient must be able
+-- to see every grant on their record and take one back. Revoking stamps
+-- revoked_at; get_patient_record() and start_encounter() already ignore a
+-- grant with revoked_at set, so the hospital loses access at once. The row
+-- is kept: that a grant existed, and when it ended, is part of the record.
+-- =====================================================================
+
+DROP PROCEDURE IF EXISTS list_consents $$
+CREATE PROCEDURE list_consents(IN p_account_id INT UNSIGNED)
+BEGIN
+  DECLARE v_patient INT UNSIGNED;
+  SELECT ua.patient_id INTO v_patient FROM user_account ua
+   WHERE ua.account_id = p_account_id AND ua.is_active;
+  IF v_patient IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only a patient has consents to manage.', MYSQL_ERRNO = 5403;
+  END IF;
+
+  SELECT g.grant_id AS id, h.name AS hospital, d.name AS doctor, g.scope,
+         g.granted_via AS via, g.granted_at AS grantedAt, g.expires_at AS expiresAt,
+         g.revoked_at AS revokedAt,
+         CASE WHEN g.revoked_at IS NOT NULL THEN 'revoked'
+              WHEN NOW() > g.expires_at    THEN 'expired'
+              ELSE 'active' END AS status
+    FROM consent_grant g
+    JOIN hospital h    ON h.hospital_id = g.to_hospital_id
+    LEFT JOIN doctor d ON d.doctor_id = g.to_doctor_id
+   WHERE g.patient_id = v_patient
+   ORDER BY g.granted_at DESC;
+END $$
+
+DROP PROCEDURE IF EXISTS revoke_consent $$
+CREATE PROCEDURE revoke_consent(IN p_account_id INT UNSIGNED, IN p_grant_id INT UNSIGNED)
+BEGIN
+  DECLARE v_patient INT UNSIGNED;
+  DECLARE v_owner   INT UNSIGNED;
+  DECLARE v_live    BOOLEAN;
+
+  SELECT ua.patient_id INTO v_patient FROM user_account ua
+   WHERE ua.account_id = p_account_id AND ua.is_active;
+  SELECT patient_id, revoked_at IS NULL AND NOW() <= expires_at
+    INTO v_owner, v_live
+    FROM consent_grant WHERE grant_id = p_grant_id;
+
+  IF v_owner IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such consent grant.', MYSQL_ERRNO = 5404;
+  END IF;
+  IF v_patient IS NULL OR v_patient <> v_owner THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only the patient can revoke their own consent.', MYSQL_ERRNO = 5403;
+  END IF;
+  IF NOT v_live THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That consent has already ended.';
+  END IF;
+
+  UPDATE consent_grant SET revoked_at = NOW() WHERE grant_id = p_grant_id;
 END $$
 
 

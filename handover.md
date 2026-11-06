@@ -17,11 +17,11 @@ have not started their guides; and the laptop is short of memory. Details below.
 
 | Part | Where | Verified by |
 |---|---|---|
-| Database: 40 tables, 21 triggers, 33 procedures + 4 functions, 9 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 135 tests, all pass (6 Nov 2026) |
+| Database: 40 tables, 21 triggers, 35 procedures + 4 functions, 9 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 145 tests, all pass (6 Nov 2026) |
 | Sample data: 8 hospitals, 11 doctors, 18 patients | `database/seed.sql` | loads clean in `npm run db:reset` |
 | Least-privilege app user `uhid_app` | `database/grants.sql` | denied SELECT on `patient`, UPDATE on `bed`, DELETE/TRUNCATE on `access_log` |
 | 20 demonstration queries | `database/queries.sql` | all run and return sensible rows |
-| Express API, 30 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 76 checks, all pass |
+| Express API, 32 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 88 checks, all pass |
 | Booking under concurrency | `server/scripts/race-booking.js` | `npm run race` — 5 of 5 rounds, exactly one booking each |
 | Frontend on the API (and offline on sample data) | `public/`, switch in `public/js/api.js` | 25-step headless browser test, no JavaScript errors; all 21 standalone screens captured with no errors |
 | Print stylesheet, 404 page | `public/css/responsive.css`, `public/404.html` | rendered in headless Edge |
@@ -44,8 +44,10 @@ appointment, referral, consent or admission — or a reviewed reason — to open
 are limited to the caller's hospital; only an encounter's own doctor writes into it; there is no
 national patient list (a masked, logged search instead); and opening a record is a POST.
 `docs/er-design.md` §8.3 lists each rule. The accepted risks (group 4) are written down in §8.4.
-**Still open: G6**, the review's groups 2–3 (going
-live, hardening) — decide with the author.
+The review's groups 2–3 are done as well, where they fit a site on one laptop (login rate limit,
+session timeouts, security headers, masked NID for reception, patients revoking consent, and
+more); §8.5 lists what was built and what was left on purpose, with reasons. **Every item in
+`CHECKLIST.md` is now done.**
 
 Found on the way: `t_value` in `tests.sql` had never recorded a result (an error handler
 swallowed a collation error in its own INSERT), so `db:test` was really checking 74 of its 101
@@ -138,8 +140,8 @@ cd E:\hospital-management-system
 git pull                          # in case Abir or Noria pushed practice work
 cd server
 npm run db:reset                  # fresh data; also checks MySQL and .env are working
-npm run db:test                   # 135 PASS
-npm run api:test                  # 76 passed, 0 failed
+npm run db:test                   # 145 PASS
+npm run api:test                  # 88 passed, 0 failed
 npm start                         # http://localhost:3000 — only when you need the site
 ```
 

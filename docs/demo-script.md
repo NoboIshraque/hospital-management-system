@@ -21,8 +21,8 @@ hours from the moment the seed data is loaded.
 ```powershell
 cd E:\hospital-management-system\server
 npm run db:reset          # fresh sample data — ends "Database rebuilt: 40 tables, …"
-npm run db:test           # 135 database tests — every line PASS
-npm run api:test          # 76 API checks — "76 passed, 0 failed"
+npm run db:test           # 145 database tests — every line PASS
+npm run api:test          # 88 API checks — "88 passed, 0 failed"
 npm start                 # "UHID running at http://localhost:3000"
 ```
 
@@ -184,6 +184,11 @@ Every demo password is `demo1234`.
    own timeline, and **Who has viewed this** lists every doctor and receptionist who has opened
    it — and, after the merge, the 2018 visit to Savar from the old record is in it too. **Say:** "A patient sees
    their record and who read it, and cannot open anyone else's."
+2. *(Optional, 20 seconds.)* **Who may read it**: the consent Square's referral gave Dhaka
+   Medical is *active*. **Revoke** → **Revoke**: it turns *revoked*. **Say:** "Consent is the
+   patient's to take back. From this moment the database stops counting it — Dr. Anisur would now
+   need break-glass." (This removes the consent step 6 used, so do it last, or `npm run db:reset`
+   before running the demo again.)
 
 ## 10. Print — 15 seconds
 
@@ -226,7 +231,7 @@ Then open `database/queries.sql` and run two or three: **1** (one patient, every
 **5** (possible duplicate patients — a self-join), **7** (busiest departments — a window
 function), **11** (a calendar from a recursive CTE).
 
-Finally, in the second PowerShell window: `npm run db:test` — **135 tests, every one PASS**, each
+Finally, in the second PowerShell window: `npm run db:test` — **145 tests, every one PASS**, each
 proving a rule refuses what it must with the exact error number. (It resets the database when it
 finishes, so do it last, or restart `npm start` afterwards.)
 

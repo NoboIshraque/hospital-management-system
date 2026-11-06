@@ -103,7 +103,14 @@ The review: https://claude.ai/artifact/5DUs8QRcx7Ztc31xjqNZE5 — 33 items in fo
       (76 pass), browser-tested as receptionist, doctor and hospital admin and offline. On the way,
       `t_value` in tests.sql was found to have recorded nothing since it was written; fixed, so
       `db:test` now really runs 135 checks.*
-- [ ] **G6.** Groups 2–3 of the review (going live, hardening) — decide with the author.
+- [x] **G6.** Groups 2–3 of the review (going live, hardening) — done 6 Nov 2026 where it fits a
+      site that runs on one laptop: S1 login rate limit, S3 secure cookie + HSTS behind
+      `COOKIE_SECURE=1`, S5 30-minute idle timeout, S6 equal-time login, W2 cross-site write
+      refusal, W3 CSP and headers, W4 plain DB errors, I3 id and list checks, A7 masked NID on
+      demographics reads, A9 patients see and revoke consents, D5 `npm audit` (0). Tested:
+      `tests.sql` 145, `api-test.js` 88, `npm run race` 5/5, browser as patient and on the
+      landing page. **Left on purpose, with reasons, in `er-design.md` §8.5:** S2, S4, D3, the
+      hosted-site privacy page, L2/A8/L5 (need schema and ER-diagram changes), L3.
 - [x] **G7.** Group 4 — accepted risks A10, D2, L4 and what is out of scope, written down in
       `docs/er-design.md` §8.4, each claim checked against the code (6 Nov 2026). D2's rule — no
       procedure builds SQL from text — is now a code convention in CLAUDE.md.

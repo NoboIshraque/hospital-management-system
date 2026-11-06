@@ -10,7 +10,7 @@
 
 const express = require('express');
 const { pool, call } = require('../db/pool');
-const { ah, httpError } = require('../db/errors');
+const { ah, httpError, id, list } = require('../db/errors');
 const { requireLogin, requirePermission } = require('../auth');
 const { bool, num } = require('../lib/format');
 
@@ -37,6 +37,11 @@ router.post('/encounters', requireLogin, ah(async (req, res) => {
   const b = req.body;
   if (!b.uhid) throw httpError(400, 'uhid is required.');
   if (!Array.isArray(b.diagnoses) || b.diagnoses.length === 0) throw httpError(400, 'Record at least one diagnosis.');
+  // I3: a visit is a handful of lines, not hundreds. Each line is a
+  // procedure call inside one transaction that is holding locks.
+  const diagnoses = list(b.diagnoses, 'diagnoses', 10);
+  const prescriptions = list(b.prescriptions, 'drug lines', 20);
+  const labTests = list(b.labTests, 'lab tests', 20);
 
   const conn = await pool.getConnection();
   try {
@@ -45,7 +50,7 @@ router.post('/encounters', requireLogin, ah(async (req, res) => {
     const [[opened]] = await call('start_encounter', [me, b.uhid, b.type || 'OPD', b.complaint || null, b.notes || null, b.reason || null], conn);
     const encounterId = opened.encounter_id;
 
-    for (const [i, d] of b.diagnoses.entries()) {
+    for (const [i, d] of diagnoses.entries()) {
       await call('add_diagnosis', [me, encounterId, d.icd10, d.primary ?? i === 0, d.certainty || null, d.note || null], conn);
     }
     if (b.vitals) {
@@ -53,10 +58,10 @@ router.post('/encounters', requireLogin, ah(async (req, res) => {
       await call('record_vitals', [me, encounterId, v.systolic ?? null, v.diastolic ?? null,
         v.pulse ?? null, v.temp ?? null, v.spo2 ?? null, v.weight ?? null], conn);
     }
-    for (const rx of b.prescriptions || []) {
-      await call('prescribe', [me, encounterId, rx.medicineId, rx.dose, rx.frequency, rx.days ?? null, rx.instruction || null], conn);
+    for (const rx of prescriptions) {
+      await call('prescribe', [me, encounterId, id(rx.medicineId, 'medicineId'), rx.dose, rx.frequency, rx.days ?? null, rx.instruction || null], conn);
     }
-    for (const test of b.labTests || []) {
+    for (const test of labTests) {
       await call('order_lab', [me, encounterId, test], conn);
     }
     if (b.end) await call('end_encounter', [me, encounterId], conn);
@@ -83,7 +88,8 @@ router.get('/lab-orders', requireLogin, ah(async (req, res) => {
 router.post('/lab-results', requireLogin, ah(async (req, res) => {
   const { orderId, valueNum, valueText } = req.body;
   if (!orderId || (valueNum == null && !valueText)) throw httpError(400, 'orderId and a value are required.');
-  const [[r]] = await call('report_lab_result', [req.session.account.id, orderId, valueNum ?? null, valueText || null]);
+  if (valueNum != null && !Number.isFinite(Number(valueNum))) throw httpError(400, 'valueNum must be a number.');
+  const [[r]] = await call('report_lab_result', [req.session.account.id, id(orderId, 'orderId'), valueNum ?? null, valueText || null]);
   res.status(201).json({ reported: true, abnormal: bool(r.abnormal) });
 }));
 
@@ -92,7 +98,7 @@ router.post('/lab-results', requireLogin, ah(async (req, res) => {
 router.post('/referrals', requireLogin, ah(async (req, res) => {
   const { encounterId, toHospitalId, dept, reason, urgency } = req.body;
   if (!encounterId || !toHospitalId) throw httpError(400, 'encounterId and toHospitalId are required.');
-  const [[r]] = await call('refer_patient', [req.session.account.id, encounterId, toHospitalId,
+  const [[r]] = await call('refer_patient', [req.session.account.id, id(encounterId, 'encounterId'), id(toHospitalId, 'toHospitalId'),
     dept || null, reason || null, urgency || null]);
   res.status(201).json({ referralId: r.referral_id });
 }));

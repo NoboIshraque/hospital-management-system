@@ -8,6 +8,8 @@
    POST /api/patients            register a patient and issue a UHID
    POST /api/patients/:uhid/read the clinical record — a logged read
         { breakGlass: true, reason }   emergency access, flagged for review
+   GET  /api/consents            a patient's own consent grants (A9)
+   POST /api/consents/:id/revoke the patient takes one back
 
    There is no "list every patient" endpoint any more (security review
    L1), and opening a record is a POST, not a GET (W1): the browser sends
@@ -18,7 +20,7 @@
 
 const express = require('express');
 const { call } = require('../db/pool');
-const { ah } = require('../db/errors');
+const { ah, id } = require('../db/errors');
 const { requireLogin } = require('../auth');
 const { bool, num } = require('../lib/format');
 
@@ -99,6 +101,19 @@ router.post('/patients/:uhid/read', requireLogin, ah(async (req, res) => {
     referrals,
     accessLog: accessLog.map(l => ({ ...l, reviewed: bool(l.reviewed) }))
   });
+}));
+
+/* A9. The patient's side of consent. Both procedures find the patient
+   from the account, so a patient can only ever see and revoke their own
+   grants; staff accounts are refused (403) by the procedure itself. */
+router.get('/consents', requireLogin, ah(async (req, res) => {
+  const [rows] = await call('list_consents', [req.session.account.id]);
+  res.json(rows);
+}));
+
+router.post('/consents/:id/revoke', requireLogin, ah(async (req, res) => {
+  await call('revoke_consent', [req.session.account.id, id(req.params.id, 'The consent id')]);
+  res.json({ revoked: true });
 }));
 
 module.exports = router;

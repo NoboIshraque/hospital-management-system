@@ -9,7 +9,7 @@
 
 const express = require('express');
 const { pool, call } = require('../db/pool');
-const { ah, httpError } = require('../db/errors');
+const { ah, httpError, id } = require('../db/errors');
 const { requireLogin, requirePermission } = require('../auth');
 
 const router = express.Router();
@@ -29,7 +29,7 @@ router.get('/audit/break-glass', requirePermission('audit.review'), ah(async (re
 /* review_break_glass() makes the one change the access log's triggers
    allow: stamping reviewed_by, once. */
 router.post('/audit/break-glass/:id/review', requireLogin, ah(async (req, res) => {
-  await call('review_break_glass', [req.session.account.id, Number(req.params.id)]);
+  await call('review_break_glass', [req.session.account.id, id(req.params.id, 'The log id')]);
   res.json({ reviewed: true });
 }));
 

@@ -60,7 +60,8 @@
     computer running that server &mdash; registrations, appointments, admissions, and the log
     of who opened which record. Nothing is sent to any other machine. Signing in sets
     <strong>one cookie</strong>, holding a random session number and nothing else, so the
-    server knows it is still you; it is deleted when you sign out.
+    server knows it is still you; it is deleted when you sign out, and the session ends by itself
+    after 30 minutes without activity or 8 hours after signing in.
   </p>
   <p>
     The browser never holds a list of patients. Staff find someone by searching for that one
