@@ -62,6 +62,13 @@
     <strong>one cookie</strong>, holding a random session number and nothing else, so the
     server knows it is still you; it is deleted when you sign out.
   </p>
+  <p>
+    The browser never holds a list of patients. Staff find someone by searching for that one
+    person; at most twenty come back, with the national ID and mobile number masked, and each
+    person shown is written to the access log. To label the screens while you move between
+    them, the UHID and name of the patient you last opened are kept in the browser&rsquo;s
+    <strong>session storage</strong> for that tab only, and are gone when the tab closes.
+  </p>
 
   <h2>Opened straight from disk: the data stays in your browser</h2>
   <p>
@@ -113,6 +120,10 @@
       administrator.</li>
     <li><strong>Role-based permission.</strong> Reception sees the demographics needed to
       register someone. It does not see their diagnoses.</li>
+    <li><strong>Scope as well as role.</strong> Being a doctor is not enough to read a record:
+      the doctor needs their own encounter, a consent or an emergency reason. Ward actions,
+      cancellations and record merges are limited to the staff member&rsquo;s own
+      hospital.</li>
   </ul>
 
   <h2>Questions</h2>

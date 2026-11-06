@@ -143,6 +143,69 @@ BEGIN
   END IF;
 END $$
 
+-- Stricter than require_own_encounter, for everything written INTO an
+-- encounter (diagnoses, vitals, drug lines, lab orders, closing it). Being a
+-- doctor at the same hospital is not enough (security review A5): it must be
+-- the encounter's own doctor — or, for an inpatient stay, a doctor of the
+-- admitting department at that hospital, because a ward is run by a team.
+-- p_allow_closed: a closed encounter accepts only a prescription amendment
+-- (prescribe() stamps it) and the no-op of closing it again.
+DROP PROCEDURE IF EXISTS require_encounter_author $$
+CREATE PROCEDURE require_encounter_author(
+  IN p_account_id   INT UNSIGNED,
+  IN p_encounter_id INT UNSIGNED,
+  IN p_allow_closed BOOLEAN
+)
+BEGIN
+  DECLARE v_author BOOLEAN;
+  DECLARE v_ended  DATETIME;
+
+  CALL require_own_encounter(p_account_id, p_encounter_id);
+
+  SELECT dp.doctor_id <=> ua.doctor_id
+         OR (t.code = 'Inpatient' AND EXISTS (
+               SELECT 1 FROM doctor_posting mine
+                WHERE mine.doctor_id = ua.doctor_id AND mine.hospital_id = e.hospital_id
+                  AND mine.department_id = e.department_id
+                  AND CURDATE() >= mine.valid_from
+                  AND (mine.valid_to IS NULL OR CURDATE() <= mine.valid_to))),
+         e.ended_at
+    INTO v_author, v_ended
+    FROM encounter e
+    JOIN doctor_posting dp  ON dp.posting_id = e.posting_id
+    JOIN encounter_type t   ON t.type_id = e.type_id
+    JOIN user_account ua    ON ua.account_id = p_account_id
+   WHERE e.encounter_id = p_encounter_id;
+
+  IF NOT v_author THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Only the doctor who opened this encounter (or, for an inpatient, the admitting department) may write to it.',
+          MYSQL_ERRNO = 5403;
+  END IF;
+  IF v_ended IS NOT NULL AND NOT p_allow_closed THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'This encounter is closed. Record a new encounter instead of adding to a finished one.';
+  END IF;
+END $$
+
+-- The admission must be at the caller's hospital (security review A3).
+-- Without this, a doctor anywhere could discharge any inpatient in the
+-- country by trying admission numbers. "Not at your hospital" and "no such
+-- admission" are one answer on purpose: the error does not tell an outsider
+-- which numbers exist.
+DROP PROCEDURE IF EXISTS require_own_admission $$
+CREATE PROCEDURE require_own_admission(IN p_account_id INT UNSIGNED, IN p_admission_id INT UNSIGNED)
+BEGIN
+  IF NOT EXISTS (
+       SELECT 1 FROM admission a
+         JOIN encounter e     ON e.encounter_id = a.encounter_id
+         JOIN user_account ua ON ua.hospital_id = e.hospital_id
+        WHERE a.admission_id = p_admission_id AND ua.account_id = p_account_id) THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'That admission does not exist at your hospital.', MYSQL_ERRNO = 5404;
+  END IF;
+END $$
+
 
 -- =====================================================================
 -- 3. LOGIN
@@ -299,7 +362,149 @@ BEGIN
 
   COMMIT;
 
-  SELECT v_uhid AS uhid, v_patient AS patient_id;
+  -- The new patient in the search-list shape, so the API can answer without
+  -- a SELECT of its own (uhid_app has no SELECT on v_patient_directory).
+  SELECT v.*, v_patient AS patient_id FROM v_patient_directory v WHERE v.uhid = v_uhid;
+END $$
+
+
+-- =====================================================================
+-- 4b. FINDING A PATIENT — security review L1
+--
+-- There is no national patient list. Before 6 November 2026 the API read
+-- v_patient_directory whole: every staff account could download every
+-- patient's name, date of birth, phone and NID in one request, unlogged.
+-- Now a search must be specific, returns at most 20 people, masks the NID
+-- and phone, and logs every person it returns ('search.match' in
+-- access_log), so a patient can see who looked them up.
+--
+-- Both procedures fill a temporary table with the matching patient_ids and
+-- hand it to search_results(), which does the logging and the masking in
+-- one place.
+-- =====================================================================
+
+DROP PROCEDURE IF EXISTS search_results $$
+CREATE PROCEDURE search_results(IN p_account_id INT UNSIGNED, IN p_ip VARCHAR(45))
+BEGIN
+  INSERT INTO access_log (patient_id, account_id, hospital_id, action, basis, ip_address)
+  SELECT s.patient_id, p_account_id, ua.hospital_id, 'search.match', 'demographics_only', p_ip
+    FROM tmp_search s JOIN user_account ua ON ua.account_id = p_account_id;
+
+  SELECT p.uhid, p.name, p.dob, p.sex, p.blood_group AS blood,
+         -- 01711-482031 → 017•••••031 ; 1978419923041 → •••••••••3041
+         IF(p.phone IS NULL, '', CONCAT(LEFT(p.phone, 3), '•••••', RIGHT(p.phone, 3))) AS phone,
+         IF(p.nid IS NULL, '', CONCAT(REPEAT('•', CHAR_LENGTH(p.nid) - 4), RIGHT(p.nid, 4))) AS nid,
+         COALESCE(d.name, '') AS district,
+         p.registered_at AS registeredAt, p.registered_hospital_id AS registeredHospitalId,
+         p.identity_verified AS identityVerified,
+         (SELECT COUNT(*) FROM encounter e WHERE e.patient_id = p.patient_id) AS encounterCount,
+         s.matched_on AS matchedOn
+    FROM tmp_search s
+    JOIN patient p       ON p.patient_id = s.patient_id
+    LEFT JOIN district d ON d.district_id = p.district_id
+   ORDER BY p.name, p.uhid;
+
+  DROP TEMPORARY TABLE IF EXISTS tmp_search;
+END $$
+
+-- The search box. The query must say WHO, not "everyone":
+--   a UHID (an old merged-away one finds the surviving record),
+--   an NID (10, 13 or 17 digits), a mobile number (11 digits),
+--   or at least 3 letters of the name.
+DROP PROCEDURE IF EXISTS search_patients $$
+CREATE PROCEDURE search_patients(IN p_account_id INT UNSIGNED, IN p_query VARCHAR(100), IN p_ip VARCHAR(45))
+BEGIN
+  DECLARE v_q      VARCHAR(100) DEFAULT TRIM(COALESCE(p_query, ''));
+  DECLARE v_digits VARCHAR(100);
+  DECLARE v_like   VARCHAR(220);
+
+  CALL require_permission(p_account_id, 'patient.read_demographics');
+
+  SET v_digits = REGEXP_REPLACE(v_q, '[^0-9]', '');
+  DROP TEMPORARY TABLE IF EXISTS tmp_search;
+  CREATE TEMPORARY TABLE tmp_search (patient_id INT UNSIGNED PRIMARY KEY, matched_on VARCHAR(40));
+
+  IF REGEXP_LIKE(UPPER(v_q), '^BD-[0-9]{4}-[0-9]{5}-[0-9]$') THEN
+    INSERT INTO tmp_search
+    SELECT resolve_patient(UPPER(v_q)), 'UHID' FROM DUAL WHERE resolve_patient(UPPER(v_q)) IS NOT NULL;
+
+  ELSEIF NOT REGEXP_LIKE(v_q, '[[:alpha:]]') AND CHAR_LENGTH(v_digits) IN (10, 13, 17) THEN
+    INSERT INTO tmp_search
+    SELECT p.patient_id, 'NID' FROM patient p
+     WHERE p.nid = v_digits
+       AND NOT EXISTS (SELECT 1 FROM patient_merge m WHERE m.losing_patient_id = p.patient_id);
+
+  ELSEIF NOT REGEXP_LIKE(v_q, '[[:alpha:]]') AND CHAR_LENGTH(v_digits) = 11 THEN
+    INSERT INTO tmp_search
+    SELECT p.patient_id, 'mobile number' FROM patient p
+     WHERE REGEXP_REPLACE(p.phone, '[^0-9]', '') = v_digits
+       AND NOT EXISTS (SELECT 1 FROM patient_merge m WHERE m.losing_patient_id = p.patient_id)
+     ORDER BY p.name LIMIT 20;
+
+  ELSEIF CHAR_LENGTH(REGEXP_REPLACE(v_q, '[^[:alpha:]]', '')) >= 3 THEN
+    -- % and _ typed in the box are letters to find, not wildcards.
+    SET v_like = CONCAT('%', REPLACE(REPLACE(REPLACE(v_q, '\\', '\\\\'), '%', '\\%'), '_', '\\_'), '%');
+    INSERT INTO tmp_search
+    SELECT p.patient_id, 'name' FROM patient p
+     WHERE p.name LIKE v_like
+       AND NOT EXISTS (SELECT 1 FROM patient_merge m WHERE m.losing_patient_id = p.patient_id)
+     ORDER BY p.name LIMIT 20;
+
+  ELSE
+    DROP TEMPORARY TABLE IF EXISTS tmp_search;
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Search by UHID, NID, an 11-digit mobile number, or at least 3 letters of the name.';
+  END IF;
+
+  CALL search_results(p_account_id, p_ip);
+END $$
+
+-- Decision 1 at the registration desk: before a UHID is issued, does this
+-- person already have one? Same NID, same name and date of birth, or same
+-- mobile number. register_patient() refuses a repeated NID outright; the
+-- other two are only warnings (twins share a birthday, families share a
+-- phone), so the screen shows them and a person decides.
+DROP PROCEDURE IF EXISTS registration_matches $$
+CREATE PROCEDURE registration_matches(
+  IN p_account_id INT UNSIGNED,
+  IN p_name       VARCHAR(100),
+  IN p_dob        DATE,
+  IN p_phone      VARCHAR(20),
+  IN p_nid        VARCHAR(17),
+  IN p_ip         VARCHAR(45)
+)
+BEGIN
+  DECLARE v_nid    VARCHAR(17)  DEFAULT NULLIF(TRIM(p_nid), '');
+  DECLARE v_name   VARCHAR(100) DEFAULT NULLIF(TRIM(p_name), '');
+  DECLARE v_digits VARCHAR(20)  DEFAULT REGEXP_REPLACE(COALESCE(p_phone, ''), '[^0-9]', '');
+  DECLARE v_like   VARCHAR(220);
+
+  CALL require_permission(p_account_id, 'patient.register');
+
+  -- The name need not be typed in full: "Md. Rahim" with the right date of
+  -- birth already finds "Md. Rahim Uddin". At least 3 letters, and % or _
+  -- typed in the box are letters, not wildcards.
+  IF CHAR_LENGTH(REGEXP_REPLACE(COALESCE(v_name, ''), '[^[:alpha:]]', '')) >= 3 THEN
+    SET v_like = CONCAT('%', REPLACE(REPLACE(REPLACE(v_name, '\\', '\\\\'), '%', '\\%'), '_', '\\_'), '%');
+  END IF;
+
+  DROP TEMPORARY TABLE IF EXISTS tmp_search;
+  CREATE TEMPORARY TABLE tmp_search (patient_id INT UNSIGNED PRIMARY KEY, matched_on VARCHAR(40));
+
+  INSERT INTO tmp_search
+  SELECT p.patient_id,
+         CASE WHEN p.nid = v_nid THEN 'same NID'
+              WHEN p.name LIKE v_like AND p.dob = p_dob THEN 'same name and date of birth'
+              ELSE 'same mobile number' END
+    FROM patient p
+   WHERE (p.nid = v_nid
+          OR (p.name LIKE v_like AND p.dob = p_dob)
+          OR (CHAR_LENGTH(v_digits) >= 11 AND REGEXP_REPLACE(p.phone, '[^0-9]', '') = v_digits))
+     AND NOT EXISTS (SELECT 1 FROM patient_merge m WHERE m.losing_patient_id = p.patient_id)
+   ORDER BY p.name
+   LIMIT 10;
+
+  CALL search_results(p_account_id, p_ip);
 END $$
 
 
@@ -506,19 +711,33 @@ BEGIN
   DECLARE v_own  INT UNSIGNED;
   DECLARE v_pat  INT UNSIGNED;
   DECLARE v_st   VARCHAR(20);
+  DECLARE v_appt_hosp SMALLINT UNSIGNED;
+  DECLARE v_my_hosp   SMALLINT UNSIGNED;
+  DECLARE v_booked_by INT UNSIGNED;
 
   CALL require_permission(p_account_id, 'appointment.cancel');
 
-  SELECT patient_id, status INTO v_pat, v_st FROM appointment WHERE appointment_id = p_appointment_id;
+  SELECT a.patient_id, a.status, dp.hospital_id, a.booked_by
+    INTO v_pat, v_st, v_appt_hosp, v_booked_by
+    FROM appointment a JOIN doctor_posting dp ON dp.posting_id = a.posting_id
+   WHERE a.appointment_id = p_appointment_id;
   IF v_pat IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such appointment.', MYSQL_ERRNO = 5404;
   END IF;
 
-  SELECT r.code, ua.patient_id INTO v_role, v_own
+  SELECT r.code, ua.patient_id, ua.hospital_id INTO v_role, v_own, v_my_hosp
     FROM user_account ua JOIN role r ON r.role_id = ua.role_id
    WHERE ua.account_id = p_account_id;
   IF v_role = 'patient' AND v_own <> v_pat THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A patient can only cancel their own appointments.', MYSQL_ERRNO = 5403;
+  END IF;
+  -- Staff cancel at their own hospital, or a booking they made themselves
+  -- (booking is national, so a receptionist may have booked it elsewhere).
+  -- Security review A4: appointment numbers count up from 1, and without
+  -- this any receptionist could cancel any appointment in the country.
+  IF v_role <> 'patient' AND NOT (v_appt_hosp <=> v_my_hosp) AND v_booked_by <> p_account_id THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'You can cancel only appointments at your own hospital, or ones you booked yourself.', MYSQL_ERRNO = 5403;
   END IF;
   IF v_st <> 'booked' THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only a booked appointment can be cancelled.';
@@ -599,8 +818,24 @@ BEGIN
        AND g.revoked_at IS NULL
        AND NOW() BETWEEN g.granted_at AND g.expires_at;
 
-    IF EXISTS (SELECT 1 FROM encounter
-                WHERE patient_id = v_patient AND hospital_id = v_hospital AND ended_at IS NULL) THEN
+    -- 'treating' (security review A2): an open encounter at this hospital
+    -- that is the reader's own, or in a department the reader is posted to.
+    -- Not "any open encounter at my hospital", which let every doctor there
+    -- read every inpatient. And an OPD visit counts only on the day it began:
+    -- an outpatient encounter left open does not grant access for ever.
+    IF EXISTS (SELECT 1
+                 FROM encounter e
+                 JOIN doctor_posting dp ON dp.posting_id = e.posting_id
+                 JOIN encounter_type t  ON t.type_id = e.type_id
+                WHERE e.patient_id = v_patient AND e.hospital_id = v_hospital
+                  AND e.ended_at IS NULL
+                  AND (t.code <> 'OPD' OR e.started_at >= CURDATE())
+                  AND (dp.doctor_id = v_doctor
+                       OR e.department_id IN (
+                            SELECT mine.department_id FROM doctor_posting mine
+                             WHERE mine.doctor_id = v_doctor AND mine.hospital_id = v_hospital
+                               AND CURDATE() >= mine.valid_from
+                               AND (mine.valid_to IS NULL OR CURDATE() <= mine.valid_to)))) THEN
       SET v_basis = 'treating';
     ELSEIF v_grant_exp IS NOT NULL THEN
       SET v_basis = 'consent';
@@ -762,20 +997,37 @@ END $$
 --   - if the patient was referred to this hospital and has not yet arrived,
 --     links the referral and marks it arrived (decision 6: the null in
 --     referral.to_encounter_id is filled in at exactly this moment).
+--
+-- Decision 2 applies here too (security review A1). Opening an encounter
+-- makes the doctor the treating clinician, and 'treating' opens the whole
+-- national record. So the doctor needs a reason to be seeing this patient
+-- that already exists in the database:
+--   an appointment with them today · a referral to this hospital that has
+--   not arrived yet · a live consent grant to this hospital (or to them) ·
+--   an open admission at this hospital
+-- Without one — a walk-in, an emergency — they must write a reason
+-- (p_reason). The encounter is then opened, and an access_log row is written
+-- exactly as for a break-glass read: flagged, with the reason, waiting in the
+-- review queue. With neither, errno 5423, the same "no basis" answer the
+-- record read gives.
 DROP PROCEDURE IF EXISTS start_encounter $$
 CREATE PROCEDURE start_encounter(
   IN p_account_id INT UNSIGNED,
   IN p_uhid       VARCHAR(20),
   IN p_type_code  VARCHAR(20),
   IN p_complaint  VARCHAR(200),
-  IN p_notes      TEXT
+  IN p_notes      TEXT,
+  IN p_reason     VARCHAR(300)
 )
 BEGIN
   DECLARE v_patient  INT UNSIGNED;
   DECLARE v_posting  MEDIUMINT UNSIGNED;
   DECLARE v_doctor   SMALLINT UNSIGNED;
+  DECLARE v_hospital SMALLINT UNSIGNED;
   DECLARE v_type     TINYINT UNSIGNED;
   DECLARE v_enc      INT UNSIGNED;
+  DECLARE v_basis    BOOLEAN;
+  DECLARE v_reason   VARCHAR(300) DEFAULT NULLIF(TRIM(p_reason), '');
 
   CALL require_permission(p_account_id, 'encounter.write');
   CALL require_patient(p_uhid, v_patient);
@@ -786,7 +1038,7 @@ BEGIN
   END IF;
 
   -- The caller's current posting at the hospital they are signed in to.
-  SELECT dp.posting_id, dp.doctor_id INTO v_posting, v_doctor
+  SELECT dp.posting_id, dp.doctor_id, dp.hospital_id INTO v_posting, v_doctor, v_hospital
     FROM user_account ua
     JOIN doctor_posting dp ON dp.doctor_id = ua.doctor_id AND dp.hospital_id = ua.hospital_id
    WHERE ua.account_id = p_account_id
@@ -797,11 +1049,42 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'You hold no current posting at this hospital.', MYSQL_ERRNO = 5403;
   END IF;
 
+  -- The basis check (A1). Each line is one reason the doctor may already be
+  -- seeing this patient.
+  SET v_basis =
+       EXISTS (SELECT 1 FROM appointment
+                WHERE patient_id = v_patient AND doctor_id = v_doctor
+                  AND status = 'booked' AND DATE(slot_start) = CURDATE())
+    OR EXISTS (SELECT 1 FROM referral
+                WHERE patient_id = v_patient AND to_hospital_id = v_hospital AND status = 'issued')
+    OR EXISTS (SELECT 1 FROM consent_grant
+                WHERE patient_id = v_patient AND to_hospital_id = v_hospital
+                  AND (to_doctor_id IS NULL OR to_doctor_id = v_doctor)
+                  AND scope IN ('clinical', 'full') AND revoked_at IS NULL
+                  AND NOW() BETWEEN granted_at AND expires_at)
+    OR EXISTS (SELECT 1 FROM admission a JOIN encounter e ON e.encounter_id = a.encounter_id
+                WHERE e.patient_id = v_patient AND e.hospital_id = v_hospital
+                  AND a.discharged_at IS NULL);
+
+  IF NOT v_basis AND v_reason IS NULL THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'No appointment today, referral, consent or admission for this patient. Give a reason: it is logged and reviewed.',
+          MYSQL_ERRNO = 5423;
+  END IF;
+
   -- hospital_id, department_id and consultation_fee are left out on
   -- purpose: trg_encounter_bi copies them from the posting.
   INSERT INTO encounter (patient_id, type_id, posting_id, started_at, chief_complaint, notes, created_by)
   VALUES (v_patient, v_type, v_posting, NOW(), NULLIF(TRIM(p_complaint), ''), NULLIF(TRIM(p_notes), ''), p_account_id);
   SET v_enc = LAST_INSERT_ID();
+
+  -- No basis, but a reason: flagged and queued for review, like break-glass.
+  -- A reason given when a basis exists is not needed and not logged.
+  IF NOT v_basis THEN
+    INSERT INTO access_log (patient_id, account_id, hospital_id, encounter_id, action, basis,
+                            is_break_glass, justification)
+    VALUES (v_patient, p_account_id, v_hospital, v_enc, 'encounter.open', 'break_glass', TRUE, v_reason);
+  END IF;
 
   UPDATE appointment
      SET status = 'attended', encounter_id = v_enc
@@ -835,7 +1118,7 @@ BEGIN
   DECLARE v_msg VARCHAR(200);
 
   CALL require_permission(p_account_id, 'encounter.write');
-  CALL require_own_encounter(p_account_id, p_encounter_id);
+  CALL require_encounter_author(p_account_id, p_encounter_id, FALSE);
 
   SELECT diagnosis_id INTO v_dx FROM diagnosis WHERE icd10_code = p_icd10;
   IF v_dx IS NULL THEN
@@ -874,7 +1157,7 @@ BEGIN
   DECLARE v_line  TINYINT UNSIGNED;
 
   CALL require_permission(p_account_id, 'prescription.write');
-  CALL require_own_encounter(p_account_id, p_encounter_id);
+  CALL require_encounter_author(p_account_id, p_encounter_id, TRUE);
 
   SELECT ended_at INTO v_ended FROM encounter WHERE encounter_id = p_encounter_id;
   SELECT prescription_id INTO v_rx FROM prescription WHERE encounter_id = p_encounter_id;
@@ -905,7 +1188,7 @@ CREATE PROCEDURE record_vitals(
 )
 BEGIN
   CALL require_permission(p_account_id, 'encounter.write');
-  CALL require_own_encounter(p_account_id, p_encounter_id);
+  CALL require_encounter_author(p_account_id, p_encounter_id, FALSE);
   INSERT INTO encounter_vitals (encounter_id, recorded_at, bp_systolic, bp_diastolic,
                                 pulse, temp_c, spo2, weight_kg, recorded_by)
   VALUES (p_encounter_id, NOW(), p_systolic, p_diastolic, p_pulse, p_temp, p_spo2, p_weight, p_account_id);
@@ -917,7 +1200,7 @@ BEGIN
   DECLARE v_test SMALLINT UNSIGNED;
   DECLARE v_msg  VARCHAR(200);
   CALL require_permission(p_account_id, 'lab.order');
-  CALL require_own_encounter(p_account_id, p_encounter_id);
+  CALL require_encounter_author(p_account_id, p_encounter_id, FALSE);
   SELECT test_id INTO v_test FROM lab_test WHERE name = p_test;
   IF v_test IS NULL THEN
     SET v_msg = CONCAT('"', COALESCE(p_test, ''), '" is not in the lab test catalogue.');
@@ -995,7 +1278,7 @@ DROP PROCEDURE IF EXISTS end_encounter $$
 CREATE PROCEDURE end_encounter(IN p_account_id INT UNSIGNED, IN p_encounter_id INT UNSIGNED)
 BEGIN
   CALL require_permission(p_account_id, 'encounter.write');
-  CALL require_own_encounter(p_account_id, p_encounter_id);
+  CALL require_encounter_author(p_account_id, p_encounter_id, TRUE);
   IF EXISTS (SELECT 1 FROM admission WHERE encounter_id = p_encounter_id AND discharged_at IS NULL) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'This patient is still admitted. Discharge them to end the encounter.';
   END IF;
@@ -1095,6 +1378,7 @@ BEGIN
   END;
 
   CALL require_permission(p_account_id, 'bed.transfer');
+  CALL require_own_admission(p_account_id, p_admission_id);
 
   START TRANSACTION;
 
@@ -1140,6 +1424,7 @@ BEGIN
   END;
 
   CALL require_permission(p_account_id, 'bed.discharge');
+  CALL require_own_admission(p_account_id, p_admission_id);
 
   START TRANSACTION;
 
@@ -1173,6 +1458,11 @@ DROP PROCEDURE IF EXISTS mark_bed_clean $$
 CREATE PROCEDURE mark_bed_clean(IN p_account_id INT UNSIGNED, IN p_ward_id SMALLINT UNSIGNED, IN p_bed_no VARCHAR(12))
 BEGIN
   CALL require_permission(p_account_id, 'bed.clean');
+  -- Security review A3: only a bed in a ward of the caller's own hospital.
+  IF NOT EXISTS (SELECT 1 FROM ward w JOIN user_account ua ON ua.hospital_id = w.hospital_id
+                  WHERE w.ward_id = p_ward_id AND ua.account_id = p_account_id) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That ward does not exist at your hospital.', MYSQL_ERRNO = 5404;
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM bed b JOIN bed_status s ON s.status_id = b.status_id
                   WHERE b.ward_id = p_ward_id AND b.bed_no = p_bed_no AND s.code = 'cleaning') THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only a bed that is being cleaned can be marked clean.';
@@ -1286,6 +1576,21 @@ BEGIN
   END IF;
   IF NULLIF(TRIM(p_reason), '') IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A merge needs a recorded reason.';
+  END IF;
+
+  -- Security review A6. A merge moves one person's whole history onto
+  -- another, so it is not national for everyone: the system admin (no
+  -- hospital) may merge any two records; a hospital admin only when one of
+  -- the two was registered at their own hospital, where the patient can be
+  -- asked in person.
+  IF NOT EXISTS (SELECT 1 FROM user_account ua
+                  WHERE ua.account_id = p_account_id
+                    AND (ua.hospital_id IS NULL
+                         OR ua.hospital_id IN (SELECT registered_hospital_id FROM patient
+                                                WHERE patient_id IN (v_lose, v_keep)))) THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Neither record was registered at your hospital. The system administrator merges these.',
+          MYSQL_ERRNO = 5403;
   END IF;
 
   START TRANSACTION;

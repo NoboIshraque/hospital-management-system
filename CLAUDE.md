@@ -51,6 +51,11 @@ looked only on `PATH`, missed XAMPP, and logged "no database" for two weeks.
   security setting: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Until then `npm.cmd`
   works regardless. Give full paths in instructions (`cd E:\hospital-management-system\server`):
   an administrator PowerShell starts in `C:\Windows\system32`.
+- **Two checkouts of this repo exist (found 6 Nov 2026):** `E:\hospital-management-system` (the
+  original, with `server\.env` and `node_modules`) and `D:\hospital-management-system` (a later
+  clone; the 6 Nov session worked there after copying `.env` across and running `npm.cmd ci`).
+  Both share one MySQL database. Before working in either, `git pull` in it — the other may be
+  behind.
 
 ## Architecture — the decision that shapes everything
 
@@ -64,8 +69,12 @@ JavaScript constants. **Since 31 Oct 2026 they run on the API**, in two modes ch
 - **Served by Express** (`npm start` → http://localhost:3000): `API.ready` resolves `true`.
   `HOSPITALS`, `DOCTORS` and `DEPARTMENTS` are replaced *in place* (array splice) with what
   `/api/hospitals` etc. return; the shell asks `GET /api/me` for the session (401 → login);
-  `store.all()` returns `API.patients` from `GET /api/patients`; every write goes to an
-  endpoint. Opening a record is `GET /api/patients/:uhid`, a logged read.
+  every write goes to an endpoint. **There is no patient list in the browser** (since 6 Nov
+  2026): `store.all()` returns `API.patients`, which holds only the patients this page found
+  with `API.searchPatients()` (`POST /api/patients/search`, masked, at most 20, each match
+  logged). The selected patient's UHID and name ride in `sessionStorage` (`uhid.current.v1`)
+  to label screens. Opening a record is `API.readRecord()` → `POST /api/patients/:uhid/read`,
+  a logged read — a POST so a cross-site link cannot trigger it.
 - **Opened from disk** (`file://`) or with no API behind it: `API.ready` resolves `false`, and
   the pages use `js/data.js`, `js/seed.js` and localStorage exactly as the prototype did. This
   is what lets the frontend be shown without MySQL running. Keep it working.
@@ -111,14 +120,14 @@ database/     schema.sql (40 tables) → triggers.sql → procedures.sql → vie
               → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
               queries.sql — 20 demonstration queries (joins, ROLLUP, window functions, CTEs,
               INTERSECT), each tied to a design decision; run as root, not uhid_app
-              tests.sql — 74 tests of constraints, triggers and procedures (npm run db:test)
+              tests.sql — 135 tests of constraints, triggers and procedures (npm run db:test)
 server/       Express app — serves public/ AND the JSON API under /api (docs/api.md)
   app.js        wiring only: session, routes, static files, 404, error handler
   auth.js       sessions, requireLogin, requirePermission (asks has_permission() in MySQL)
   db/           pool.js (connects as uhid_app), errors.js (MYSQL_ERRNO → HTTP), run-sql.js, reset.js
   routes/       auth, reference, patients, appointments, wards, clinical, audit
   lib/format.js turns rows into the shapes public/ renders
-  scripts/      api-test.js (npm run api:test, 66 checks), race-booking.js (npm run race)
+  scripts/      api-test.js (npm run api:test, 76 checks), race-booking.js (npm run race)
   practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
 public/       Frontend, served as static files (also works opened straight from disk)
   index.html    public landing page
@@ -306,9 +315,10 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Use cases | Done — `docs/use-cases.md` |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched). The crow's-foot file is no longer maintained |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (28 + 4 functions), views (9), seed, grants, 20 demonstration queries, 74 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 74/74** |
+| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (33 + 4 functions), views (9), seed, grants, 20 demonstration queries, 135 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 135/135 (6 Nov 2026: before then the 38 `t_value` checks silently recorded nothing — see the comment on `t_value` in tests.sql — so "74/74" was 74 of 101)** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
-| Express API | Done 31 Oct 2026 — 29 endpoints, `docs/api.md`; `npm run api:test` passes 66/66; `npm run race` shows 5/5 single bookings |
+| Express API | Done 31 Oct 2026 — 30 endpoints, `docs/api.md`; `npm run api:test` passes 76/76; `npm run race` shows 5/5 single bookings |
+| Security review, group 1 (fix before the viva) | Done 6 Nov 2026 — A1–A6, L1, W1, I2 (`er-design.md` §8.3). Each DB rule has a `tests.sql` §9 test with its errno; browser-tested as receptionist, doctor and hospital admin, plus offline mode |
 | Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
 | Demo script, README | Done 1 Nov 2026 — `docs/demo-script.md`; README rewritten for the running system |
 | Print stylesheet, 404 page | Done 1 Nov 2026 |
@@ -318,17 +328,18 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 - **Read `handover.md` first.** Written 1 Nov 2026; items 1 (ER docs) and 2 (screens) done the
   same day. Still open there: the team's guides, and the laptop is short of memory. Update or
   delete it when those are dealt with.
-- **Security review, 1 Nov 2026 — open findings, not yet fixed.** Full list (33 items, by priority):
-  https://claude.ai/artifact/5DUs8QRcx7Ztc31xjqNZE5 . The four High ones, A1 and A3 confirmed against
-  the database: **A1** `start_encounter()` checks no access basis, so any doctor can open an encounter
-  for any UHID and then read the full record as `treating`, never flagged (bypasses decision 2);
-  **A3** `discharge_patient()`, `transfer_patient()`, `mark_bed_clean()` check the role but not that the
-  admission/bed is at the caller's hospital (a Square doctor discharged a DMCH inpatient);
-  **L1** `GET /api/patients` hands the whole national directory (NID, phone) to any staff account,
-  unlogged; **W1** record reads are a `GET`, so a cross-site link can force a break-glass read
-  (SameSite=Lax sends cookies on navigation). Each DB fix needs a `tests.sql` test with its errno.
-- **`CHECKLIST.md`**: sections A–F done and verified by 1 Nov 2026; section G (the security
-  findings) is open. New work: add it there first, then tick it when it is run and checked.
+- **Security review, 1 Nov 2026** (33 items: https://claude.ai/artifact/5DUs8QRcx7Ztc31xjqNZE5 ).
+  Group 1, "fix before the viva", is **done** (6 Nov 2026; `er-design.md` §8.3 lists each rule).
+  **Still open: groups 2–4** — going live (login rate limit S1, per-account passwords S2, HTTPS
+  S3, security headers W3, MySQL session store S4, …), hardening (L2 review verdicts, A7 masked
+  NID on the receptionist's record read, S5 idle timeout, …) and the accepted risks to write
+  down (A10, D2, L4). These are `CHECKLIST.md` G6: decide with the author which, if any, to do.
+- **Scope rules the procedures now enforce — keep them when changing a procedure:** an action
+  checks the caller's hospital (wards, cancel, merge), an encounter is written only by its own
+  doctor (or the admitting department for an inpatient), `start_encounter()` needs a basis or a
+  reviewed reason, and `treating` means the reader's own encounter or department.
+- **`CHECKLIST.md`**: sections A–F done and verified by 1 Nov 2026; G1–G5 by 6 Nov 2026; G6 open.
+  New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
   small version of one slice of the database and backend: Nobo the hardest (transactions,
   locking, recursive CTEs, derived-state triggers, the logged read, the backend core), Abir the

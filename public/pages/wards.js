@@ -156,8 +156,12 @@ function openBed(wi, bi) {
     return;
   }
 
-  const options = store.all()
-    .map(p => `<option value="${esc(p.uhid)}">${esc(p.name)} — ${esc(p.uhid)}</option>`).join('');
+  /* Offline: the sample patients. Online there is no list to pick from
+     (security review L1): the patient already selected is offered, and
+     anyone else is found with a search, the same one the search screen uses. */
+  const optionsFor = list => list
+    .map(p => `<option value="${esc(p.uhid)}">${p.name === p.uhid ? '' : esc(p.name) + ' — '}${esc(p.uhid)}</option>`).join('');
+  const options = API.online ? optionsFor(S.patient ? [S.patient] : []) : optionsFor(store.all());
   // Online, an admission is under a consultant who works at this hospital.
   const consultants = DOCTORS.filter(d => d.hospitalId === (S.account.hospitalId || 1))
     .map(d => `<option value="${Number(d.id)}">${esc(d.name)} — ${esc(d.dept)}</option>`).join('');
@@ -165,6 +169,11 @@ function openBed(wi, bi) {
   const sc = modal(`
     <div class="modal-h"><h3>Admit to ${esc(b.no)}</h3><p>${esc(w.name)}</p></div>
     <div class="modal-b">
+      ${API.online ? `<div class="row"><div>
+        <label class="label" for="ad-q">Find the patient</label>
+        <div style="display:flex;gap:8px"><input class="field" id="ad-q" placeholder="UHID, NID, mobile or 3+ letters of the name">
+        <button type="button" class="btn" id="ad-find">Find</button></div>
+      </div></div>` : ''}
       <div class="row"><div>
         <label class="label" for="ad-uhid">Patient</label>
         <select class="field" id="ad-uhid">${options}</select>
@@ -184,9 +193,25 @@ function openBed(wi, bi) {
       <button class="btn primary" data-ok>Admit patient</button>
     </div>`);
 
+  if (API.online) {
+    const find = async () => {
+      const q = $('#ad-q', sc).value.trim();
+      if (!specificQuery(q)) { toast('Be more specific', 'Search by UHID, NID, an 11-digit mobile number, or at least 3 letters of the name.', 'err'); return; }
+      let rows;
+      try { rows = await API.searchPatients(q); }
+      catch (e) { toast('Search failed', e.message, 'err'); return; }
+      if (!rows.length) { toast('No match', 'Nobody on file matches that.', 'err'); return; }
+      $('#ad-uhid', sc).innerHTML = optionsFor(rows);
+    };
+    $('#ad-find', sc).addEventListener('click', find);
+    $('#ad-q', sc).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); find(); } });
+    $('#ad-q', sc).focus();
+  }
+
   $('[data-ok]', sc).addEventListener('click', async () => {
     const uhid = $('#ad-uhid', sc).value;
-    const chosen = store.find(uhid);
+    if (!uhid) { toast('No patient chosen', 'Find the patient first.', 'err'); return; }
+    const chosen = store.find(uhid) || (S.patient && S.patient.uhid === uhid ? S.patient : null);
     const reason = $('#ad-dx', sc).value.trim();
     if (API.online) {
       try {

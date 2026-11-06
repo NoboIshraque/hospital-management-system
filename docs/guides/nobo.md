@@ -1044,6 +1044,18 @@ that records *under what authority* each read happened is what tells legitimate 
 snooping.
 </details>
 
+<details><summary><b>Viva: could a doctor skip break-glass by opening an encounter, so they become "treating"?</b></summary>
+
+Not any more. Until 6 November 2026 they could: `start_encounter()` checked only that the caller
+was a doctor, and an open encounter made them `treating`, which reads the whole record and is
+never reviewed. Now `start_encounter()` needs a reason that already exists in the database (an
+appointment with this doctor today, a referral to this hospital, a live consent, an open
+admission) or a written reason, which is logged exactly like a break-glass read and queued for
+review. And `treating` itself is narrower: the encounter must be the reader's own, or in their
+department, and an OPD encounter counts only on the day it began. Tests in section 9 of
+`database/tests.sql` prove each refusal.
+</details>
+
 ---
 
 ## Task 6 — The backend core (about 4 hours)
@@ -1155,6 +1167,8 @@ app.post('/logout', (req, res) => {
 
 // GET /patients/BD-2019-04821-5
 // GET /patients/BD-2021-11904-5?breakGlass=1&reason=Unconscious%20in%20emergency
+// A GET keeps this practice app easy to try from PowerShell. The real API makes the
+// read a POST (POST /api/patients/:uhid/read) — see the viva question below.
 app.get('/patients/:uhid', requireLogin, async (req, res) => {
   const breakGlass = req.query.breakGlass === '1';
   try {
@@ -1184,8 +1198,11 @@ app.post('/encounters', requireLogin, async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const [opened] = await conn.query('CALL start_encounter(?, ?, ?, ?, ?)',
-      [me, uhid, 'OPD', complaint, null]);
+    // The last argument is the reason, needed only when the doctor has no
+    // appointment today, referral, consent or admission for this patient.
+    // Rahim has a consent grant to Dhaka Medical, so null is fine here.
+    const [opened] = await conn.query('CALL start_encounter(?, ?, ?, ?, ?, ?)',
+      [me, uhid, 'OPD', complaint, null, null]);
     const encounterId = opened[0][0].encounter_id;
 
     await conn.query('CALL add_diagnosis(?, ?, ?, TRUE, ?, NULL)',
@@ -1314,6 +1331,16 @@ Only a random session id, signed with `SESSION_SECRET`. The account details stay
 Changing the cookie produces an id that either doesn't exist or fails the signature check. Because
 routes take the account from `req.session`, never from the request body, the user can't claim to
 be someone else.
+</details>
+
+<details><summary><b>Viva: why is opening a record a POST in the real API, when it only reads?</b></summary>
+
+Because it is not only a read: it writes an `access_log` row, and with break-glass it writes a
+flagged one in the doctor's name. The cookie is `SameSite=Lax`, which the browser still sends
+when you follow a link from another website. So with a GET, a link on any page could make a
+signed-in doctor perform an emergency read without knowing. A POST started by another site is
+sent without the cookie. The rule: anything that changes state — and logging is a change — is
+never a GET.
 </details>
 
 ---

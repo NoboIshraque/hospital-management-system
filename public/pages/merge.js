@@ -27,6 +27,18 @@ async function renderMerge(root) {
   drawMerge(root);
 }
 
+/* There is no patient list in the browser (security review L1), so each
+   UHID chosen is looked up with the ordinary search — logged like any
+   other. A merged-away UHID finds the survivor instead, so store.find()
+   then has no live record under the old number, and the card says so. */
+async function loadPicked(uhids) {
+  for (const u of uhids) {
+    if (!u || store.find(u) || !specificQuery(u)) continue;
+    try { await API.searchPatients(u); }
+    catch (e) { toast('Could not look up ' + u, e.message, 'err'); }
+  }
+}
+
 /* The record to keep is the one with more history; on a tie, the one
    whose identity is verified. A suggestion — the form can swap them. */
 function suggestKeep(a, b) {
@@ -65,15 +77,18 @@ function drawMerge(root) {
         <button class="btn ghost" id="m-swap"${MERGE.keep || MERGE.lose ? '' : ' disabled'}>Swap the two</button>
       </div>
     </div>
-    <datalist id="uhid-list">${store.all().map(p => `<option value="${esc(p.uhid)}">${esc(p.name)}</option>`).join('')}</datalist>`;
+    <datalist id="uhid-list">${[...new Set(MERGE.pairs.flatMap(d => [d.uhidA, d.uhidB]))]
+      .map(u => `<option value="${esc(u)}"></option>`).join('')}</datalist>`;
 
-  $$('[data-pair]', root).forEach(b => b.addEventListener('click', () => {
+  $$('[data-pair]', root).forEach(b => b.addEventListener('click', async () => {
     const d = MERGE.pairs[Number(b.dataset.pair)];
+    await loadPicked([d.uhidA, d.uhidB]);
     [MERGE.keep, MERGE.lose] = suggestKeep(d.uhidA, d.uhidB);
     drawMerge(root);
   }));
-  $$('[data-pick]', root).forEach(inp => inp.addEventListener('change', () => {
+  $$('[data-pick]', root).forEach(inp => inp.addEventListener('change', async () => {
     MERGE[inp.dataset.pick] = inp.value.trim().toUpperCase();
+    await loadPicked([MERGE[inp.dataset.pick]]);
     drawMerge(root);
   }));
   $('#m-swap').addEventListener('click', () => {
@@ -132,7 +147,7 @@ function confirmMerge() {
     $('[data-ok]', sc).disabled = true;
     try {
       await API.post('/patients/merge', { losingUhid: lose.uhid, survivingUhid: keep.uhid, reason });
-      API.patients = await API.get('/patients');   // the merged-away record leaves the list
+      API.patients = API.patients.filter(p => p.uhid !== lose.uhid);   // no longer a live record
     } catch (e) { sc.remove(); toast('Not merged', e.message, 'err'); return; }
     sc.remove();
     toast('Records merged', `${lose.uhid} now opens ${keep.uhid}.`);

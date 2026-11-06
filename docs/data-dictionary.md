@@ -616,7 +616,7 @@ Every read of a patient record, with the authority it happened under (decision 2
 | `account_id` | INT UNSIGNED | no |  | FK → user_account.account_id |  |
 | `hospital_id` | SMALLINT UNSIGNED | yes |  | FK → hospital.hospital_id | NULL when a patient reads their own |
 | `encounter_id` | INT UNSIGNED | yes |  | FK → encounter.encounter_id |  |
-| `action` | VARCHAR(40) | no |  |  | 'record.read', 'search.match' |
+| `action` | VARCHAR(40) | no |  |  | 'record.read', 'record.demographics', 'search.match', 'encounter.open' |
 | `basis` | ENUM('own_record','treating','consent','break_glass' | yes |  |  | The authority the read happened under: own_record, treating, consent, break_glass or demographics_only. |
 | `'demographics_only')` | NOT | no |  |  |  |
 | `is_break_glass` | BOOLEAN | no | `FALSE` |  | Always equal to basis = 'break_glass' (ck_log_basis_flag); indexed for the review queue. |

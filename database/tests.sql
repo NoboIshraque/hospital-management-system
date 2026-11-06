@@ -67,23 +67,37 @@ BEGIN
           v_errno = p_errno, v_msg);
 END $$
 
+-- Until 6 November 2026 this procedure recorded nothing at all, silently:
+-- its error handler covered the INSERT too, and the INSERT failed on an
+-- "illegal mix of collations" (the value read into @t_val carries the
+-- connection's collation, p_expected the database's). The handler swallowed
+-- that, so every t_value check vanished from the results instead of
+-- failing. Now the handler covers only the query under test, the comparison
+-- names one collation, and anything that goes wrong while recording a
+-- result stops the run.
 CREATE PROCEDURE t_value(IN p_name VARCHAR(120), IN p_query TEXT, IN p_expected VARCHAR(200))
 BEGIN
   DECLARE v_errno INT DEFAULT 0;
   DECLARE v_msg   VARCHAR(300) DEFAULT NULL;
-  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
-    GET DIAGNOSTICS CONDITION 1 v_errno = MYSQL_ERRNO, v_msg = MESSAGE_TEXT;
+  DECLARE v_got   VARCHAR(200);
 
-  SET @t_val = NULL;
-  SET @t_sql = CONCAT('SELECT (', p_query, ') INTO @t_val');
-  PREPARE t_stmt FROM @t_sql;
-  EXECUTE t_stmt;
-  DEALLOCATE PREPARE t_stmt;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+      GET DIAGNOSTICS CONDITION 1 v_errno = MYSQL_ERRNO, v_msg = MESSAGE_TEXT;
+    SET @t_val = NULL;
+    SET @t_sql = CONCAT('SELECT (', p_query, ') INTO @t_val');
+    PREPARE t_stmt FROM @t_sql;
+    EXECUTE t_stmt;
+    DEALLOCATE PREPARE t_stmt;
+  END;
+
+  SET v_got = IF(v_errno = 0,
+                 CONVERT(COALESCE(CAST(@t_val AS CHAR), 'NULL') USING utf8mb4) COLLATE utf8mb4_0900_ai_ci,
+                 CONCAT('error ', v_errno));
 
   INSERT INTO t_result (name, expected, got, passed, message)
-  VALUES (p_name, p_expected,
-          IF(v_errno = 0, COALESCE(CAST(@t_val AS CHAR), 'NULL'), CONCAT('error ', v_errno)),
-          v_errno = 0 AND COALESCE(CAST(@t_val AS CHAR), 'NULL') = p_expected, v_msg);
+  VALUES (p_name, p_expected, v_got,
+          v_errno = 0 AND v_got = CONVERT(p_expected USING utf8mb4) COLLATE utf8mb4_0900_ai_ci, v_msg);
 END $$
 
 -- Fail loudly if anything failed, so that npm run db:test exits with an
@@ -169,7 +183,7 @@ CALL t_expect('An encounter typed with a wrong hospital and fee is accepted…',
                           consultation_fee, started_at, ended_at, created_by)
    VALUES (900, 2, 1, 1, 5, 7, 1, '2026-09-01 10:00', '2026-09-01 10:20', 6)", 0);
 CALL t_value('…but the trigger stored the posting''s fee, not the typed one',
-  "SELECT consultation_fee FROM encounter WHERE encounter_id = 900", '800.00');
+  "SELECT consultation_fee = 800.00 FROM encounter WHERE encounter_id = 900", '1');
 CALL t_value('…and the posting''s hospital, not the typed one',
   "SELECT hospital_id FROM encounter WHERE encounter_id = 900", '1');
 
@@ -372,7 +386,7 @@ CALL t_value('…and it is free again',
 -- =====================================================================
 
 CALL t_expect('A referred patient is seen at the receiving hospital',
-  "CALL start_encounter(6, 'BD-2019-04821-5', 'OPD', 'Referral review', NULL)", 0);
+  "CALL start_encounter(6, 'BD-2019-04821-5', 'OPD', 'Referral review', NULL, NULL)", 0);
 CALL t_value('…and the referral is now marked arrived',
   "SELECT status FROM referral WHERE referral_id = 2", 'arrived');
 CALL t_expect('A doctor refers from an encounter at their hospital',
@@ -407,8 +421,11 @@ CALL t_expect('A receptionist may not open the lab worklist',
   "CALL lab_worklist(1)", 5403);
 CALL t_expect('A lab technician opens their hospital''s worklist',
   "CALL lab_worklist(4)", 0);
-CALL t_expect('A doctor at Square orders a test…',
-  "CALL order_lab(11, 10, 'Haemoglobin')", 0);
+CALL t_expect('A doctor at Square opens an encounter (no basis there, so with a reason)…',
+  "CALL start_encounter(11, 'BD-2019-04821-5', 'OPD', 'Pre-op bloods', NULL, 'Seen at the patient''s request')", 0);
+SET @sq_enc = (SELECT MAX(encounter_id) FROM encounter);
+CALL t_expect('…and orders a test on it…',
+  CONCAT("CALL order_lab(11, ", @sq_enc, ", 'Haemoglobin')"), 0);
 CALL t_expect('…which a lab technician at Dhaka Medical may not report',
   "CALL report_lab_result(4, (SELECT MAX(order_id) FROM lab_order), 12.5, NULL)", 5404);
 CALL t_expect('A hospital admin may not review a break-glass read made at another hospital',
@@ -419,6 +436,99 @@ CALL t_expect('The system admin reviews break-glass reads at any hospital',
   "CALL review_break_glass(5, 5)", 0);
 CALL t_expect('Reviewing an entry that does not exist is not found',
   "CALL review_break_glass(5, 999999)", 5404);
+
+
+-- =====================================================================
+-- 9. SCOPE — the security review's group 1 (6 November 2026)
+--    Each rule below checks not only the caller's role but WHICH hospital
+--    or patient the action touches.
+-- =====================================================================
+
+-- A3 · ward actions belong to the hospital the ward is in.
+CALL t_expect('A3: a doctor at Square may not discharge a Dhaka Medical inpatient',
+  "CALL discharge_patient(11, 1, 'x', 'recovered')", 5404);
+CALL t_expect('A3: a receptionist at another hospital may not transfer one',
+  "CALL transfer_patient(3, 1, 1, 'GM-04')", 5404);
+CALL t_expect('A3: …nor mark a Dhaka Medical bed clean',
+  "CALL mark_bed_clean(3, 1, 'GM-04')", 5404);
+CALL t_value('A3: …and admission 1 is still open',
+  "SELECT discharged_at IS NULL FROM admission WHERE admission_id = 1", '1');
+
+-- A1 · opening an encounter needs a basis, or a reason that is reviewed.
+SET @fatema_enc_before = (SELECT COUNT(*) FROM encounter WHERE patient_id = 2);
+CALL t_expect('A1: a doctor with no basis may not open an encounter without a reason',
+  "CALL start_encounter(6, 'BD-2021-11904-5', 'OPD', 'Chest pain', NULL, NULL)", 5423);
+CALL t_value('A1: …and no encounter was written',
+  "SELECT COUNT(*) FROM encounter WHERE patient_id = 2", CAST(@fatema_enc_before AS CHAR));
+CALL t_expect('A1: with a written reason the encounter opens…',
+  "CALL start_encounter(6, 'BD-2021-11904-5', 'OPD', 'Chest pain', NULL, 'Walk-in with chest pain')", 0);
+CALL t_value('A1: …and waits in the break-glass review queue with that reason',
+  "SELECT COUNT(*) FROM v_break_glass_queue WHERE uhid = 'BD-2021-11904-5' AND justification = 'Walk-in with chest pain'", '1');
+SET @fatema_enc = (SELECT MAX(encounter_id) FROM encounter WHERE patient_id = 2);
+CALL t_expect('A1: a doctor with a basis needs no reason (Rahim, referred to Dhaka Medical)',
+  "CALL start_encounter(16, 'BD-2019-04821-5', 'OPD', 'Review', NULL, NULL)", 0);
+
+-- A2 · 'treating' is the encounter's own doctor or department, not the hospital.
+CALL t_expect('A2: the doctor who opened the encounter reads as treating…',
+  "CALL get_patient_record(6, 'BD-2021-11904-5', FALSE, NULL, NULL)", 0);
+CALL t_value('A2: …logged under basis treating',
+  "SELECT basis FROM access_log ORDER BY log_id DESC LIMIT 1", 'treating');
+CALL t_expect('A2: a doctor in another department of the same hospital has no basis',
+  "CALL get_patient_record(7, 'BD-2021-11904-5', FALSE, NULL, NULL)", 5423);
+CALL t_expect('A2: an inpatient''s own consultant reads as treating',
+  "CALL get_patient_record(16, (SELECT uhid FROM patient WHERE patient_id = 6), FALSE, NULL, NULL)", 0);
+CALL t_expect('A2: a doctor from another department of that hospital does not',
+  "CALL get_patient_record(6, (SELECT uhid FROM patient WHERE patient_id = 6), FALSE, NULL, NULL)", 5423);
+
+-- A5 · only the encounter's own doctor writes into it.
+CALL t_expect('A5: a colleague at the same hospital may not add a diagnosis',
+  CONCAT("CALL add_diagnosis(7, ", @fatema_enc, ", 'I10', TRUE, 'provisional', NULL)"), 5403);
+CALL t_expect('A5: the encounter''s own doctor may',
+  CONCAT("CALL add_diagnosis(6, ", @fatema_enc, ", 'I10', TRUE, 'provisional', NULL)"), 0);
+CALL t_expect('A5: …and closes it',
+  CONCAT("CALL end_encounter(6, ", @fatema_enc, ")"), 0);
+CALL t_expect('A5: a closed encounter takes no new diagnosis',
+  CONCAT("CALL add_diagnosis(6, ", @fatema_enc, ", 'I10', FALSE, 'provisional', NULL)"), 1644);
+CALL t_expect('A5: …nor a lab order',
+  CONCAT("CALL order_lab(6, ", @fatema_enc, ", 'Haemoglobin')"), 1644);
+CALL t_expect('A5: a doctor outside the admitting department may not record an inpatient''s vitals',
+  "CALL record_vitals(6, 12, 120, 80, 72, NULL, NULL, NULL)", 5403);
+CALL t_expect('A5: the admitting department''s doctor may',
+  "CALL record_vitals(16, 12, 120, 80, 72, NULL, NULL, NULL)", 0);
+
+-- A4 · staff cancel at their own hospital, or what they booked themselves.
+SET @dmch_appt = (SELECT MIN(a.appointment_id) FROM appointment a
+                    JOIN doctor_posting dp ON dp.posting_id = a.posting_id
+                   WHERE dp.hospital_id = 1 AND a.status = 'booked' AND a.booked_by <> 3);
+CALL t_expect('A4: a receptionist at another hospital may not cancel a Dhaka Medical appointment',
+  CONCAT("CALL cancel_appointment(3, ", @dmch_appt, ")"), 5403);
+CALL t_expect('A4: a Dhaka Medical receptionist may',
+  CONCAT("CALL cancel_appointment(1, ", @dmch_appt, ")"), 0);
+
+-- A6 · a hospital admin merges only records registered at their hospital.
+CALL t_expect('A6: a Dhaka Medical admin may not merge two records registered elsewhere',
+  "CALL merge_patients(2, 'BD-2023-38104-6', 'BD-2020-27615-1', 'x')", 5403);
+
+-- L1 · no national list: a specific, limited, masked, logged search.
+CALL t_expect('L1: a doctor searches by 3 letters of a name',
+  "CALL search_patients(6, 'rahim', NULL)", 0);
+CALL t_value('L1: …and each person returned is logged as a search match',
+  "SELECT COUNT(*) FROM access_log WHERE account_id = 6 AND action = 'search.match'", '1');
+CALL t_expect('L1: two letters are not a search',
+  "CALL search_patients(6, 'ra', NULL)", 1644);
+CALL t_expect('L1: a patient may not search',
+  "CALL search_patients(17, 'rahim', NULL)", 5403);
+CALL t_expect('L1: a merged-away UHID finds the surviving record',
+  "CALL search_patients(1, 'bd-2018-00723-2', NULL)", 0);
+CALL t_value('L1: …logged against the survivor',
+  "SELECT patient_id FROM access_log WHERE account_id = 1 AND action = 'search.match' ORDER BY log_id DESC LIMIT 1", '1');
+CALL t_expect('L1: the registration desk checks name and date of birth before issuing',
+  "CALL registration_matches(1, 'Md. Rahim', '1978-04-12', NULL, NULL, NULL)", 0);
+CALL t_value('L1: …a partial name with the right birth date finds him, and the match is logged',
+  "SELECT COUNT(*) FROM access_log WHERE account_id = 1 AND action = 'search.match'", '2');
+CALL t_value('L1: the web server''s account cannot read the national directory view',
+  "SELECT COUNT(*) FROM information_schema.TABLE_PRIVILEGES
+    WHERE GRANTEE LIKE '%uhid_app%' AND TABLE_NAME = 'v_patient_directory'", '0');
 
 
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message

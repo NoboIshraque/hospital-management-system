@@ -24,8 +24,8 @@ Every demo password is `demo1234`. What each actor may do is decided by `role_pe
 | # | Use case | Actor | Implemented by | Design decision |
 |---|---|---|---|---|
 | UC1 | Sign in | all | `get_login()`, `record_login()` | 2 |
-| UC2 | Register a patient and issue a UHID | Receptionist | `register_patient()`, `v_patient_directory` | 1 |
-| UC3 | Find a patient nationally | Receptionist, Doctor, Admin | `v_patient_directory` | 1 |
+| UC2 | Register a patient and issue a UHID | Receptionist | `registration_matches()`, `register_patient()` | 1 |
+| UC3 | Find a patient nationally | Receptionist, Doctor, Admin | `search_patients()` | 1 |
 | UC4 | Open a patient record | Doctor, Patient, Receptionist | `get_patient_record()` | 2 |
 | UC5 | Break-glass access | Doctor | `get_patient_record(…, TRUE, reason)` | 2 |
 | UC6 | Find a doctor and see free slots | Patient, Receptionist | `v_doctor_directory`, `doctor_availability()` | 3 |
@@ -61,8 +61,10 @@ the username or the password was wrong, so the form cannot be used to discover u
 
 **Actor:** Receptionist. **Goal:** a new patient leaves with exactly one UHID.
 
-1. The receptionist types NID, name, date of birth and mobile. On every keystroke the screen
-   searches `v_patient_directory` on those three criteria and shows possible existing records.
+1. The receptionist types NID, name, date of birth and mobile. When typing pauses, the screen
+   calls `registration_matches()`, which looks for the same NID, the same name and date of birth,
+   or the same mobile number, and shows possible existing records (NID and phone masked; each
+   one logged as a search match).
 2. If one of them is the patient, the receptionist opens it. **No UHID is issued.** This is the
    normal success path for a returning patient.
 3. Otherwise they complete the form and submit. `register_patient()` runs, as **one transaction**:
@@ -85,12 +87,15 @@ the username or the password was wrong, so the form cannot be used to discover u
 
 **Actor:** Receptionist, Doctor, Admin. **Goal:** locate one patient's record from any hospital.
 
-1. The user types part of a name, UHID, mobile or NID.
-2. The screen filters `v_patient_directory`, which holds demographics for every patient in the
-   country, with records that have been merged away left out.
+1. The user types a UHID, an NID, an 11-digit mobile number, or at least 3 letters of a name.
+2. `search_patients()` refuses anything vaguer, returns at most 20 live records (a merged-away
+   UHID finds the surviving record), masks the NID and phone, and writes one `access_log` row
+   (`search.match`) per person returned.
 3. The user opens a result (UC4).
 
-Demographics only. No clinical data is reachable from this list, so it needs no access basis.
+Demographics only, so it needs no access basis — but it is logged, because a national search is
+itself a way of looking someone up. There is no "list everyone" query: the browser never holds
+the national register (security review L1).
 
 ## UC4 — Open a patient record
 
@@ -99,7 +104,9 @@ Demographics only. No clinical data is reachable from this list, so it needs no 
 1. The user opens a record by UHID.
 2. `get_patient_record()` works out the **basis** for the read, in this order:
    - **own_record**: a patient opening their own record;
-   - **treating**: a clinician whose hospital has an open encounter for this patient;
+   - **treating**: a clinician with an open encounter for this patient that is their own, or in
+     a department they are posted to at that hospital — an OPD encounter only on the day it
+     began;
    - **consent**: a live `consent_grant` to the reader's hospital;
    - **demographics_only**: reception and admin roles, which see no clinical content.
 3. It writes an `access_log` row recording who, where, when and under what basis, **before**
@@ -160,7 +167,8 @@ past the procedure, `UNIQUE(doctor_id, active_slot)` would still refuse the seco
 
 ## UC8 — Cancel an appointment
 
-**Actor:** Patient (own appointments), Receptionist. `cancel_appointment()` sets the status to
+**Actor:** Patient (own appointments), Receptionist (appointments at their own hospital, or ones
+they booked themselves). `cancel_appointment()` sets the status to
 `cancelled`. The generated column `active_slot` becomes NULL, which frees the slot in the unique
 index for the next patient.
 
@@ -168,13 +176,20 @@ index for the next patient.
 
 **Actor:** Doctor. **Goal:** record a visit as coded data.
 
-1. `start_encounter()` opens the encounter under the doctor's current posting at their hospital.
+1. `start_encounter()` first checks the doctor has a reason to be seeing this patient: an
+   appointment with them today, an issued referral to this hospital, a live consent grant, or an
+   open admission here. Without one, the doctor must write a reason; the encounter then opens and
+   an `access_log` row is written exactly like a break-glass read, flagged for review. Without
+   either, it refuses with 5423.
+   It opens the encounter under the doctor's current posting at their hospital.
    `trg_encounter_bi` copies the hospital, department and fee from the posting. In the same call:
    - a booked appointment for today with this doctor becomes `attended` and is linked;
    - an issued referral to this hospital becomes `arrived` and is linked (decision 6).
 2. The doctor adds coded diagnoses (`add_diagnosis()`, an ICD-10 code), vitals
    (`record_vitals()`, range-checked by CHECK constraints), prescription lines (`prescribe()`)
-   and lab orders (`order_lab()`).
+   and lab orders (`order_lab()`). Only the encounter's own doctor may — or, for an inpatient,
+   a doctor of the admitting department — and a closed encounter takes only a prescription
+   amendment (`require_encounter_author()`).
 3. `end_encounter()` closes it.
 
 Steps 1–3 are **step** procedures with no transaction of their own. The API wraps a whole

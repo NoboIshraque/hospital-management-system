@@ -46,7 +46,10 @@ GRANT EXECUTE ON uhid.* TO 'uhid_app'@'localhost';
 
 GRANT SELECT ON uhid.v_hospital_directory  TO 'uhid_app'@'localhost';
 GRANT SELECT ON uhid.v_doctor_directory    TO 'uhid_app'@'localhost';
-GRANT SELECT ON uhid.v_patient_directory   TO 'uhid_app'@'localhost';
+-- Not v_patient_directory: that view is every patient in the country, and
+-- handing it to the web server was a bulk export (security review L1).
+-- Patients are found through search_patients(), which needs a specific
+-- query, returns at most 20, masks NID and phone, and logs each match.
 GRANT SELECT ON uhid.v_bed_board           TO 'uhid_app'@'localhost';
 GRANT SELECT ON uhid.v_ward_occupancy      TO 'uhid_app'@'localhost';
 GRANT SELECT ON uhid.v_break_glass_queue   TO 'uhid_app'@'localhost';

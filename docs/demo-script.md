@@ -21,8 +21,8 @@ hours from the moment the seed data is loaded.
 ```powershell
 cd E:\hospital-management-system\server
 npm run db:reset          # fresh sample data — ends "Database rebuilt: 40 tables, …"
-npm run db:test           # 74 database tests — every line PASS
-npm run api:test          # 66 API checks — "66 passed, 0 failed"
+npm run db:test           # 135 database tests — every line PASS
+npm run api:test          # 76 API checks — "76 passed, 0 failed"
 npm start                 # "UHID running at http://localhost:3000"
 ```
 
@@ -90,8 +90,9 @@ Every demo password is `demo1234`.
 ## 5. Wards — decision 7 — 1.5 minutes
 
 1. **Wards & beds**. 36 beds in 4 wards, coloured by status.
-2. Click a green bed, e.g. **GM-04**. Choose Abdul Karim Mia and a consultant, click **Admit
-   patient**. GM-04 turns red. **Say:** "The page never set that colour. Admitting inserts a
+2. Click a green bed, e.g. **GM-04**. In *Find the patient* type `Karim` → **Find** (there is no
+   list of every patient to pick from — a national register is searched, and the search is
+   logged). Abdul Karim Mia appears; choose a consultant, click **Admit patient**. GM-04 turns red. **Say:** "The page never set that colour. Admitting inserts a
    bed-occupancy row; a trigger on that table set the bed to occupied."
 3. Click **GM-04** again → **Transfer…** → choose **GF-03** (the female ward) → **Transfer**.
    Red toast: *"That ward is restricted to the other sex."* GM-04 is still red. **Say:** "The
@@ -225,7 +226,7 @@ Then open `database/queries.sql` and run two or three: **1** (one patient, every
 **5** (possible duplicate patients — a self-join), **7** (busiest departments — a window
 function), **11** (a calendar from a recursive CTE).
 
-Finally, in the second PowerShell window: `npm run db:test` — **74 tests, every one PASS**, each
+Finally, in the second PowerShell window: `npm run db:test` — **135 tests, every one PASS**, each
 proving a rule refuses what it must with the exact error number. (It resets the database when it
 finishes, so do it last, or restart `npm start` afterwards.)
 

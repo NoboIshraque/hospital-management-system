@@ -860,8 +860,30 @@ None of these weakens one of the seven decisions in §1; each makes one of them 
 dictionary (`docs/data-dictionary.md`) was generated from the schema after all six and already
 shows them.
 
+### 8.3 Security: scope as well as role (6 November 2026)
+
+A security review on 1 November 2026 found that several procedures checked **what role** the
+caller had but not **which hospital or patient** the action touched. No table changed; the rules
+moved into the procedures, each with a test in `database/tests.sql` §9 that proves the refusal
+and its error number. The finding IDs are the review's.
+
+| ID | Rule now enforced | Where | Refusal |
+|---|---|---|---|
+| A1 | Opening an encounter needs an existing basis — an appointment with this doctor today, an issued referral to this hospital, a live consent, or an open admission — or a written reason, which is logged as a flagged `access_log` row (action `encounter.open`) and queued for review like break-glass | `start_encounter()` | 5423 |
+| A2 | `treating` means an open encounter that is the reader's own or in a department they are posted to, and an OPD encounter only on the day it began — not "any open encounter at my hospital" | `get_patient_record()` | 5423 |
+| A3 | Discharge, transfer and mark-clean only at the caller's own hospital | `require_own_admission()`, `mark_bed_clean()` | 5404 |
+| A4 | Staff cancel only appointments at their own hospital, or ones they booked | `cancel_appointment()` | 5403 |
+| A5 | Only the encounter's own doctor (for an inpatient, a doctor of the admitting department) writes into it; a closed encounter takes only a stamped prescription amendment | `require_encounter_author()` | 5403, 1644 |
+| A6 | A hospital admin merges only when one of the two records was registered at their hospital; the system admin may merge any | `merge_patients()` | 5403 |
+| L1 | No national patient list: `search_patients()` needs a UHID, NID, 11-digit mobile or 3+ letters, returns at most 20, masks NID and phone, and logs each person returned (`search.match`). `registration_matches()` does decision 1's duplicate check the same way. `uhid_app` lost `SELECT` on `v_patient_directory` | procedures.sql §4b, `grants.sql` | 1644, 5403 |
+
+Two related changes sit outside the database: opening a record became `POST
+/api/patients/:uhid/read` (a `GET` could be triggered by a link on another website, W1), and two
+`<option>` lists in `book.js` gained the `esc()` they were missing (I2). The review's other groups
+— going live, hardening, accepted risks — are listed in `CHECKLIST.md` §G6.
+
 Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
-74 tests that check every constraint, trigger and procedure rejects what §4 says it must.
+135 tests that check every constraint, trigger and procedure rejects what §4 says it must.
 
 ---
 

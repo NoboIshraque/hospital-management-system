@@ -77,8 +77,8 @@ async function signIn(base, username) {
     const takenSlot = r.body.flatMap(d => d.slots).find(s => s.taken);
     r = await anon('GET', '/api/departments');
     check('GET /api/departments returns the 10 names', r.status === 200 && r.body.length === 10 && r.body[0] === 'Cardiology');
-    r = await anon('GET', '/api/patients');
-    check('GET /api/patients without signing in is 401', r.status === 401);
+    r = await anon('POST', '/api/patients/search', { q: 'rahim' });
+    check('Searching for a patient without signing in is 401', r.status === 401);
     r = await anon('POST', '/api/login', { username: 'anisur', password: 'wrong' });
     check('A wrong password is 401', r.status === 401);
     r = await anon('GET', '/api/nothing-here');
@@ -100,10 +100,24 @@ async function signIn(base, username) {
     check('A patient account carries its own UHID', r.body.patientUhid === 'BD-2019-04821-5');
 
     // ---------- patients ----------
+    /* Opening a record is a POST (security review W1). */
+    const read = (who, uhid, body) => who('POST', `/api/patients/${uhid}/read`, body || {});
+
     r = await rezaul('GET', '/api/patients');
-    check('A receptionist can list patients', r.status === 200 && r.body.length === 18 && typeof r.body[0].identityVerified === 'boolean');
-    r = await rahim('GET', '/api/patients');
-    check('A patient cannot list everyone (403, checked by has_permission)', r.status === 403);
+    check('There is no national patient list any more (L1)', r.status === 404);
+    r = await rezaul('POST', '/api/patients/search', { q: 'rahim' });
+    check('A receptionist searches by name', r.status === 200 && r.body.length === 2 && typeof r.body[0].identityVerified === 'boolean');
+    check('…and NID and phone come back masked',
+      r.body.every(p => (!p.nid || /^•+[0-9]{4}$/.test(p.nid)) && /^[0-9]{3}•+[0-9]{3}$/.test(p.phone)), JSON.stringify(r.body[0]));
+    r = await rezaul('POST', '/api/patients/search', { q: '01711-482031' });
+    check('…or by mobile number', r.status === 200 && r.body.length === 1 && r.body[0].uhid === 'BD-2019-04821-5');
+    r = await rezaul('POST', '/api/patients/search', { q: 'ra' });
+    check('Two letters are too vague a search (409)', r.status === 409);
+    r = await rahim('POST', '/api/patients/search', { q: 'rahim' });
+    check('A patient cannot search (403, checked by has_permission)', r.status === 403);
+    r = await rezaul('POST', '/api/patients/matches', { name: 'Md. Rahim Uddin', dob: '1978-04-12' });
+    check('The registration desk finds both records with this name and date of birth',
+      r.status === 200 && r.body.length === 2 && r.body.every(p => p.matchedOn === 'same name and date of birth'));
 
     r = await rezaul('POST', '/api/patients', {
       name: 'Api Test', dob: '1995-05-05', sex: 'Female', blood: 'O+', phone: '01700-555000',
@@ -111,7 +125,7 @@ async function signIn(base, username) {
       kinPhone: '01800-000000', allergies: ['Penicillin']
     });
     const year = new Date().getFullYear();
-    check('POST /api/patients issues the next UHID', r.status === 201 && r.body.uhid === `BD-${year}-00001-1`, JSON.stringify(r.body));
+    check('POST /api/patients issues the next UHID', r.status === 201 && r.body.uhid === `BD-${year}-00001-1` && r.body.district === 'Dhaka', JSON.stringify(r.body));
     r = await rezaul('POST', '/api/patients', { name: 'Dup', dob: '1995-05-05', sex: 'Female', nid: '1995000000005' });
     check('Registering an NID twice is 409 with the existing UHID named',
       r.status === 409 && r.body.error.includes(`BD-${year}-00001-1`));
@@ -119,23 +133,25 @@ async function signIn(base, username) {
     check('A doctor registering a patient is 403', r.status === 403);
 
     r = await anisur('GET', '/api/patients/BD-2019-04821-5');
+    check('A link (a GET) cannot open a record (W1)', r.status === 404);
+    r = await read(anisur, 'BD-2019-04821-5');
     check('A doctor with consent reads the record', r.status === 200 && r.body.access.basis === 'consent');
     check('…in the js/seed.js shape, with rx[] nested in each encounter',
       Array.isArray(r.body.encounters) && r.body.encounters.length === 5 && Array.isArray(r.body.encounters[0].rx));
     check('…with allergies, labs and the access log',
       r.body.allergies.length === 2 && r.body.encounters.some(e => e.labs.length) && r.body.accessLog.length > 0);
     check('…and this read is the newest access-log entry', r.body.accessLog[0].who === 'Dr. Anisur Rahman');
-    r = await anisur('GET', '/api/patients/BD-2021-11904-5');
+    r = await read(anisur, 'BD-2021-11904-5');
     check('No basis is 423 with breakGlassAvailable', r.status === 423 && r.body.breakGlassAvailable === true);
-    r = await anisur('GET', '/api/patients/BD-2021-11904-5?breakGlass=1&reason=Unconscious%20in%20emergency');
+    r = await read(anisur, 'BD-2021-11904-5', { breakGlass: true, reason: 'Unconscious in emergency' });
     check('Break-glass with a reason is allowed and flagged', r.status === 200 && r.body.access.breakGlass === true);
-    r = await rezaul('GET', '/api/patients/BD-2019-04821-5');
+    r = await read(rezaul, 'BD-2019-04821-5');
     check('A receptionist gets demographics only', r.status === 200 && r.body.access.basis === 'demographics_only' && r.body.encounters.length === 0);
-    r = await rahim('GET', '/api/patients/BD-2019-04821-5');
+    r = await read(rahim, 'BD-2019-04821-5');
     check('A patient reads their own record', r.status === 200 && r.body.access.basis === 'own_record');
-    r = await rahim('GET', '/api/patients/BD-2021-11904-5');
+    r = await read(rahim, 'BD-2021-11904-5');
     check('A patient reading someone else is 403', r.status === 403);
-    r = await anisur('GET', '/api/patients/BD-2026-99999-5');
+    r = await read(anisur, 'BD-2026-99999-5');
     check('An unknown UHID is 404', r.status === 404);
 
     // ---------- appointments ----------
@@ -176,13 +192,16 @@ async function signIn(base, username) {
     check('A receptionist discharging is 403', r.status === 403);
     r = await mahbub('POST', `/api/admissions/${admissionId}/discharge`, { summary: 'Recovered', outcome: 'recovered' });
     check('A doctor discharges, and the bed goes for cleaning', r.status === 200 && await bedStatus('GM-08') === 'cleaning');
+    const tahmina = await signIn(base, 'tahmina');
+    r = await tahmina('POST', '/api/admissions/1/discharge', { summary: 'x' });
+    check('A doctor at another hospital cannot discharge a Dhaka Medical inpatient (A3)', r.status === 404);
     r = await rezaul('POST', '/api/beds/clean', { wardId: 1, bedNo: 'GM-08' });
     check('Marking it clean frees it', r.status === 200 && await bedStatus('GM-08') === 'free');
     r = await rahim('GET', '/api/wards');
     check('A patient has no bed board (400)', r.status === 400);
 
     // ---------- encounters: one transaction ----------
-    const count = async () => (await anisur('GET', '/api/patients/BD-2019-04821-5')).body.encounters.length;
+    const count = async () => (await read(anisur, 'BD-2019-04821-5')).body.encounters.length;
     const before = await count();
     r = await anisur('POST', '/api/encounters', {
       uhid: 'BD-2019-04821-5', complaint: 'Sore throat',
@@ -202,6 +221,14 @@ async function signIn(base, username) {
     check('A valid encounter is saved whole', r.status === 201 && await count() === before + 1);
     r = await anisur('POST', '/api/encounters', { uhid: 'BD-2019-04821-5' });
     check('An encounter with no diagnosis is 400', r.status === 400);
+    const visit = { uhid: 'BD-2021-11904-5', complaint: 'Chest pain', diagnoses: [{ icd10: 'I10' }], end: true };
+    r = await anisur('POST', '/api/encounters', visit);
+    check('An encounter with no basis and no reason is 423 (A1)', r.status === 423);
+    r = await anisur('POST', '/api/encounters', { ...visit, reason: 'Walk-in with chest pain' });
+    check('…with a reason it is saved', r.status === 201);
+    r = await nasima('GET', '/api/audit/break-glass');
+    check('…and the reason waits in the hospital admin review queue',
+      r.status === 200 && r.body.some(x => x.justification === 'Walk-in with chest pain'));
 
     // ---------- labs, referrals, audit, merge ----------
     const rumana = await signIn(base, 'rumana');
@@ -216,10 +243,9 @@ async function signIn(base, username) {
     check('A receptionist has no lab worklist (403)', r.status === 403);
     r = await anisur('POST', '/api/referrals', { encounterId: 21, toHospitalId: 7, dept: 'Cardiology', reason: 'Angiography', urgency: 'urgent' });
     check('A doctor refers a patient to another hospital', r.status === 201 && r.body.referralId > 0);
-    const tahmina = await signIn(base, 'tahmina');
     r = await tahmina('GET', '/api/referrals/inbox');
     check('The receiving hospital sees it in its inbox', r.status === 200 && r.body.some(x => x.reason === 'Angiography'));
-    r = await tahmina('GET', '/api/patients/BD-2022-23590-9');
+    r = await read(tahmina, 'BD-2022-23590-9');
     check('…and can read that patient under consent from the referral', r.status === 200 && r.body.access.basis === 'consent');
     r = await nasima('GET', '/api/audit/break-glass');
     check('The hospital admin sees their own hospital\'s break-glass queue, and only that',
@@ -241,7 +267,7 @@ async function signIn(base, username) {
     check('A receptionist cannot list possible duplicates (403)', r.status === 403);
     r = await nasima('POST', '/api/patients/merge', { losingUhid: 'BD-2018-00723-2', survivingUhid: 'BD-2019-04821-5', reason: 'Confirmed same person' });
     check('The admin merges the duplicate Rahim records', r.status === 200);
-    r = await anisur('GET', '/api/patients/BD-2018-00723-2');
+    r = await read(anisur, 'BD-2018-00723-2');
     check('…and the old UHID now opens the surviving record', r.status === 200 && r.body.uhid === 'BD-2019-04821-5');
 
     // ---------- least privilege ----------

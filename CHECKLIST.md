@@ -43,7 +43,8 @@ Tick an item only when it has been run and checked, not when it has been written
 - [x] **B3. Reference data** — `GET /api/hospitals`, `/api/departments`, `/api/doctors`,
       `/api/doctors/:id/availability`.
 - [x] **B4. Patients** — `GET /api/patients` (search list), `POST /api/patients` (register),
-      `GET /api/patients/:uhid` (the logged record read, with break-glass).
+      `GET /api/patients/:uhid` (the logged record read, with break-glass). *Replaced 6 Nov 2026
+      by G3 and G4: `POST /api/patients/search` and `POST /api/patients/:uhid/read`.*
 - [x] **B5. Appointments** — `POST /api/appointments`, plus a script that fires two bookings
       for one slot at the same instant and shows exactly one succeed.
 - [x] **B6. Wards** — `GET /api/wards`, admit, discharge, mark clean.
@@ -92,10 +93,14 @@ Tick an item only when it has been run and checked, not when it has been written
 The review: https://claude.ai/artifact/5DUs8QRcx7Ztc31xjqNZE5 — 33 items in four groups. Group 1
 ("fix before the viva") first:
 
-- [ ] **G1. A1** — `start_encounter()` requires an existing basis or a logged, reviewed reason.
-- [ ] **G2. A3** — discharge, transfer and mark-clean limited to the caller's hospital.
-- [ ] **G3. L1** — national patient list replaced by a limited, masked, logged search.
-- [ ] **G4. W1** — opening a record (and break-glass) becomes a POST.
-- [ ] **G5. A4, A2, A5, A6, I2** — cancel scope, narrower "treating", author-only encounter writes,
+- [x] **G1. A1** — `start_encounter()` requires an existing basis or a logged, reviewed reason.
+- [x] **G2. A3** — discharge, transfer and mark-clean limited to the caller's hospital.
+- [x] **G3. L1** — national patient list replaced by a limited, masked, logged search.
+- [x] **G4. W1** — opening a record (and break-glass) becomes a POST.
+- [x] **G5. A4, A2, A5, A6, I2** — cancel scope, narrower "treating", author-only encounter writes,
       merge scope, two missing `esc()` calls.
+      *G1–G5 done 6 November 2026: `tests.sql` §9 (each refusal with its errno), `api-test.js`
+      (76 pass), browser-tested as receptionist, doctor and hospital admin and offline. On the way,
+      `t_value` in tests.sql was found to have recorded nothing since it was written; fixed, so
+      `db:test` now really runs 135 checks.*
 - [ ] **G6.** Groups 2–4 of the review (going live, hardening, accepted risks) — decide with the author.

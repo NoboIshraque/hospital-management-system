@@ -20,7 +20,7 @@ const API_ROOT = '/api';
 
 const API = {
   online: false,
-  patients: [],        // the national search list, loaded by the shell when online
+  patients: [],        // the patients this page has found by searching (never the whole country)
 
   async request(method, url, body) {
     let res;
@@ -41,8 +41,45 @@ const API = {
   },
   get(url)        { return API.request('GET', url); },
   post(url, body) { return API.request('POST', url, body || {}); },
-  del(url)        { return API.request('DELETE', url); }
+  del(url)        { return API.request('DELETE', url); },
+
+  /* Finding a patient. search_patients() in MySQL refuses a vague query,
+     returns at most 20 people with NID and phone masked, and logs each one
+     it returns (security review L1). What comes back is kept in
+     API.patients so store.find() can answer for this page. */
+  async searchPatients(q) {
+    const rows = await API.post('/patients/search', { q });
+    API.remember(rows);
+    return rows;
+  },
+  remember(rows) {
+    for (const p of rows) {
+      const i = API.patients.findIndex(x => x.uhid === p.uhid);
+      if (i >= 0) API.patients[i] = p; else API.patients.push(p);
+    }
+  },
+
+  /* Opening a record: a POST, never a GET (security review W1). A link on
+     another website can make the browser GET a page with the session
+     cookie attached; it cannot make it POST one with it (SameSite=Lax). */
+  readRecord(uhid, breakGlassReason) {
+    return API.post('/patients/' + encodeURIComponent(uhid) + '/read',
+      breakGlassReason ? { breakGlass: true, reason: breakGlassReason } : {});
+  }
 };
+
+/* Is this query specific enough for search_patients()? The same rule the
+   database applies, checked here only to avoid sending a request that is
+   bound to be refused: a UHID, an NID (10, 13 or 17 digits), an 11-digit
+   mobile number, or at least 3 letters of a name. */
+function specificQuery(q) {
+  q = q.trim();
+  const digits = q.replace(/\D/g, '');
+  const letters = q.replace(/[^\p{L}]/gu, '');
+  if (/^BD-\d{4}-\d{5}-\d$/i.test(q)) return true;
+  if (!letters && [10, 11, 13, 17].includes(digits.length)) return true;
+  return letters.length >= 3;
+}
 
 /* An Error that also carries the HTTP status, so a screen can tell
    "not allowed" (403) from "break-glass is possible" (423). */

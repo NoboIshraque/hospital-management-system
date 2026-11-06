@@ -24,6 +24,9 @@ const router = express.Router();
    at all.
 
    body: { uhid, type: 'OPD'|'Emergency', complaint, notes,
+           reason   — needed only when the doctor has no appointment today,
+                      referral, consent or admission for this patient; it is
+                      logged and reviewed like break-glass (security review A1)
            diagnoses: [{ icd10, primary, certainty, note }],
            vitals: { systolic, diastolic, pulse, temp, spo2, weight },
            prescriptions: [{ medicineId, dose, frequency, days, instruction }],
@@ -39,7 +42,7 @@ router.post('/encounters', requireLogin, ah(async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const [[opened]] = await call('start_encounter', [me, b.uhid, b.type || 'OPD', b.complaint || null, b.notes || null], conn);
+    const [[opened]] = await call('start_encounter', [me, b.uhid, b.type || 'OPD', b.complaint || null, b.notes || null, b.reason || null], conn);
     const encounterId = opened.encounter_id;
 
     for (const [i, d] of b.diagnoses.entries()) {

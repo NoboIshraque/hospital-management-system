@@ -2,8 +2,9 @@
    UHID — record.html — the national health record
    Encounter timeline, prescriptions, and who has read this record.
 
-   Online, opening a record is a LOGGED ACT: GET /api/patients/:uhid
-   runs get_patient_record(), which decides on what authority you may
+   Online, opening a record is a LOGGED ACT: POST /api/patients/:uhid/read
+   (a POST, so a link from another website cannot trigger it) runs
+   get_patient_record(), which decides on what authority you may
    read it, writes access_log, and only then returns the record. When
    there is no authority, the server answers 423 and this screen offers
    break-glass instead.
@@ -34,9 +35,9 @@ function renderRecord(root) {
 
 async function loadRecord(root, uhid, reason) {
   root.innerHTML = loadingHtml('Checking your access and opening the record.');
-  const q = reason ? `?breakGlass=1&reason=${encodeURIComponent(reason)}` : '';
   try {
-    S.patient = await API.get('/patients/' + encodeURIComponent(uhid) + q);
+    S.patient = await API.readRecord(uhid, reason);
+    rememberCurrent(S.patient);
     drawRecord(root, S.patient);
   } catch (e) {
     if (e.status === 423) { askBreakGlass(root, uhid, e.message); return; }

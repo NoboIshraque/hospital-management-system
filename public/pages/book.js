@@ -24,9 +24,9 @@ function renderBook(root) {
     </div>
     <div class="card filters">
       <div><label class="label" for="fl-div">Division</label>
-        <select class="field" id="fl-div"><option value="">All divisions</option>${divs.map(d => `<option>${d}</option>`).join('')}</select></div>
+        <select class="field" id="fl-div"><option value="">All divisions</option>${divs.map(d => `<option>${esc(d)}</option>`).join('')}</select></div>
       <div><label class="label" for="fl-dept">Department</label>
-        <select class="field" id="fl-dept"><option value="">All departments</option>${DEPARTMENTS.map(d => `<option>${d}</option>`).join('')}</select></div>
+        <select class="field" id="fl-dept"><option value="">All departments</option>${DEPARTMENTS.map(d => `<option>${esc(d)}</option>`).join('')}</select></div>
       <div><label class="label" for="fl-hosp">Hospital</label>
         <select class="field" id="fl-hosp"><option value="">All hospitals</option>${HOSPITALS.map(h => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select></div>
       <div><label class="label" for="fl-q">Doctor name</label>

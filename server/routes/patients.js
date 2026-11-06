@@ -1,25 +1,44 @@
 /* ============================================================
    Patients.
 
-   GET  /api/patients          the national search list (demographics only)
-   POST /api/patients          register a patient and issue a UHID
-   GET  /api/patients/:uhid    the clinical record — a logged read
-        ?breakGlass=1&reason=…   emergency access, flagged for review
+   POST /api/patients/search     { q }  find a patient — specific, at most 20,
+                                  NID and phone masked, every match logged
+   POST /api/patients/matches    { name, dob, phone, nid }  the registration
+                                  desk's duplicate check (decision 1)
+   POST /api/patients            register a patient and issue a UHID
+   POST /api/patients/:uhid/read the clinical record — a logged read
+        { breakGlass: true, reason }   emergency access, flagged for review
+
+   There is no "list every patient" endpoint any more (security review
+   L1), and opening a record is a POST, not a GET (W1): the browser sends
+   the session cookie when someone follows a link from another website,
+   so a GET that writes the access log could be triggered by a link. A
+   POST from another site arrives without the cookie (SameSite=Lax).
    ============================================================ */
 
 const express = require('express');
-const { pool, call } = require('../db/pool');
+const { call } = require('../db/pool');
 const { ah } = require('../db/errors');
-const { requireLogin, requirePermission } = require('../auth');
+const { requireLogin } = require('../auth');
 const { bool, num } = require('../lib/format');
 
 const router = express.Router();
 
-/* v_patient_directory is a view, and views do not check permissions,
-   so the route asks the database first. Patients cannot list everyone. */
-router.get('/patients', requirePermission('patient.read_demographics'), ah(async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM v_patient_directory ORDER BY registeredAt DESC, name');
-  res.json(rows.map(p => ({ ...p, identityVerified: bool(p.identityVerified), encounterCount: num(p.encounterCount) })));
+/* search_patients() checks the permission, refuses a vague query, masks
+   NID and phone, and writes one access_log row per person it returns. */
+const searchRow = p => ({ ...p, identityVerified: bool(p.identityVerified), encounterCount: num(p.encounterCount) });
+
+router.post('/patients/search', requireLogin, ah(async (req, res) => {
+  const q = typeof req.body.q === 'string' ? req.body.q.slice(0, 100) : '';
+  const [rows] = await call('search_patients', [req.session.account.id, q, req.ip]);
+  res.json(rows.map(searchRow));
+}));
+
+router.post('/patients/matches', requireLogin, ah(async (req, res) => {
+  const b = req.body;
+  const [rows] = await call('registration_matches', [req.session.account.id,
+    b.name || null, b.dob || null, b.phone || null, b.nid || null, req.ip]);
+  res.json(rows.map(searchRow));
 }));
 
 /* register_patient() does everything that matters — the NID check, the
@@ -28,13 +47,13 @@ router.get('/patients', requirePermission('patient.read_demographics'), ah(async
 router.post('/patients', requireLogin, ah(async (req, res) => {
   const b = req.body;
   const allergies = Array.isArray(b.allergies) ? b.allergies.join(',') : (b.allergies || null);
-  const [[issued]] = await call('register_patient', [
+  const [[row]] = await call('register_patient', [
     req.session.account.id,
     b.name, b.dob || null, b.sex, b.blood || null, b.phone || null, b.nid || null,
     b.district || null, b.address || null, b.kinName || null, b.kinRelation || null, b.kinPhone || null,
     allergies
   ]);
-  const [[row]] = await pool.query('SELECT * FROM v_patient_directory WHERE uhid = ?', [issued.uhid]);
+  delete row.patient_id;     // an internal key: the API speaks in UHIDs
   res.status(201).json({ ...row, identityVerified: bool(row.identityVerified), encounterCount: 0 });
 }));
 
@@ -42,10 +61,11 @@ router.post('/patients', requireLogin, ah(async (req, res) => {
    access log, and only then returns eight result sets. This turns them
    into the one nested object js/seed.js describes — the API is where the
    normalized tables become the frontend's shape (er-design.md §4.3). */
-router.get('/patients/:uhid', requireLogin, ah(async (req, res) => {
-  const breakGlass = req.query.breakGlass === '1';
+router.post('/patients/:uhid/read', requireLogin, ah(async (req, res) => {
+  const breakGlass = req.body.breakGlass === true;
+  const reason = typeof req.body.reason === 'string' ? req.body.reason : null;
   const sets = await call('get_patient_record', [
-    req.session.account.id, req.params.uhid, breakGlass, req.query.reason || null, req.ip
+    req.session.account.id, req.params.uhid, breakGlass, reason, req.ip
   ]);
   const [patientRows, allergies, encounters, rxLines, labs, vitals, referrals, accessLog] = sets;
   const p = patientRows[0];

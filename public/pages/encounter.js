@@ -53,12 +53,15 @@ async function renderEncounter(root) {
 
   /* Reading the record is a logged read, like opening it on record.html:
      a doctor about to prescribe should see the allergies. With no access
-     basis yet (423) the form still opens — the patient is in front of
-     the doctor, and saving this encounter is what makes them the treating
-     clinician. The allergy trigger guards the prescription either way. */
+     basis to READ (423) the form still opens, and asks for a reason:
+     start_encounter() accepts the visit without one only if the doctor has
+     an appointment with the patient today, a referral, a consent or an
+     admission (security review A1). Otherwise the reason is logged and
+     reviewed like break-glass. The allergy trigger guards the prescription
+     either way. */
   let noBasis = '';
   try {
-    ENC.record = await API.get('/patients/' + encodeURIComponent(S.patient.uhid));
+    ENC.record = await API.readRecord(S.patient.uhid);
   } catch (e) {
     if (e.status !== 423) {
       root.innerHTML = errorHtml(e.status === 404 ? 'No such record' : 'The record could not be opened', e.message);
@@ -84,6 +87,13 @@ function drawEncounter(root, p, noBasis) {
     <div class="side-grid">
       <form class="card form-card" id="enc-form" autocomplete="off" novalidate>
         <div id="enc-err"></div>
+        ${noBasis ? `<div class="form-sec">
+          <h3>Why are you seeing this patient?</h3>
+          <div class="banner info" style="margin-bottom:12px">${warnIcon}<div><b>No access basis yet</b>
+            If you have an appointment with them today, a referral or an admission, leave this empty. Otherwise &mdash; a walk-in, an emergency &mdash; give a reason. It is recorded with your name and reviewed by the hospital administrator, like break-glass.</div></div>
+          <div class="row"><div><label class="label" for="e-reason">Reason</label>
+            <textarea class="field" id="e-reason" rows="2" maxlength="300" placeholder="e.g. Walked in with chest pain, no appointment"></textarea></div></div>
+        </div>` : ''}
         <div class="form-sec">
           <h3>Visit</h3>
           <div class="row c2">
@@ -188,7 +198,7 @@ function drawEncounter(root, p, noBasis) {
 function allergyPanel(noBasis) {
   if (noBasis) {
     return `<div class="banner info">${warnIcon}<div><b>No access basis for this patient&rsquo;s history yet</b>
-      Saving this encounter makes you their treating clinician. Allergies are not shown, but the database still refuses any drug they are allergic to.</div></div>`;
+      Their history and allergies are not shown until the visit is saved. The database still refuses any drug they are allergic to.</div></div>`;
   }
   const list = ENC.record.allergies || [];
   if (!list.length) {
@@ -296,6 +306,7 @@ async function saveEncounter(end) {
     type: $('#e-type').value,
     complaint: $('#e-complaint').value.trim(),
     notes: $('#e-notes').value.trim(),
+    reason: $('#e-reason') ? $('#e-reason').value.trim() : '',
     diagnoses: ENC.dx.map(d => ({ icd10: d.code, primary: d.primary, certainty: d.certainty })),
     vitals: Object.values(vitals).some(v => v !== null) ? vitals : null,
     prescriptions: ENC.rx.map(r => ({ medicineId: r.medicineId, dose: r.dose, frequency: r.frequency, days: r.days, instruction: r.instruction })),
@@ -310,6 +321,7 @@ async function saveEncounter(end) {
   } catch (e) {
     ENC.saving = false;
     $$('.form-actions .btn').forEach(b => { b.disabled = false; });
+    if (e.status === 423 && $('#e-reason')) $('#e-reason').focus();
     err.innerHTML = `<div class="banner crit" style="margin-bottom:16px">${warnIcon}<div><b>Nothing was saved</b>${esc(e.message)}
       <br><span class="txt" style="font-size:12px">The whole visit was rolled back, including every line before the one refused. Correct it and save again.</span></div></div>`;
     err.scrollIntoView({ behavior: 'smooth', block: 'start' });

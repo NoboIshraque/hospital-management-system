@@ -17,11 +17,11 @@ have not started their guides; and the laptop is short of memory. Details below.
 
 | Part | Where | Verified by |
 |---|---|---|
-| Database: 40 tables, 21 triggers, 28 procedures + 4 functions, 9 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 74 tests, all pass |
+| Database: 40 tables, 21 triggers, 33 procedures + 4 functions, 9 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 135 tests, all pass (6 Nov 2026) |
 | Sample data: 8 hospitals, 11 doctors, 18 patients | `database/seed.sql` | loads clean in `npm run db:reset` |
 | Least-privilege app user `uhid_app` | `database/grants.sql` | denied SELECT on `patient`, UPDATE on `bed`, DELETE/TRUNCATE on `access_log` |
 | 20 demonstration queries | `database/queries.sql` | all run and return sensible rows |
-| Express API, 29 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 66 checks, all pass |
+| Express API, 30 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 76 checks, all pass |
 | Booking under concurrency | `server/scripts/race-booking.js` | `npm run race` — 5 of 5 rounds, exactly one booking each |
 | Frontend on the API (and offline on sample data) | `public/`, switch in `public/js/api.js` | 25-step headless browser test, no JavaScript errors; all 21 standalone screens captured with no errors |
 | Print stylesheet, 404 page | `public/css/responsive.css`, `public/404.html` | rendered in headless Edge |
@@ -35,6 +35,24 @@ The browser test and screenshot scripts lived in a temporary folder and are **no
 `npm run api:test` and `npm run db:test` are the committed checks.
 
 ---
+
+## 6 November 2026: the security review's group 1 is done
+
+All five items of `CHECKLIST.md` G1–G5 are fixed, tested and pushed: a doctor needs an
+appointment, referral, consent or admission — or a reviewed reason — to open an encounter;
+"treating" is the doctor's own encounter or department; ward actions, cancellations and merges
+are limited to the caller's hospital; only an encounter's own doctor writes into it; there is no
+national patient list (a masked, logged search instead); and opening a record is a POST.
+`docs/er-design.md` §8.3 lists each rule. **Still open: G6**, the review's groups 2–4 (going
+live, hardening, accepted risks) — decide with the author.
+
+Found on the way: `t_value` in `tests.sql` had never recorded a result (an error handler
+swallowed a collation error in its own INSERT), so `db:test` was really checking 74 of its 101
+tests. Fixed; it now runs 135 and all pass.
+
+**Demo changes to rehearse:** admitting a patient now starts with *Find the patient* (type
+`Karim` → Find) instead of a list; a doctor recording an encounter for someone they have no
+basis for is asked for a reason.
 
 ## What is NOT done — the next session's work
 
@@ -119,8 +137,8 @@ cd E:\hospital-management-system
 git pull                          # in case Abir or Noria pushed practice work
 cd server
 npm run db:reset                  # fresh data; also checks MySQL and .env are working
-npm run db:test                   # 74 PASS
-npm run api:test                  # 66 passed, 0 failed
+npm run db:test                   # 135 PASS
+npm run api:test                  # 76 passed, 0 failed
 npm start                         # http://localhost:3000 — only when you need the site
 ```
 

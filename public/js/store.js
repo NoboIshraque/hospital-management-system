@@ -15,10 +15,11 @@ const SESSION_KEY = 'uhid.session.v1';
 const WARD_KEY    = 'uhid.wards.v2';
 const FLASH_KEY   = 'uhid.flash.v1';
 
-/* Online (served by Express), the patient list is the national register
-   the shell fetched from GET /api/patients into API.patients, and
-   localStorage is not used for patients at all. Offline, it is the
-   seed plus anything registered in this browser, as before. */
+/* Online (served by Express) there is no national list in the browser:
+   store.all() is only the patients this page has found by searching
+   (API.searchPatients fills API.patients), and localStorage is not used
+   for patients at all. Offline, it is the seed plus anything registered
+   in this browser, as before. */
 const store = {
   all() {
     if (API.online) return API.patients;

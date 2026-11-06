@@ -52,7 +52,26 @@ function openPatient(uhid) {
   const p = store.find(uhid);
   if (!p) { toast('Not found', 'No patient holds ' + uhid + '.', 'err'); return; }
   S.patient = p;
+  rememberCurrent(p);
   go('record');
+}
+
+/* Online there is no patient list to look a UHID up in when the next page
+   loads, so the selected patient's UHID and name — nothing else — are kept
+   in sessionStorage for this tab, to label the screens. It is gone when the
+   tab closes. privacy.html says so. */
+const CURRENT_KEY = 'uhid.current.v1';
+function rememberCurrent(p) {
+  if (!API.online) return;
+  try { sessionStorage.setItem(CURRENT_KEY, JSON.stringify({ uhid: p.uhid, name: p.name })); }
+  catch (e) { /* storage unavailable: screens show the UHID instead of the name */ }
+}
+function recallCurrent(uhid) {
+  try {
+    const c = JSON.parse(sessionStorage.getItem(CURRENT_KEY) || 'null');
+    if (c && c.uhid === uhid && typeof c.name === 'string') return c;
+  } catch (e) { /* storage unavailable or damaged */ }
+  return null;
 }
 
 async function signOut() {
@@ -124,15 +143,10 @@ const SHELL_READY = (async function start() {
   }
   S.role = S.account.role;
 
-  /* The national search list, for every role that may see it. A patient
-     gets a list of one: themselves. */
-  if (online) {
-    if (S.role === 'patient') {
-      API.patients = [{ uhid: S.account.patientUhid, name: S.account.name }];
-    } else {
-      try { API.patients = await API.get('/patients'); }
-      catch (e) { API.patients = []; toast('Patient list unavailable', e.message, 'err'); }
-    }
+  /* No national list is loaded (security review L1): staff find patients
+     by searching. A patient's list is one person: themselves. */
+  if (online && S.role === 'patient') {
+    API.patients = [{ uhid: S.account.patientUhid, name: S.account.name }];
   }
 
   /* Which patient is open? The query string — or, for the patient
@@ -143,7 +157,9 @@ const SHELL_READY = (async function start() {
      server resolves it. */
   const uhid = new URLSearchParams(location.search).get('uhid');
   const wanted = uhid || (S.role === 'patient' ? S.account.patientUhid : null);
-  S.patient = wanted ? (store.find(wanted) || (online ? { uhid: wanted, name: wanted } : null)) : null;
+  S.patient = wanted
+    ? (store.find(wanted) || (online ? (recallCurrent(wanted) || { uhid: wanted, name: wanted }) : null))
+    : null;
 
   const hospitalName = S.account.hospitalId ? hospital(S.account.hospitalId).name : 'National access';
   $('#me-name').textContent = S.account.name;
@@ -166,11 +182,22 @@ const SHELL_READY = (async function start() {
   showFlashes();
 })();
 
-/* Global search jumps to the first match. */
-$('#gsearch').addEventListener('keydown', e => {
+/* Global search jumps to the first match. Online it is a real search,
+   with the same rules as the search screen. */
+$('#gsearch').addEventListener('keydown', async e => {
   if (e.key !== 'Enter') return;
   const q = e.target.value.trim().toLowerCase();
   if (!q) return;
+  if (API.online) {
+    if (!specificQuery(q)) { toast('Be more specific', 'Search by UHID, NID, an 11-digit mobile number, or at least 3 letters of the name.', 'err'); return; }
+    let rows;
+    try { rows = await API.searchPatients(q); }
+    catch (err) { toast('Search failed', err.message, 'err'); return; }
+    e.target.value = '';
+    if (rows.length) openPatient(rows[0].uhid);
+    else toast('No match', 'Nobody on file matches that.', 'err');
+    return;
+  }
   const digits = q.replace(/\D/g, '');
   const hit = store.all().find(p =>
     p.name.toLowerCase().includes(q) || p.uhid.toLowerCase().includes(q) ||

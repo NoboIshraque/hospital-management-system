@@ -75,8 +75,9 @@ function renderRegister(root) {
   runMatch();
 }
 
-/* Deliberately simple and readable. In week 4 this becomes a
-   MySQL query inside sp_register_patient — same three criteria. */
+/* Offline: the prototype's check, run over the sample data in the
+   browser. Online the same three criteria run in MySQL instead
+   (registration_matches(), below) — the browser holds no patient list. */
 function currentMatches() {
   const val = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };
   const nid   = val('f-nid');
@@ -94,11 +95,37 @@ function currentMatches() {
   }).filter(m => m.score >= 35).sort((a, b) => b.score - a.score);
 }
 
+/* Online: ask the database once typing pauses, and only when there is
+   something to match on — an NID, a name with a date of birth, or a full
+   mobile number. Each person it returns is logged as a search match. */
+let matchTimer = 0;
+let matchSeq = 0;
+function runMatchOnline() {
+  const box = $('#matches');
+  const val = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };
+  const body = { nid: val('f-nid'), name: val('f-name'), dob: val('f-dob'), phone: val('f-phone') };
+  clearTimeout(matchTimer);
+  const enough = body.nid || (body.name && body.dob) || body.phone.replace(/\D/g, '').length >= 11;
+  if (!enough) { matchSeq++; drawMatches(box, []); return; }
+  const seq = ++matchSeq;
+  matchTimer = setTimeout(async () => {
+    let rows;
+    try { rows = await API.post('/patients/matches', body); }
+    catch (e) { if (seq === matchSeq) box.innerHTML = `<div class="match-empty">The duplicate check could not run: ${esc(e.message)}</div>`; return; }
+    if (seq !== matchSeq) return;
+    API.remember(rows);
+    drawMatches(box, rows.map(p => ({ p, score: p.matchedOn === 'same NID' ? 100 : 50, why: p.matchedOn })));
+  }, 400);
+}
+
 function runMatch() {
   const box = $('#matches');
   if (!box) return;
-  const matches = currentMatches();
+  if (API.online) { runMatchOnline(); return; }
+  drawMatches(box, currentMatches());
+}
 
+function drawMatches(box, matches) {
   if (matches.length === 0) {
     box.innerHTML = `<div class="match-empty">No existing record matches yet.<br>Keep typing &mdash; the check runs on every field.</div>`;
     return;
@@ -120,7 +147,7 @@ function runMatch() {
         </div>
         <div class="cand-acts">
           <button class="btn sm primary" data-use="${esc(m.p.uhid)}">Use this record</button>
-          <span class="score" style="align-self:center;color:var(--ink-3)">match ${m.score}</span>
+          <span class="score" style="align-self:center;color:var(--ink-3)">${m.why ? esc(m.why) : 'match ' + Number(m.score)}</span>
         </div>
       </div>`;
   }).join('');
