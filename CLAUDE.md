@@ -110,7 +110,7 @@ docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
               er-diagrams/uhid-er-chen-boxed.drawio (Chen, the one to hand in),
               er-diagrams/uhid-er-chen.drawio (Chen, ellipse styling),
               er-diagrams/uhid-er.drawio (crow's foot, logical — no longer maintained since 1 Nov 2026)
-              use-cases.md (19 use cases, each mapped to its procedure/trigger/view),
+              use-cases.md (22 use cases, each mapped to its procedure/trigger/view),
               data-dictionary.md (all 40 tables, generated from schema.sql),
               normalization.md (1NF → BCNF worked examples, and every deliberate redundancy)
               guides/nobo.md, abir.md, noria.md — the team's learning guides (see Team below)
@@ -120,15 +120,16 @@ database/     schema.sql (40 tables) → triggers.sql → procedures.sql → vie
               → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
               queries.sql — 20 demonstration queries (joins, ROLLUP, window functions, CTEs,
               INTERSECT), each tied to a design decision; run as root, not uhid_app
-              tests.sql — 196 tests of constraints, triggers and procedures (npm run db:test)
+              tests.sql — 220 tests of constraints, triggers and procedures (npm run db:test)
 server/       Express app — serves public/ AND the JSON API under /api (docs/api.md)
   app.js        wiring only: session, routes, static files, 404, error handler
   auth.js       sessions, requireLogin, requirePermission (asks has_permission() in MySQL)
   security.js   CSP and headers, refusal of cross-site writes, the login rate limit
+  lib/passwords.js  the password rule (10+ characters) and one-time passwords; bcrypt runs here
   db/           pool.js (connects as uhid_app), errors.js (MYSQL_ERRNO → HTTP, id/list checks), run-sql.js, reset.js
-  routes/       auth, reference, patients, appointments, wards, clinical, audit
+  routes/       auth, reference, patients, appointments, wards, clinical, audit, accounts
   lib/format.js turns rows into the shapes public/ renders
-  scripts/      api-test.js (npm run api:test, 103 checks), race-booking.js (npm run race:
+  scripts/      api-test.js (npm run api:test, 117 checks), race-booking.js (npm run race:
                 double booking AND double admission to one bed, 5 rounds each)
   practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
 public/       Frontend, served as static files (also works opened straight from disk)
@@ -142,7 +143,9 @@ public/       Frontend, served as static files (also works opened straight from 
   js/           data, seed, store, api (the fetch wrapper + online/offline switch), util, shell, auth, home
   pages/        the clinical console — one .html + one .js per screen: register, search, record,
                 book, wards (the prototype's five); encounter, referrals, lab, audit, merge (added
-                1 Nov 2026, server-only — opened from disk they show needsServerHtml())
+                1 Nov 2026, server-only — opened from disk they show needsServerHtml());
+                account (change your own password, every role) and accounts (admins: staff
+                accounts) — added 7 Nov 2026, server-only too
 mock/         empty — the pages read js/data.js and js/seed.js instead (see Architecture)
 prototype/    uhid-prototype.html — single-file working prototype (see below)
 ```
@@ -228,6 +231,11 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
   injection as root. This is accepted risk D2 in `er-design.md` §8.4, and this rule is what makes
   it acceptable. (`PREPARE` in `grants.sql` and in `tests.sql`'s helpers is root-only setup.)
 - **Run `npm run api:test` before committing any change in `server/`.**
+- **Passwords never reach SQL.** Node makes one-time passwords and bcrypt hashes
+  (`server/lib/passwords.js`); account procedures accept only a bcrypt-shaped string
+  (`require_hash()`). A one-time password is returned once in the API answer and never again.
+- **`DEMO_MODE=1` in `server/.env`** makes the sign-in page list the demo accounts and their
+  shared password (`GET /api/config`). A real installation leaves it out.
 - **Run `npm run db:test` (in `server/`) before committing any change in `database/`.** It
   rebuilds, runs `database/tests.sql`, and rebuilds again; it exits non-zero if any test fails.
   A new rule in a trigger or procedure gets a test that proves it refuses what it should, with the
@@ -329,15 +337,16 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Use cases | Done — `docs/use-cases.md` |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched). The crow's-foot file is no longer maintained |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (41 + 6 functions), views (9), seed, grants, 20 demonstration queries, 196 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 196/196 (6 Nov 2026: before then the 38 `t_value` checks silently recorded nothing — see the comment on `t_value` in tests.sql — so "74/74" was 74 of 101)** |
+| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (50 + 6 functions), views (9), seed, grants, 20 demonstration queries, 220 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 220/220 (7 Nov 2026, with real accounts) (6 Nov 2026: before then the 38 `t_value` checks silently recorded nothing — see the comment on `t_value` in tests.sql — so "74/74" was 74 of 101)** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
-| Express API | Done 31 Oct 2026 — 32 endpoints, `docs/api.md`; `npm run api:test` passes 103/103; `npm run race` shows 5/5 single bookings and 5/5 single admissions to one bed |
+| Express API | Done 31 Oct 2026 — 39 endpoints since real accounts (7 Nov 2026), `docs/api.md`; `npm run api:test` passes 117/117; `npm run race` shows 5/5 single bookings and 5/5 single admissions to one bed |
 | Stress test, 7 Nov 2026 | Done the same day — three agents (database, server, frontend + docs) found 7 fix-before-viva, 14 should-fix and a batch of low items; **all fixed** and tested (`CHECKLIST.md` §H, `er-design.md` §8.6), browser-checked online and offline |
 | Security review, group 1 (fix before the viva) | Done 6 Nov 2026 — A1–A6, L1, W1, I2 (`er-design.md` §8.3). Each DB rule has a `tests.sql` §9 test with its errno; browser-tested as receptionist, doctor and hospital admin, plus offline mode |
 | Security review, groups 2–4 | Done 6 Nov 2026 — accepted risks written down (§8.4); S1, S3 (behind `COOKIE_SECURE=1`), S5, S6, W2, W3, W4, I3, A7, A9, D5 built and tested (`server/security.js`; §8.5). Left on purpose, with reasons in §8.5: S2, S4, D3, L2, A8, L5, L3 |
 | Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
 | Demo script, README | Done 1 Nov 2026 — `docs/demo-script.md`; README rewritten for the running system |
 | Print stylesheet, 404 page | Done 1 Nov 2026 |
+| Real accounts (checklist I1) | Done 7 Nov 2026 — own passwords, admin account screens, patient portal logins, one-time passwords with a forced change, demo list only with `DEMO_MODE=1` |
 
 ## Open items — do not lose these
 

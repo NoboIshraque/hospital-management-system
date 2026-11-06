@@ -67,7 +67,7 @@ const ROLES = {
     label: 'Hospital Admin', who: 'Nasima Sultana', hospital: 1,
     blurb: 'Oversees wards and appointments, reviews break-glass access, merges duplicate records.',
     nav: [['audit','Break-glass review'], ['merge','Merge records'], ['wards','Wards &amp; beds'],
-          ['search','Find patient'], ['book','Appointments']]
+          ['search','Find patient'], ['book','Appointments'], ['accounts','Staff accounts']]
   },
   /* These two exist in the database (seed.sql) but not in the prototype's
      ACCOUNTS above, so they sign in only when the site is served by Express. */
@@ -79,7 +79,7 @@ const ROLES = {
   system_admin: {
     label: 'System Admin', who: 'System Administrator', hospital: null,
     blurb: 'Reviews break-glass access at every hospital, merges duplicate records nationally.',
-    nav: [['audit','Break-glass review'], ['merge','Merge records'], ['search','Find patient']]
+    nav: [['audit','Break-glass review'], ['merge','Merge records'], ['search','Find patient'], ['accounts','Staff accounts']]
   }
 };
 

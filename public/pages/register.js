@@ -269,9 +269,11 @@ function showIssued(patient) {
     </div>
     <div class="modal-f">
       <button class="btn" data-close>Register another</button>
+      ${API.online ? '<button class="btn" data-login>Portal login&hellip;</button>' : ''}
       <button class="btn primary" data-open>Open record</button>
     </div>`);
 
+  if (API.online) $('[data-login]', sc).addEventListener('click', () => issuePortalLogin(patient.uhid, patient.name));
   $('[data-close]', sc).addEventListener('click', () => { $('#reg-form').reset(); runMatch(); });
   $('[data-open]', sc).addEventListener('click', () => { sc.remove(); go('record'); });
 

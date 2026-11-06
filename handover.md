@@ -9,7 +9,7 @@ session, then `CLAUDE.md`.
 committed and pushed. The database, the Express API, the frontend wired to the API, a screen for
 every role, the documentation, the viva demo script, the three learning guides, and every finding
 of the 1 November security review (fixed, or left on purpose with a written reason) all exist and
-are tested: `npm run db:test` 196 pass, `npm run api:test` 103 pass, `npm run race` 5/5 bookings
+are tested: `npm run db:test` 220 pass, `npm run api:test` 117 pass, `npm run race` 5/5 bookings
 and 5/5 admissions. A three-agent stress test on 7 November found 21 real problems and many small
 ones; all are fixed and tested (`CHECKLIST.md` §H).
 Submission is **8 November 2026**. What remains is the team's, not the code's: rehearse the demo,
@@ -22,11 +22,11 @@ short of memory — close heavy programs before the demo. Details below.
 
 | Part | Where | Verified by |
 |---|---|---|
-| Database: 40 tables, 21 triggers, 41 procedures + 6 functions, 9 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 196 tests, all pass (6 Nov 2026) |
+| Database: 40 tables, 21 triggers, 50 procedures + 6 functions, 9 views | `database/schema.sql` … `views.sql` | `npm run db:test` — 220 tests, all pass (6 Nov 2026) |
 | Sample data: 8 hospitals, 11 doctors, 18 patients | `database/seed.sql` | loads clean in `npm run db:reset` |
 | Least-privilege app user `uhid_app` | `database/grants.sql` | denied SELECT on `patient`, UPDATE on `bed`, DELETE/TRUNCATE on `access_log` |
 | 20 demonstration queries | `database/queries.sql` | all run and return sensible rows |
-| Express API, 32 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 103 checks, all pass |
+| Express API, 39 endpoints | `server/`, reference in `docs/api.md` | `npm run api:test` — 117 checks, all pass |
 | Booking under concurrency | `server/scripts/race-booking.js` | `npm run race` — 5 of 5 rounds, exactly one booking each |
 | Frontend on the API (and offline on sample data) | `public/`, switch in `public/js/api.js` | 25-step headless browser test, no JavaScript errors; all 21 standalone screens captured with no errors |
 | Print stylesheet, 404 page | `public/css/responsive.css`, `public/404.html` | rendered in headless Edge |
@@ -147,8 +147,8 @@ cd E:\hospital-management-system
 git pull                          # in case Abir or Noria pushed practice work
 cd server
 npm run db:reset                  # fresh data; also checks MySQL and .env are working
-npm run db:test                   # 196 PASS
-npm run api:test                  # 103 passed, 0 failed
+npm run db:test                   # 220 PASS
+npm run api:test                  # 117 passed, 0 failed
 npm start                         # http://localhost:3000 — only when you need the site
 ```
 

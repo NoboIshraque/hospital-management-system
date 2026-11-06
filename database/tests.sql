@@ -704,6 +704,61 @@ CALL t_value('H3.1: …and its doctor holds no permissions',
 CALL t_expect('H3.1: (switched back on)',
   "UPDATE hospital SET is_active = TRUE WHERE hospital_id = 7", 0);
 
+
+-- =====================================================================
+-- 11. ACCOUNTS AND PASSWORDS (checklist I1, 8 November 2026)
+-- =====================================================================
+
+SET @h = '$2a$10$Ri1jUMV5vb3X5UiO7bjaGuEeMkc6q58NH8Qe/YQIz6W3Pv73Ivboy';
+CALL t_expect('I1: a hospital admin creates a receptionist at their own hospital',
+  CONCAT("CALL create_staff_account(2, 'new.desk', '", @h, "', 'receptionist', 1, NULL, 'New Desk')"), 0);
+CALL t_value('I1: …whose one-time password must be changed at first sign-in',
+  "SELECT must_change_password FROM user_account WHERE username = 'new.desk'", '1');
+CALL t_expect('I1: …but not at another hospital',
+  CONCAT("CALL create_staff_account(2, 'far.desk', '", @h, "', 'receptionist', 3, NULL, 'Far Desk')"), 5403);
+CALL t_expect('I1: …nor another hospital admin',
+  CONCAT("CALL create_staff_account(2, 'admin.two', '", @h, "', 'hospital_admin', 1, NULL, 'Admin Two')"), 5403);
+CALL t_expect('I1: a receptionist may not create accounts',
+  CONCAT("CALL create_staff_account(1, 'sneaky', '", @h, "', 'receptionist', 1, NULL, 'Sneaky')"), 5403);
+CALL t_expect('I1: a username is taken only once',
+  CONCAT("CALL create_staff_account(2, 'rezaul', '", @h, "', 'receptionist', 1, NULL, 'Second Rezaul')"), 1644);
+CALL t_expect('I1: a username with accents or capitals is refused',
+  CONCAT("CALL create_staff_account(5, 'Sýsadmin', '", @h, "', 'receptionist', 1, NULL, 'Look Alike')"), 1644);
+CALL t_expect('I1: the system admin creates a hospital admin anywhere',
+  CONCAT("CALL create_staff_account(5, 'ctg.admin', '", @h, "', 'hospital_admin', 3, NULL, 'Chattogram Admin')"), 0);
+CALL t_expect('I1: a doctor account needs a current posting at that hospital',
+  CONCAT("CALL create_staff_account(5, 'wrong.doc', '", @h, "', 'doctor', 3, 1, NULL)"), 1644);
+CALL t_expect('I1: a plain-text password is never stored',
+  "CALL change_password(1, 'demo1234')", 1644);
+CALL t_expect('I1: an account changes its own password',
+  CONCAT("CALL change_password((SELECT account_id FROM user_account WHERE username = 'new.desk'), '", @h, "')"), 0);
+CALL t_value('I1: …which clears the forced change',
+  "SELECT must_change_password FROM user_account WHERE username = 'new.desk'", '0');
+CALL t_expect('I1: a hospital admin resets a password at their hospital',
+  "CALL reset_password(2, 1, '$2a$10$Ri1jUMV5vb3X5UiO7bjaGuEeMkc6q58NH8Qe/YQIz6W3Pv73Ivboy')", 0);
+CALL t_value('I1: …and the reset password must be changed again',
+  "SELECT must_change_password FROM user_account WHERE account_id = 1", '1');
+CALL t_expect('I1: …but not the system admin''s',
+  "CALL reset_password(2, 5, '$2a$10$Ri1jUMV5vb3X5UiO7bjaGuEeMkc6q58NH8Qe/YQIz6W3Pv73Ivboy')", 5403);
+CALL t_expect('I1: an admin cannot switch off their own account',
+  "CALL set_account_active(2, 2, FALSE)", 1644);
+CALL t_expect('I1: an admin switches off a receptionist…',
+  "CALL set_account_active(2, (SELECT account_id FROM user_account WHERE username = 'new.desk'), FALSE)", 0);
+CALL t_value('I1: …who can then no longer sign in',
+  "SELECT COUNT(*) FROM user_account WHERE username = 'new.desk' AND is_active", '0');
+CALL t_expect('I1: reception issues Fatema a portal login',
+  "CALL issue_patient_login(1, 'BD-2021-11904-5', 'fatema', '$2a$10$Ri1jUMV5vb3X5UiO7bjaGuEeMkc6q58NH8Qe/YQIz6W3Pv73Ivboy', NULL)", 0);
+CALL t_value('I1: …with a one-time password',
+  "SELECT must_change_password FROM user_account WHERE username = 'fatema'", '1');
+CALL t_value('I1: …and the issue is in her access log',
+  "SELECT COUNT(*) FROM access_log WHERE action = 'login.issued' AND patient_id = 2", '1');
+CALL t_expect('I1: a doctor may not issue patient logins',
+  "CALL issue_patient_login(6, 'BD-2021-11904-5', 'fatema2', '$2a$10$Ri1jUMV5vb3X5UiO7bjaGuEeMkc6q58NH8Qe/YQIz6W3Pv73Ivboy', NULL)", 5403);
+CALL t_expect('I1: a hospital admin lists their accounts',
+  "CALL list_accounts(2)", 0);
+CALL t_expect('I1: a receptionist may not',
+  "CALL list_accounts(1)", 5403);
+
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message
   FROM t_result ORDER BY test_no;
 

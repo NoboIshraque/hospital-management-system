@@ -312,11 +312,216 @@ CREATE PROCEDURE get_login(IN p_username VARCHAR(40))
 BEGIN
   SELECT ua.account_id, ua.username, ua.password_hash, r.code AS role,
          r.label AS role_label, ua.hospital_id, ua.doctor_id,
-         p.uhid AS patient_uhid, account_name(ua.account_id) AS name
+         p.uhid AS patient_uhid, account_name(ua.account_id) AS name,
+         ua.must_change_password AS must_change
     FROM user_account ua
     JOIN role r ON r.role_id = ua.role_id
     LEFT JOIN patient p ON p.patient_id = ua.patient_id
    WHERE ua.username = p_username AND ua.is_active;
+END $$
+
+-- =====================================================================
+-- 3b. ACCOUNTS AND PASSWORDS (checklist I1, 8 November 2026)
+--
+-- Passwords are hashed with bcrypt in Node; the database only ever sees the
+-- 60-character hash. A password set by someone else (a new account, a
+-- reset) is a one-time password: must_change_password forces its owner to
+-- choose their own at the next sign-in.
+--
+-- Who manages whom: the system admin, any account; a hospital admin, the
+-- receptionist, doctor and lab technician accounts of their own hospital.
+-- A patient's portal login is issued by reception, in person.
+-- =====================================================================
+
+DROP PROCEDURE IF EXISTS require_hash $$
+CREATE PROCEDURE require_hash(IN p_hash VARCHAR(100))
+BEGIN
+  IF p_hash IS NULL OR NOT REGEXP_LIKE(p_hash, '^[$]2[aby][$][0-9]{2}[$].{53}$', 'c') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That is not a bcrypt password hash.';
+  END IF;
+END $$
+
+-- May this administrator manage an account of this role at this hospital?
+DROP PROCEDURE IF EXISTS require_account_scope $$
+CREATE PROCEDURE require_account_scope(
+  IN p_admin       INT UNSIGNED,
+  IN p_role_code   VARCHAR(30),
+  IN p_hospital_id SMALLINT UNSIGNED,
+  IN p_patient_reg SMALLINT UNSIGNED
+)
+BEGIN
+  DECLARE v_admin_hosp SMALLINT UNSIGNED;
+  CALL require_permission(p_admin, 'account.manage');
+  SELECT hospital_id INTO v_admin_hosp FROM user_account WHERE account_id = p_admin;
+  IF v_admin_hosp IS NOT NULL AND NOT (
+       (p_role_code IN ('receptionist', 'doctor', 'lab_technician') AND p_hospital_id <=> v_admin_hosp)
+    OR (p_role_code = 'patient' AND p_patient_reg <=> v_admin_hosp)) THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'A hospital admin manages receptionist, doctor and lab accounts at their own hospital only.',
+          MYSQL_ERRNO = 5403;
+  END IF;
+END $$
+
+-- The caller changes their own password (Node has checked the current one).
+DROP PROCEDURE IF EXISTS change_password $$
+CREATE PROCEDURE change_password(IN p_account_id INT UNSIGNED, IN p_hash VARCHAR(100))
+BEGIN
+  CALL require_hash(p_hash);
+  UPDATE user_account
+     SET password_hash = p_hash, must_change_password = FALSE, password_changed_at = NOW()
+   WHERE account_id = p_account_id AND is_active;
+  IF ROW_COUNT() = 0 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such active account.', MYSQL_ERRNO = 5404;
+  END IF;
+END $$
+
+DROP PROCEDURE IF EXISTS create_staff_account $$
+CREATE PROCEDURE create_staff_account(
+  IN p_admin       INT UNSIGNED,
+  IN p_username    VARCHAR(40),
+  IN p_hash        VARCHAR(100),
+  IN p_role_code   VARCHAR(30),
+  IN p_hospital_id SMALLINT UNSIGNED,
+  IN p_doctor_id   SMALLINT UNSIGNED,
+  IN p_staff_name  VARCHAR(100)
+)
+BEGIN
+  DECLARE v_role TINYINT UNSIGNED;
+  DECLARE v_user VARCHAR(40) DEFAULT LOWER(TRIM(p_username));
+
+  SELECT role_id INTO v_role FROM role WHERE code = p_role_code AND code <> 'patient';
+  IF v_role IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Choose a staff role. Patients get their login from reception.';
+  END IF;
+  CALL require_account_scope(p_admin, p_role_code, p_hospital_id, NULL);
+  CALL require_hash(p_hash);
+  IF NOT REGEXP_LIKE(COALESCE(v_user, ''), '^[a-z0-9._-]{3,40}$', 'c') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A username is 3 to 40 letters a-z, digits, dots, dashes or underscores.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM user_account WHERE username = v_user) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That username is taken.';
+  END IF;
+  IF p_role_code = 'system_admin' AND p_hospital_id IS NOT NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A system admin belongs to no hospital.';
+  END IF;
+  IF p_role_code <> 'system_admin' AND NOT EXISTS (SELECT 1 FROM hospital WHERE hospital_id = p_hospital_id AND is_active) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Choose the hospital this account works at.';
+  END IF;
+  IF p_role_code = 'doctor' THEN
+    IF NOT EXISTS (SELECT 1 FROM doctor_posting
+                    WHERE doctor_id = p_doctor_id AND hospital_id = p_hospital_id
+                      AND CURDATE() >= valid_from AND (valid_to IS NULL OR CURDATE() <= valid_to)) THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That doctor holds no current posting at this hospital.';
+    END IF;
+    IF EXISTS (SELECT 1 FROM user_account WHERE doctor_id = p_doctor_id) THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That doctor already has an account. Reset its password instead.';
+    END IF;
+  END IF;
+
+  -- trg_user_account_bi checks the account's shape (doctor link, staff name).
+  INSERT INTO user_account (username, password_hash, role_id, hospital_id, doctor_id, staff_name,
+                            must_change_password)
+  VALUES (v_user, p_hash, v_role, p_hospital_id, IF(p_role_code = 'doctor', p_doctor_id, NULL),
+          IF(p_role_code = 'doctor', NULL, NULLIF(TRIM(p_staff_name), '')), TRUE);
+  SELECT LAST_INSERT_ID() AS account_id;
+END $$
+
+-- The details an administrator needs to decide whether they may touch an account.
+DROP PROCEDURE IF EXISTS require_managed_account $$
+CREATE PROCEDURE require_managed_account(IN p_admin INT UNSIGNED, IN p_account_id INT UNSIGNED)
+BEGIN
+  DECLARE v_role VARCHAR(30);
+  DECLARE v_hosp SMALLINT UNSIGNED;
+  DECLARE v_reg  SMALLINT UNSIGNED;
+  SELECT r.code, ua.hospital_id, p.registered_hospital_id INTO v_role, v_hosp, v_reg
+    FROM user_account ua JOIN role r ON r.role_id = ua.role_id
+    LEFT JOIN patient p ON p.patient_id = ua.patient_id
+   WHERE ua.account_id = p_account_id;
+  IF v_role IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such account.', MYSQL_ERRNO = 5404;
+  END IF;
+  CALL require_account_scope(p_admin, v_role, v_hosp, v_reg);
+END $$
+
+-- An administrator sets a one-time password, to be changed at next sign-in.
+DROP PROCEDURE IF EXISTS reset_password $$
+CREATE PROCEDURE reset_password(IN p_admin INT UNSIGNED, IN p_account_id INT UNSIGNED, IN p_hash VARCHAR(100))
+BEGIN
+  CALL require_managed_account(p_admin, p_account_id);
+  CALL require_hash(p_hash);
+  UPDATE user_account SET password_hash = p_hash, must_change_password = TRUE, password_changed_at = NOW()
+   WHERE account_id = p_account_id;
+END $$
+
+DROP PROCEDURE IF EXISTS set_account_active $$
+CREATE PROCEDURE set_account_active(IN p_admin INT UNSIGNED, IN p_account_id INT UNSIGNED, IN p_active BOOLEAN)
+BEGIN
+  IF p_admin = p_account_id THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'You cannot switch off your own account.';
+  END IF;
+  CALL require_managed_account(p_admin, p_account_id);
+  UPDATE user_account SET is_active = COALESCE(p_active, FALSE) WHERE account_id = p_account_id;
+END $$
+
+-- The staff accounts an administrator manages. No hashes leave the database.
+DROP PROCEDURE IF EXISTS list_accounts $$
+CREATE PROCEDURE list_accounts(IN p_admin INT UNSIGNED)
+BEGIN
+  DECLARE v_hosp SMALLINT UNSIGNED;
+  CALL require_permission(p_admin, 'account.manage');
+  SELECT hospital_id INTO v_hosp FROM user_account WHERE account_id = p_admin;
+  SELECT ua.account_id AS id, ua.username, r.code AS role, r.label AS roleLabel,
+         account_name(ua.account_id) AS name, ua.hospital_id AS hospitalId,
+         ua.doctor_id AS doctorId, ua.is_active AS active,
+         ua.must_change_password AS mustChange, ua.last_login_at AS lastLoginAt,
+         ua.account_id = p_admin AS isYou
+    FROM user_account ua JOIN role r ON r.role_id = ua.role_id
+   WHERE r.code <> 'patient'
+     AND (v_hosp IS NULL OR (ua.hospital_id = v_hosp AND r.code IN ('receptionist', 'doctor', 'lab_technician', 'hospital_admin')))
+   ORDER BY ua.hospital_id IS NULL DESC, ua.hospital_id, r.code, ua.username;
+END $$
+
+-- Reception gives a patient their portal login, in person, with a one-time
+-- password — or a new one-time password if they already have a login.
+-- Logged, like any other look at a patient's details.
+DROP PROCEDURE IF EXISTS issue_patient_login $$
+CREATE PROCEDURE issue_patient_login(
+  IN p_account_id INT UNSIGNED,
+  IN p_uhid       VARCHAR(20),
+  IN p_username   VARCHAR(40),
+  IN p_hash       VARCHAR(100),
+  IN p_ip         VARCHAR(45)
+)
+BEGIN
+  DECLARE v_patient INT UNSIGNED;
+  DECLARE v_existing INT UNSIGNED;
+  DECLARE v_user VARCHAR(40) DEFAULT LOWER(TRIM(p_username));
+
+  CALL require_permission(p_account_id, 'patient.register');
+  CALL require_patient(p_uhid, v_patient);
+  CALL require_hash(p_hash);
+  SELECT account_id INTO v_existing FROM user_account WHERE patient_id = v_patient;
+
+  IF v_existing IS NULL THEN
+    IF NOT REGEXP_LIKE(COALESCE(v_user, ''), '^[a-z0-9._-]{3,40}$', 'c') THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A username is 3 to 40 letters a-z, digits, dots, dashes or underscores.';
+    END IF;
+    IF EXISTS (SELECT 1 FROM user_account WHERE username = v_user) THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That username is taken.';
+    END IF;
+    INSERT INTO user_account (username, password_hash, role_id, patient_id, must_change_password)
+    VALUES (v_user, p_hash, (SELECT role_id FROM role WHERE code = 'patient'), v_patient, TRUE);
+  ELSE
+    UPDATE user_account SET password_hash = p_hash, must_change_password = TRUE,
+                            password_changed_at = NOW(), is_active = TRUE
+     WHERE account_id = v_existing;
+  END IF;
+
+  INSERT INTO access_log (patient_id, account_id, hospital_id, action, basis, ip_address)
+  SELECT v_patient, p_account_id, ua.hospital_id, 'login.issued', 'demographics_only', p_ip
+    FROM user_account ua WHERE ua.account_id = p_account_id;
+
+  SELECT username FROM user_account WHERE patient_id = v_patient;
 END $$
 
 DROP PROCEDURE IF EXISTS record_login $$

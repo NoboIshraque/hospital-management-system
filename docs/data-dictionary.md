@@ -1,6 +1,6 @@
 # Data dictionary — UHID National Hospital Management System
 
-Every table and column in `database/schema.sql`: 40 tables, 249 columns, 35 CHECK constraints
+Every table and column in `database/schema.sql`: 40 tables, 251 columns, 36 CHECK constraints
 and 75 foreign keys.
 
 **`schema.sql` is the authority.** This file was generated from it on 31 October 2026, so the
@@ -263,12 +263,18 @@ One login, for any of the six roles. Which of `hospital_id` / `patient_id` / `do
 | `patient_id` | INT UNSIGNED | yes |  | UQ, FK → patient.patient_id | Set only for a patient account. UNIQUE: one login per patient. |
 | `doctor_id` | SMALLINT UNSIGNED | yes |  | UQ, FK → doctor.doctor_id | Set only for a doctor account. UNIQUE: one login per doctor. |
 | `is_active` | BOOLEAN | no | `TRUE` |  |  |
+| `must_change_password` | BOOLEAN | no | `FALSE` |  | TRUE after a new account or a reset: the server refuses everything but changing it until it is changed. |
+| `password_changed_at` | DATETIME | yes |  |  | When its owner last chose a password. |
 | `last_login_at` | DATETIME | yes |  |  |  |
 | `created_at` | DATETIME | no | `CURRENT_TIMESTAMP` |  |  |
 
 **Indexes:** Index `ix_account_role` (role_id) · Index `ix_account_hospital` (hospital_id)
 
 **On delete:** `role_id` → restrict · `hospital_id` → restrict · `patient_id` → cascade · `doctor_id` → restrict
+
+**Checks:**
+
+- `ck_account_username` — `REGEXP_LIKE(username, '^[a-z0-9._-]{3,40}$', 'c')`
 
 
 ### `encounter_type`

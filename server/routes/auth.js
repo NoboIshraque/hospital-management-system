@@ -62,6 +62,7 @@ router.post('/login', ah(async (req, res) => {
       name: account.name,
       hospitalId: account.hospital_id,
       patientUhid: account.patient_uhid,
+      mustChange: account.must_change === 1 || account.must_change === true,
       loginAt: Date.now()               // for the 8-hour limit in requireLogin
     };
     res.json(req.session.account);
@@ -76,5 +77,10 @@ router.post('/logout', (req, res) => {
 });
 
 router.get('/me', requireLogin, (req, res) => res.json(req.session.account));
+
+/* What the sign-in page needs to know about this installation. In demo
+   mode (DEMO_MODE=1 in server/.env, as for the course) it lists the demo
+   accounts; a real installation leaves DEMO_MODE out and lists nothing. */
+router.get('/config', (req, res) => res.json({ demo: process.env.DEMO_MODE === '1' }));
 
 module.exports = router;

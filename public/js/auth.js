@@ -11,8 +11,8 @@
 
 /* Where each role lands after signing in — the first item of its
    own nav, which is what go(r.nav[0][0]) used to do. */
-function enterApp(role) {
-  location.href = 'pages/' + ROLES[role].nav[0][0] + '.html';
+function enterApp(role, mustChange) {
+  location.href = 'pages/' + (mustChange ? 'account' : ROLES[role].nav[0][0]) + '.html';
 }
 
 /* Already signed in? Go straight through, as a reload did before.
@@ -25,7 +25,7 @@ API.ready.then(async online => {
     try {
       const me = await API.get('/me');
       session.set(me.role);
-      location.replace('pages/' + ROLES[me.role].nav[0][0] + '.html');
+      location.replace('pages/' + (me.mustChange ? 'account' : ROLES[me.role].nav[0][0]) + '.html');
     } catch (e) { session.clear(); }
     return;
   }
@@ -35,15 +35,31 @@ API.ready.then(async online => {
   }
 });
 
-$('#demo-list').innerHTML = ACCOUNTS.map(a => {
-  const r = ROLES[a.role];
-  return `
-    <button type="button" class="demo-row" data-user="${a.user}">
-      <span class="av">${initials(r.who)}</span>
-      <span><b>${esc(r.who)}</b><span>${esc(r.label)}</span></span>
-      <span class="u">${a.user}</span>
-    </button>`;
-}).join('');
+/* The demo accounts are listed only where they exist: opened from disk
+   (the four in js/data.js), or on a server started with DEMO_MODE=1
+   (GET /api/config), which also has the lab technician and the system
+   admin. A real installation lists nothing: its staff have their own
+   passwords, given by an administrator (checklist I1). */
+const DEMO_EXTRA = [{ user: 'rumana', role: 'lab_technician' }, { user: 'sysadmin', role: 'system_admin' }];
+API.ready.then(async online => {
+  let list = ACCOUNTS;
+  if (online) {
+    let demo = false;
+    try { demo = (await API.get('/config')).demo; } catch (e) { /* treat as a real installation */ }
+    list = demo ? ACCOUNTS.concat(DEMO_EXTRA) : [];
+  }
+  if (!list.length) { $('#demo-card').hidden = true; return; }
+  $('#demo-count').textContent = list.length === 4 ? 'all four' : 'all of them';
+  $('#demo-list').innerHTML = list.map(a => {
+    const r = ROLES[a.role];
+    return `
+      <button type="button" class="demo-row" data-user="${esc(a.user)}">
+        <span class="av">${esc(initials(r.who))}</span>
+        <span><b>${esc(r.who)}</b><span>${esc(r.label)}</span></span>
+        <span class="u">${esc(a.user)}</span>
+      </button>`;
+  }).join('');
+});
 
 $('#demo-list').addEventListener('click', e => {
   const btn = e.target.closest('[data-user]');
@@ -74,7 +90,7 @@ $('#login-form').addEventListener('submit', async e => {
     return;
   }
 
-  let role;
+  let role, mustChange = false;
   if (await API.ready && API.down) {
     fail(`The server is running, but its database is not answering: ${API.down}`);
     return;
@@ -83,9 +99,11 @@ $('#login-form').addEventListener('submit', async e => {
     /* The real check: the server compares the password with the bcrypt
        hash in user_account and starts a session. */
     try {
-      role = (await API.post('/login', { username: user, password: pass })).role;
+      const me = await API.post('/login', { username: user, password: pass });
+      role = me.role;
+      mustChange = me.mustChange === true;
     } catch (ex) {
-      fail(ex.status === 401 ? 'No account matches those details. Check the demo accounts on the right.' : ex.message);
+      fail(ex.status === 401 ? 'No account matches those details.' : ex.message);
       return;
     }
   } else {
@@ -98,7 +116,7 @@ $('#login-form').addEventListener('submit', async e => {
   $('#pw-toggle').textContent = 'show';
   $('#l-pass').type = 'password';
   session.set(role);
-  enterApp(role);
+  enterApp(role, mustChange);
 });
 
 $('#reset-demo').addEventListener('click', resetDemo);

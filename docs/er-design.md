@@ -949,8 +949,22 @@ Accepted and written down: the UHID serial has five digits, so the format holds 
 year nationally — enough for this project; a real deployment would widen the serial, which changes
 the format and the check-digit rule in both places.
 
+### 8.7 Real accounts (7 November 2026)
+
+Until now every account shared one demo password. A real installation cannot work that way, so:
+
+- `user_account` gained `must_change_password` and `password_changed_at`, and a CHECK on the
+  username's shape (`ck_account_username`). No new table: an account is still one row.
+- A new permission, `account.manage`, for the hospital and system admins.
+  `require_account_scope()` decides who manages whom — the same "your own hospital" rule as wards
+  and merges (§8.3).
+- Passwords never reach SQL. Node makes the one-time password and the bcrypt hash; the procedures
+  accept only a string shaped like a bcrypt hash (`require_hash()`), so nothing can store a
+  plaintext password by mistake.
+- The demo accounts are listed on the sign-in page only when the server runs with `DEMO_MODE=1`.
+
 Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
-196 tests that check every constraint, trigger and procedure rejects what §4 says it must.
+220 tests that check every constraint, trigger and procedure rejects what §4 says it must.
 
 ---
 

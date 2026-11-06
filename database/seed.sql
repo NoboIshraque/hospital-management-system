@@ -114,7 +114,8 @@ INSERT INTO permission (code, description) VALUES
   ('bed.clean',                 'Mark a bed clean and ready'),
   ('bed.view',                  'See the bed board of their own hospital, with each inpatient''s diagnosis'),
   ('referral.create',           'Refer a patient to another hospital'),
-  ('audit.review',              'Review break-glass access');
+  ('audit.review',              'Review break-glass access'),
+  ('account.manage',            'Create staff accounts, reset passwords, switch accounts off');
 
 INSERT INTO role_permission (role_id, permission_id)
 SELECT r.role_id, p.permission_id
@@ -147,9 +148,11 @@ SELECT r.role_id, p.permission_id
       ('hospital_admin', 'bed.clean'),
       ('hospital_admin', 'bed.view'),
       ('hospital_admin', 'audit.review'),
+      ('hospital_admin', 'account.manage'),
       ('system_admin',   'patient.read_demographics'),
       ('system_admin',   'patient.merge'),
       ('system_admin',   'audit.review'),
+      ('system_admin',   'account.manage'),
       ('lab_technician', 'patient.read_demographics'),
       ('lab_technician', 'lab.report')
     );

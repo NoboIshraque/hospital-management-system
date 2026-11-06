@@ -120,10 +120,59 @@ function icon(id) {
     referrals: '<path d="M1.8 8h9.6M8 4.4L11.6 8 8 11.6"/><path d="M14.2 2.4v11.2"/>',
     lab:      '<path d="M6 1.8h4M6.6 1.8v4.6L2.6 13a1 1 0 00.9 1.4h9a1 1 0 00.9-1.4L9.4 6.4V1.8"/><path d="M4.4 10h7.2"/>',
     audit:    '<path d="M8 1.6l5.6 2.2v4c0 3.4-2.4 5.6-5.6 6.6-3.2-1-5.6-3.2-5.6-6.6v-4z"/><path d="M5.6 8l1.7 1.7L10.6 6.4"/>',
-    merge:    '<path d="M3.2 1.8v3.6c0 2 1.6 3.2 4.8 4.4M12.8 1.8v3.6c0 2-1.6 3.2-4.8 4.4V14.2"/>'
+    merge:    '<path d="M3.2 1.8v3.6c0 2 1.6 3.2 4.8 4.4M12.8 1.8v3.6c0 2-1.6 3.2-4.8 4.4V14.2"/>',
+    account:  '<circle cx="8" cy="5.4" r="3"/><path d="M2.4 14.4c.6-3 2.8-4.6 5.6-4.6s5 1.6 5.6 4.6"/>',
+    accounts: '<circle cx="6" cy="5.6" r="2.6"/><path d="M1.4 14c.5-2.6 2.3-4 4.6-4s4.1 1.4 4.6 4"/><path d="M10.6 3.2a2.6 2.6 0 010 4.8M12.4 10.4c1.2.6 2 1.8 2.2 3.6"/>'
   };
   return `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${paths[id] || ''}</svg>`;
+}
+
+/* A one-time password, shown once (checklist I1). The server keeps only
+   its hash, so this dialog is the only place it ever appears: closing it
+   without writing it down means a new reset. */
+function showOneTime(title, username, password, note) {
+  const sc = modal(`
+    <div class="modal-h"><h3>${esc(title)}</h3><p>${esc(note)}</p></div>
+    <div class="modal-b">
+      <dl class="kv">
+        <dt>Username</dt><dd class="mono">${esc(username)}</dd>
+        <dt>One-time password</dt><dd class="mono" style="font-size:17px;letter-spacing:.06em">${esc(password)}</dd>
+      </dl>
+      <p class="hint" style="margin-top:12px">Shown once. It is not stored anywhere it could be read again; at the first sign-in it must be replaced.</p>
+    </div>
+    <div class="modal-f"><button class="btn" data-copy>Copy password</button><button class="btn primary" data-close>Done</button></div>`);
+  $('[data-copy]', sc).addEventListener('click', async e => {
+    const b = e.currentTarget;
+    try { await navigator.clipboard.writeText(password); b.textContent = 'Copied'; }
+    catch (err) { toast('Could not copy', 'Write it down from the screen instead.', 'err'); }
+  });
+  return sc;
+}
+
+/* Reception gives a patient a login for their own record (checklist I1):
+   a username they choose and a one-time password, which they replace at
+   their first sign-in. Asking again for someone who already has a login
+   gives them a fresh one-time password (issue_patient_login). */
+function issuePortalLogin(uhid, name) {
+  const first = String(name || '').toLowerCase().replace(/^(md|mst|mrs|mr|dr)\.?\s+/, '').split(/\s+/)[0] || '';
+  const suggestion = first.replace(/[^a-z0-9._-]/g, '');
+  const sc = modal(`
+    <div class="modal-h"><h3>Patient portal login</h3><p>For ${esc(name || uhid)}: lets them see their own record and book appointments from home.</p></div>
+    <div class="modal-b">
+      <label class="label" for="pl-user">Username</label>
+      <input class="field mono" id="pl-user" maxlength="40" value="${esc(suggestion)}" autocomplete="off">
+      <p class="hint">3 to 40 lower-case letters, digits, dots, dashes or underscores. If the patient already has a login, it keeps its username and gets a new one-time password.</p>
+    </div>
+    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Create login</button></div>`);
+  $('[data-ok]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
+    let r;
+    try { r = await API.post(`/patients/${encodeURIComponent(uhid)}/login`, { username: $('#pl-user', sc).value.trim().toLowerCase() }); }
+    catch (err) { toast('No login created', err.message, 'err'); return; }
+    sc.remove();
+    showOneTime('Portal login ready', r.username, r.oneTimePassword,
+      'Give it to the patient on paper. They choose their own password the first time they sign in.');
+  }));
 }
 
 const pinIcon = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor"

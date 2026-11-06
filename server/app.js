@@ -38,6 +38,7 @@ app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next
 app.use('/api', require('./routes/auth'));
 app.use('/api', require('./routes/reference'));
 app.use('/api', require('./routes/audit'));        // before patients: /patients/merge
+app.use('/api', require('./routes/accounts'));
 app.use('/api', require('./routes/patients'));
 app.use('/api', require('./routes/appointments'));
 app.use('/api', require('./routes/wards'));

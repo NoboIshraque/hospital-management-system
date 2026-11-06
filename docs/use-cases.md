@@ -42,6 +42,9 @@ Every demo password is `demo1234`. What each actor may do is decided by `role_pe
 | UC17 | Merge two UHIDs for one person | Hospital Admin, System Admin | `v_possible_duplicates`, `merge_patients()` | 1 |
 | UC18 | See and revoke a consent | Patient | `list_consents()`, `revoke_consent()` | 2 |
 | UC19 | Record an allergy found during a visit | Doctor | `record_allergy()` | 5 |
+| UC20 | Manage staff accounts | Hospital Admin, System Admin | `create_staff_account()`, `reset_password()`, `set_account_active()`, `list_accounts()` | 2 |
+| UC21 | Give a patient a portal login | Receptionist | `issue_patient_login()` | 2 |
+| UC22 | Change your own password | Everyone | `change_password()` | 2 |
 
 ---
 
@@ -314,3 +317,49 @@ database refuses any drug in its class from then on.
 
 **Alternatives:** no open visit → refused (5423); an allergen not in the catalogue, or a severity
 other than Mild, Moderate or Severe → refused.
+
+## UC20 — Manage staff accounts
+
+**Actor:** Hospital Admin, System Admin. **Goal:** every member of staff signs in with their own
+password, and someone who leaves can no longer sign in.
+
+1. On *Staff accounts* the admin sees the accounts they manage: a hospital admin, the receptionist,
+   doctor and lab accounts of their own hospital; the system admin, every staff account.
+2. *New account*: a username, a role, and a name (a doctor's name comes from their doctor record,
+   and the doctor must be posted at that hospital). `create_staff_account()` checks the scope in
+   `require_account_scope()` and stores the account with `must_change_password` set.
+3. The server makes a 12-character one-time password, stores only its bcrypt hash, and shows it
+   once. The admin hands it over in person.
+4. *Reset password* gives a new one-time password; *Switch off* stops the account signing in,
+   without deleting it — its name stays on every log row it wrote.
+
+**Alternatives:** an account outside the admin's scope → refused (5403); a username taken or
+badly formed → refused (1644); a doctor who already has an account → refused; an admin switching
+off their own account → refused.
+
+## UC21 — Give a patient a portal login
+
+**Actor:** Receptionist. **Goal:** a patient can see their own record and book from home.
+
+1. After registering a patient, or from their record, reception chooses *Portal login*, and a
+   username (suggested from the first name).
+2. `issue_patient_login()` creates the patient account with a one-time password and writes
+   `login.issued` to the patient's access log, which they see.
+3. Asked again for a patient who already has a login, it keeps the username and issues a new
+   one-time password — the way a patient who forgot theirs gets back in.
+
+**Alternatives:** a receptionist without `patient.register` → refused (5403); a merged-away UHID
+→ the surviving record gets the login.
+
+## UC22 — Change your own password
+
+**Actor:** everyone. **Goal:** nobody else knows the password.
+
+1. A one-time password signs in, but the server answers every request except `/api/me…` with 403
+   until it is changed, and the console opens on *My account*.
+2. The user gives the current password and a new one: at least 10 characters, not a common
+   password, not containing the username. The server checks it and `change_password()` stores the
+   new hash and clears `must_change_password`.
+
+**Why the rule is length, not symbols:** a long phrase is harder to guess than a short password
+with a digit and a capital, and people do not write it on a note.

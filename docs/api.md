@@ -39,7 +39,14 @@ database refused (see `server/db/errors.js`):
 |---|---|---|---|
 | `POST /api/login` | anyone | `{ username, password }` | `get_login()`, bcrypt in Node, `record_login()` |
 | `POST /api/logout` | signed in | — | — |
-| `GET /api/me` | signed in | — | the session |
+| `GET /api/me` | signed in | — | the session, including `mustChange` |
+| `GET /api/config` | public | — | `{ demo }` — whether the sign-in page lists the demo accounts (`DEMO_MODE=1` in `server/.env`) |
+| `POST /api/me/password` | signed in | `{ current, next }` | the current password is checked with bcrypt, the new one against `lib/passwords.js` (10+ characters, not common, not the username), then `change_password()` |
+| `GET /api/accounts` | hospital admin (own hospital's staff), system admin (all) | — | `list_accounts()` — no hashes |
+| `POST /api/accounts` | hospital admin, system admin | `{ username, role, hospitalId, doctorId, staffName }` → `{ accountId, username, oneTimePassword }` | `create_staff_account()`; the one-time password is made in Node, shown once, stored only as a hash |
+| `POST /api/accounts/:id/reset` | hospital admin, system admin | — → `{ oneTimePassword }` | `reset_password()` |
+| `POST /api/accounts/:id/active` | hospital admin, system admin | `{ active }` | `set_account_active()` — never your own |
+| `POST /api/patients/:uhid/login` | reception (`patient.register`) | `{ username }` → `{ username, oneTimePassword }` | `issue_patient_login()` — creates the patient's portal login, or gives an existing one a new one-time password; logged |
 | `GET /api/hospitals` | public | — | `v_hospital_directory` |
 | `GET /api/departments` | public | — | `department` |
 | `GET /api/districts` | public | — | `v_district_list` |

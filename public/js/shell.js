@@ -28,7 +28,9 @@ const CRUMBS = {
   referrals: 'Referral inbox',
   lab:      'Lab worklist',
   audit:    'Break-glass review',
-  merge:    'Merge records'
+  merge:    'Merge records',
+  account:  'My account',
+  accounts: 'Staff accounts'
 };
 
 /* ------------------------------------------------------------
@@ -136,6 +138,9 @@ const SHELL_READY = (async function start() {
       return;
     }
     session.set(S.account.role);
+    /* A one-time password must be replaced first; the server refuses
+       everything else meanwhile (checklist I1). */
+    if (S.account.mustChange && S.page !== 'account') { location.replace('account.html'); return; }
   } else {
     const sess = session.get();
     if (!sess || !ROLES[sess.role]) { location.replace(LOGIN_HREF); return; }
@@ -179,7 +184,10 @@ const SHELL_READY = (async function start() {
   /* Real links now, not buttons. Separate documents mean the back
      button, middle-click and open-in-new-tab all work — so the nav
      should be marked up as what it actually is. */
-  $('#nav').innerHTML = r.nav.map(([id, label]) =>
+  /* Every role has "My account" (change your password) — online only,
+     since the offline sample accounts have no password to change. */
+  const nav = online ? r.nav.concat([['account', 'My account']]) : r.nav;
+  $('#nav').innerHTML = nav.map(([id, label]) =>
     `<a href="${id}.html${patientQuery()}" data-page="${id}"${id === S.page ? ' class="on" aria-current="page"' : ''}><span class="ic">${icon(id)}</span>${label}</a>`).join('');
 
   $('#signout').addEventListener('click', signOut);

@@ -320,10 +320,18 @@ CREATE TABLE user_account (
   patient_id    INT UNSIGNED      NULL,
   doctor_id     SMALLINT UNSIGNED NULL,
   is_active     BOOLEAN           NOT NULL DEFAULT TRUE,
+  -- A password an administrator or the reception desk set (a new account, a
+  -- reset) is known to someone other than its owner, so it must be changed
+  -- at the next sign-in; until then the account can do nothing else.
+  must_change_password BOOLEAN   NOT NULL DEFAULT FALSE,
+  password_changed_at  DATETIME  NULL,
   last_login_at DATETIME          NULL,
   created_at    DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (account_id),
   UNIQUE KEY uq_account_username (username),
+  -- Plain ASCII usernames: MySQL compares text ignoring accents and width,
+  -- so 'sýsadmin' would otherwise name the account 'sysadmin'.
+  CONSTRAINT ck_account_username CHECK (REGEXP_LIKE(username, '^[a-z0-9._-]{3,40}$', 'c')),
   UNIQUE KEY uq_account_patient (patient_id),
   UNIQUE KEY uq_account_doctor (doctor_id),
   KEY ix_account_role (role_id),

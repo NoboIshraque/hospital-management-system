@@ -117,6 +117,7 @@ function drawRecord(root, p) {
       </div>
       <div class="pt-actions">
         ${S.role === 'doctor' && API.online ? `<a class="btn primary" href="encounter.html?uhid=${encodeURIComponent(p.uhid)}">Record encounter</a>` : ''}
+        ${S.role === 'receptionist' && API.online ? '<button class="btn" id="portal-btn">Portal login&hellip;</button>' : ''}
         ${isSelf ? '' : `<button class="btn" id="consent-btn">Access basis: ${esc((BASIS_LABEL[access.basis] || access.basis).toLowerCase())}</button>`}
         <button class="btn ghost" id="print-btn">Print record</button>
       </div>
@@ -149,6 +150,7 @@ function drawRecord(root, p) {
   const consentBtn = $('#consent-btn');
   if (consentBtn) consentBtn.addEventListener('click', () => showConsent(p, access));
   $('#print-btn').addEventListener('click', () => window.print());
+  if ($('#portal-btn')) $('#portal-btn').addEventListener('click', () => issuePortalLogin(p.uhid, p.name));
 
   S.tab = 'timeline';
   renderRecordBody();

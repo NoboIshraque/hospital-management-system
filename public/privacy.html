@@ -107,9 +107,12 @@
   <p>
     With the server, accounts live in a <span class="mono">user_account</span> table, each
     password is stored only as a bcrypt hash, and the check happens on the server where the
-    browser cannot reach it. Opened from disk there is no server, so the four demo accounts are
-    checked in JavaScript that anyone can read &mdash; a stand-in for offline demonstration,
-    and nothing more.
+    browser cannot reach it. A new account, or a reset, gets a one-time password that is shown
+    once to the administrator or receptionist who made it and must be replaced at the first
+    sign-in; nobody, administrators included, can read a password back. The demo accounts and
+    their shared password are listed only on a demonstration installation. Opened from disk there
+    is no server, so the four demo accounts are checked in JavaScript that anyone can read &mdash;
+    a stand-in for offline demonstration, and nothing more.
   </p>
 
   <h2>The rules the database enforces</h2>

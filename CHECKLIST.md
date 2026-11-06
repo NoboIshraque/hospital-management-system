@@ -237,16 +237,20 @@ matches what the pages load; every value escaped and every storage access in try
 debounced searches drop stale answers; no secret in git history; the visit transaction releases
 its connection on every path.
 
-## I. Shipment-ready — everything a real deployment needs except the hosting itself (opened 8 Nov 2026)
+## I. Shipment-ready — everything a real deployment needs except the hosting itself (opened 7 Nov 2026)
 
 Found by comparing the app with what a hospital would need on day one. Order = build order: the
 first items block shipping outright. Hosting (I14) is the only part that needs a real server.
 
 **Accounts — blocks shipping**
-- [ ] **I1. Real accounts.** Every account shares `demo1234`, and the login page prints it. Needed:
-      change your own password; an administrator creates staff accounts, resets passwords and
-      switches accounts off; reception issues a patient their portal login with a one-time
-      password; a forced change at first sign-in; the demo account list shown only in demo mode.
+- [x] **I1. Real accounts.** Every account shared `demo1234`, and the login page printed it. Built
+      7 Nov 2026: *My account* (change your own password, 10+ characters, checked in
+      `server/lib/passwords.js`); *Staff accounts* for admins (create, reset, switch off — scope
+      in `require_account_scope()`); *Portal login* for reception on registration and the record;
+      a one-time password, shown once, forced to change at first sign-in (the server answers 403
+      to everything else); the demo list only with `DEMO_MODE=1`. 24 database tests, 14 API
+      checks; browser-tested as admin, system admin, a new receptionist and a new patient, and
+      offline.
 
 **Everyday work that has no screen**
 - [ ] **I2. Appointment lists.** A doctor's day list, a patient's own appointments (with cancel),

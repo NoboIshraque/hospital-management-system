@@ -51,6 +51,12 @@ function requireLogin(req, res, next) {
   if (Date.now() - (account.loginAt || 0) > SHIFT_MS) {
     return req.session.destroy(() => res.status(401).json({ error: 'Your session has ended. Please sign in again.' }));
   }
+  // A one-time password (new account, reset) must be replaced before the
+  // account may do anything else: only /api/me, /api/me/password and
+  // /api/logout answer until it is (checklist I1).
+  if (account.mustChange && !req.originalUrl.startsWith('/api/me')) {
+    return res.status(403).json({ error: 'Choose your own password before you continue.', mustChangePassword: true });
+  }
   next();
 }
 

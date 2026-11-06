@@ -339,6 +339,40 @@ async function signIn(base, username) {
     r = await rahim('GET', '/api/consents');
     check('…and it now shows as revoked', r.body.find(g => g.id === live.id).status === 'revoked');
 
+    // ---------- accounts and passwords (I1) ----------
+    r = await anon('GET', '/api/config');
+    check('GET /api/config says whether this is a demo installation', r.status === 200 && typeof r.body.demo === 'boolean');
+    const admin = await signIn(base, 'nasima');
+    r = await admin('POST', '/api/accounts', { username: 'desk.two', role: 'receptionist', hospitalId: 1, staffName: 'Desk Two' });
+    check('An admin creates a receptionist and gets a one-time password', r.status === 201 && r.body.oneTimePassword.length === 12);
+    const otp = r.body.oneTimePassword;
+    const fresh = client(base);
+    r = await fresh('POST', '/api/login', { username: 'desk.two', password: otp });
+    check('The new account signs in with it, flagged to change it', r.status === 200 && r.body.mustChange === true);
+    r = await fresh('POST', '/api/patients/search', { q: 'rahim' });
+    check('…and can do nothing else until it does (403)', r.status === 403 && r.body.mustChangePassword === true);
+    r = await fresh('POST', '/api/me/password', { current: otp, next: 'short' });
+    check('A password under 10 characters is refused', r.status === 400);
+    r = await fresh('POST', '/api/me/password', { current: otp, next: 'demo1234' });
+    check('The old shared demo password is refused', r.status === 400);
+    r = await fresh('POST', '/api/me/password', { current: 'wrong-current', next: 'a long new passphrase' });
+    check('The current password must be right', r.status === 400);
+    r = await fresh('POST', '/api/me/password', { current: otp, next: 'a long new passphrase' });
+    check('A good new password is accepted…', r.status === 200);
+    r = await fresh('POST', '/api/patients/search', { q: 'rahim' });
+    check('…and the account works', r.status === 200);
+    r = await admin('GET', '/api/accounts');
+    const deskTwo = r.body.find(a => a.username === 'desk.two');
+    check('The admin sees the account in their list', r.status === 200 && Boolean(deskTwo) && deskTwo.active === true);
+    r = await admin('POST', `/api/accounts/${deskTwo.id}/active`, { active: false });
+    check('…switches it off', r.status === 200);
+    r = await client(base)('POST', '/api/login', { username: 'desk.two', password: 'a long new passphrase' });
+    check('…and it can no longer sign in', r.status === 401);
+    r = await rezaul('POST', '/api/accounts', { username: 'sneaky', role: 'receptionist', hospitalId: 1, staffName: 'S' });
+    check('A receptionist cannot create accounts (403)', r.status === 403);
+    r = await rezaul('POST', '/api/patients/BD-2020-27615-1/login', { username: 'shirin' });
+    check('Reception issues a patient her portal login', r.status === 201 && r.body.username === 'shirin' && r.body.oneTimePassword.length === 12);
+
     // ---------- least privilege ----------
     let denied = false;
     try { await pool.query('SELECT * FROM patient'); } catch (e) { denied = e.errno === 1142; }
