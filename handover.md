@@ -1,15 +1,18 @@
 # Handover — where the project stands
 
-Written 1 November 2026, at the end of the session that took the project from "schema only" to a
-running system. Read this first in the next session, then `CLAUDE.md`.
+Written 1 November 2026; brought up to date 6 November 2026. Read this first in the next
+session, then `CLAUDE.md`.
 
 ## In one paragraph
 
-Every item in `CHECKLIST.md` is done, verified, committed and pushed (last commit `d1574fb`).
-The database, the Express API, the frontend wired to the API, the documentation, the viva demo
-script and the three learning guides all exist and are tested. Item 1 below (the ER document and
-diagrams lagging the schema) was **finished on 1 November 2026**. Item 2 (screens) was **finished the same day**. **Two things are still not done**: Abir and Noria
-have not started their guides; and the laptop is short of memory. Details below.
+**The project is finished.** Every item in `CHECKLIST.md`, sections A to G, is done, verified,
+committed and pushed. The database, the Express API, the frontend wired to the API, a screen for
+every role, the documentation, the viva demo script, the three learning guides, and every finding
+of the 1 November security review (fixed, or left on purpose with a written reason) all exist and
+are tested: `npm run db:test` 145 pass, `npm run api:test` 88 pass, `npm run race` 5/5.
+Submission is **8 November 2026**. What remains is the team's, not the code's: rehearse the demo,
+open the two Chen diagrams in draw.io once, and Abir and Noria's guides. The laptop is still
+short of memory — close heavy programs before the demo. Details below.
 
 ---
 
@@ -162,5 +165,4 @@ Then tell Claude: *"Read handover.md and CLAUDE.md, and pick up from there."*
   printed in `docs/guides/*.md`.
 - **Git:** work on `main`, commit and push after each verified piece, no force-push, no rebase,
   and no Claude attribution in commit messages (CLAUDE.md "Git").
-- The original deadline in CLAUDE.md, 25 October 2026, has passed. The team's own target was
-  7 November 2026. Confirm the real submission date with the teacher.
+- Submission is **8 November 2026** (confirmed by the author 6 November).

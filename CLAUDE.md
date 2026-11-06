@@ -9,9 +9,9 @@ health-record system. Every patient gets one **UHID** on first contact with any 
 and their record follows them to every other connected hospital in the country.
 
 Author: Nobo Ishraque, Dept. of ICT, Bangladesh University of Professionals.
-Final deadline: **7 November 2026** (the original 25 October date passed; the team's target,
-confirmed by the author 1 Nov 2026). Frontend must be presentable **immediately** — it is
-being shown to the course teacher.
+Submission date: **8 November 2026** — the real date, confirmed by the author 6 Nov 2026 (the
+original 25 October passed; 7 November was the team's own target). Frontend must be presentable
+**immediately** — it is being shown to the course teacher.
 
 **This is a DBMS course, not a web development course.** The database carries the marks.
 The frontend exists to demonstrate the database. Do not let UI polish crowd out schema work.

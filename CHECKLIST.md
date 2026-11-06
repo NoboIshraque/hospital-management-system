@@ -1,6 +1,7 @@
 # Checklist — finishing the UHID system
 
-Written 31 October 2026. Target: everything below done by **7 November 2026**.
+Written 31 October 2026. Target: everything below done by **7 November 2026**; submission is
+8 November 2026. Every item was done by 6 November.
 Items are in build order: each one depends only on the ones above it.
 Tick an item only when it has been run and checked, not when it has been written.
 
