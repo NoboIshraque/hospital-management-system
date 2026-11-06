@@ -167,11 +167,11 @@ function drawEncounter(root, p, noBasis) {
 
       <div class="side-panel">
         <div class="card">
-          <h3>${esc(p.name)}</h3>
+          <h3>${p.name && p.name !== p.uhid ? esc(p.name) : 'Patient'}</h3>
           <span class="uhid">${esc(p.uhid)}</span>
           <div class="pt-facts">
-            <div><span class="k">Age / sex</span>${ageFrom(p.dob)} &middot; ${esc(p.sex || '—')}</div>
-            <div><span class="k">Blood</span>${esc(p.blood || '—')}</div>
+            ${p.dob ? `<div><span class="k">Age / sex</span>${ageFrom(p.dob)} &middot; ${esc(p.sex || '—')}</div>` : ''}
+            ${p.blood ? `<div><span class="k">Blood</span>${esc(p.blood)}</div>` : ''}
             <div><span class="k">At</span>${esc(hospital(S.account.hospitalId).name)}</div>
           </div>
         </div>
