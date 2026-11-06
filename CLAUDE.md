@@ -349,7 +349,11 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   checks the caller's hospital (wards, cancel, merge), an encounter is written only by its own
   doctor (or the admitting department for an inpatient), `start_encounter()` needs a basis or a
   reviewed reason, and `treating` means the reader's own encounter or department.
-- **`CHECKLIST.md`**: every section, A–G, is done and verified (G by 6 Nov 2026).
+- **`CHECKLIST.md`**: sections A–G are done and verified (G by 6 Nov 2026). **Section H is open:**
+  the 7 Nov 2026 stress test (three agents: database, server, frontend and docs) — 7 items to fix
+  before the viva (H1: concurrent admission to one bed, merge chains, merge with two open
+  admissions, revoked consent vs referral, admission granting access, login-limit bypass, doc
+  counts), 14 should-fix (H2), and low-priority polish (H3). Each item says how it was found.
   New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
   small version of one slice of the database and backend: Nobo the hardest (transactions,
