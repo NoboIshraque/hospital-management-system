@@ -213,6 +213,11 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
 - **No controllers/ or services/ layer, on purpose.** The stored procedures are the service
   layer; a route validates input, calls one procedure (or a few, in one transaction), and shapes
   the result. Business rules go in `database/`, never in a route.
+- **No stored procedure, function or trigger ever builds SQL from text** — no `PREPARE`, no
+  `CONCAT` into a statement; every value is a typed parameter. Procedures run with root's rights
+  (that is how `uhid_app` reaches tables it cannot touch), so one injectable procedure would be
+  injection as root. This is accepted risk D2 in `er-design.md` §8.4, and this rule is what makes
+  it acceptable. (`PREPARE` in `grants.sql` and in `tests.sql`'s helpers is root-only setup.)
 - **Run `npm run api:test` before committing any change in `server/`.**
 - **Run `npm run db:test` (in `server/`) before committing any change in `database/`.** It
   rebuilds, runs `database/tests.sql`, and rebuilds again; it exits non-zero if any test fails.
@@ -330,15 +335,16 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   delete it when those are dealt with.
 - **Security review, 1 Nov 2026** (33 items: https://claude.ai/artifact/5DUs8QRcx7Ztc31xjqNZE5 ).
   Group 1, "fix before the viva", is **done** (6 Nov 2026; `er-design.md` §8.3 lists each rule).
-  **Still open: groups 2–4** — going live (login rate limit S1, per-account passwords S2, HTTPS
-  S3, security headers W3, MySQL session store S4, …), hardening (L2 review verdicts, A7 masked
-  NID on the receptionist's record read, S5 idle timeout, …) and the accepted risks to write
-  down (A10, D2, L4). These are `CHECKLIST.md` G6: decide with the author which, if any, to do.
+  Group 4, the accepted risks (A10, D2, L4) and what is out of scope, is **written down** in
+  `er-design.md` §8.4 (6 Nov 2026). **Still open: groups 2–3** — going live (login rate limit S1,
+  per-account passwords S2, HTTPS S3, security headers W3, MySQL session store S4, …) and
+  hardening (L2 review verdicts, A7 masked NID on the receptionist's record read, S5 idle
+  timeout, …). These are `CHECKLIST.md` G6: decide with the author which, if any, to do.
 - **Scope rules the procedures now enforce — keep them when changing a procedure:** an action
   checks the caller's hospital (wards, cancel, merge), an encounter is written only by its own
   doctor (or the admitting department for an inpatient), `start_encounter()` needs a basis or a
   reviewed reason, and `treating` means the reader's own encounter or department.
-- **`CHECKLIST.md`**: sections A–F done and verified by 1 Nov 2026; G1–G5 by 6 Nov 2026; G6 open.
+- **`CHECKLIST.md`**: sections A–F done and verified by 1 Nov 2026; G1–G5 and G7 by 6 Nov 2026; G6 open.
   New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
   small version of one slice of the database and backend: Nobo the hardest (transactions,

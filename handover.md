@@ -43,8 +43,9 @@ appointment, referral, consent or admission — or a reviewed reason — to open
 "treating" is the doctor's own encounter or department; ward actions, cancellations and merges
 are limited to the caller's hospital; only an encounter's own doctor writes into it; there is no
 national patient list (a masked, logged search instead); and opening a record is a POST.
-`docs/er-design.md` §8.3 lists each rule. **Still open: G6**, the review's groups 2–4 (going
-live, hardening, accepted risks) — decide with the author.
+`docs/er-design.md` §8.3 lists each rule. The accepted risks (group 4) are written down in §8.4.
+**Still open: G6**, the review's groups 2–3 (going
+live, hardening) — decide with the author.
 
 Found on the way: `t_value` in `tests.sql` had never recorded a result (an error handler
 swallowed a collation error in its own INSERT), so `db:test` was really checking 74 of its 101

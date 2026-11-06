@@ -879,8 +879,26 @@ and its error number. The finding IDs are the review's.
 
 Two related changes sit outside the database: opening a record became `POST
 /api/patients/:uhid/read` (a `GET` could be triggered by a link on another website, W1), and two
-`<option>` lists in `book.js` gained the `esc()` they were missing (I2). The review's other groups
-— going live, hardening, accepted risks — are listed in `CHECKLIST.md` §G6.
+`<option>` lists in `book.js` gained the `esc()` they were missing (I2). The review's accepted
+risks are §8.4; its other groups — going live, hardening — are listed in `CHECKLIST.md` §G6.
+
+### 8.4 Accepted risks — the limits of this design, written down (6 November 2026)
+
+Every design has a point where it stops defending and starts trusting. These are this project's,
+named so that nobody mistakes them for oversights. Each is normal for the architecture; each says
+what a real deployment would do instead.
+
+| ID | The risk | Why it is accepted here | What protects against it | A real deployment would add |
+|---|---|---|---|---|
+| A10 | **The database trusts the account id the server passes in.** Every procedure takes `p_account_id`, and the database cannot check that the person behind the browser really is that account. A fully compromised web server could act as any user. | One application account (`uhid_app`) connects for everyone, which is how almost every web system uses its database. Giving each of thousands of staff their own MySQL login does not scale and moves the same trust elsewhere. | The id comes only from the server-side session (`req.session.account.id`), never from the request; a cookie holds a signed random session id and nothing else. Every procedure still re-checks the account is active and has the permission, live. | Run the web server with nothing else on its machine; keep the MySQL root password off it (review item D3); monitor the access log for one account acting at impossible volume. |
+| D2 | **Procedures run with root's rights** (`SQL SECURITY DEFINER`, MySQL's default, and root created them). A procedure with an injection flaw would let an attacker run SQL as root. | This is the mechanism decision 2 rests on: `uhid_app` has no table rights, so the procedure must have them for it. `SQL SECURITY INVOKER` would make every procedure fail for `uhid_app`. | **The written rule: no stored procedure, function or trigger ever builds SQL from text** — no `PREPARE`, no `CONCAT` into a statement. Every value is a typed parameter, so there is nothing to inject into. Checked 6 Nov 2026: the only `PREPARE` in `database/` is in `grants.sql` (run once by root to create the user) and in `tests.sql`'s test helpers (dropped by the rebuild that follows every test run). On the Node side, every query passes values as `?` parameters. | A dedicated low-privilege definer account that owns the procedures instead of root, holding exactly the table rights they need. |
+| L4 | **Root can `TRUNCATE` or `DROP` the access log.** The triggers that make `access_log` append-only fire on `UPDATE` and `DELETE` rows; `TRUNCATE` and `DROP` fire no trigger, and root can also drop the triggers themselves. | No database can protect a table from its own administrator. The protection that matters for this system is against the application, and `uhid_app` has no `DELETE`, `TRUNCATE`, `DROP` or `ALTER` on anything (`grants.sql`, verified). | `uhid_app` cannot touch the log except through `get_patient_record()` and `review_break_glass()`; the triggers refuse any edit apart from the one review stamp. | Copy each log row as it is written to separate append-only storage that the database administrator cannot alter (a log server, or write-once storage), so deleting it here leaves the copy. |
+
+**Out of scope for a course project**, and named here so the report can say so plainly: multi-factor
+login; encryption of the database files at rest; backups and a tested restore; penetration testing
+by someone other than the builders; and compliance with health-data law. A system holding real
+patients' records would need every one of these before it went live, and the landing page already
+says this project is not a live service.
 
 Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
 135 tests that check every constraint, trigger and procedure rejects what §4 says it must.

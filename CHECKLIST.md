@@ -103,4 +103,7 @@ The review: https://claude.ai/artifact/5DUs8QRcx7Ztc31xjqNZE5 — 33 items in fo
       (76 pass), browser-tested as receptionist, doctor and hospital admin and offline. On the way,
       `t_value` in tests.sql was found to have recorded nothing since it was written; fixed, so
       `db:test` now really runs 135 checks.*
-- [ ] **G6.** Groups 2–4 of the review (going live, hardening, accepted risks) — decide with the author.
+- [ ] **G6.** Groups 2–3 of the review (going live, hardening) — decide with the author.
+- [x] **G7.** Group 4 — accepted risks A10, D2, L4 and what is out of scope, written down in
+      `docs/er-design.md` §8.4, each claim checked against the code (6 Nov 2026). D2's rule — no
+      procedure builds SQL from text — is now a code convention in CLAUDE.md.
