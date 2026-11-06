@@ -25,3 +25,6 @@ desktop.ini
 # Local database dumps that aren't part of the deliverable
 database/local-*.sql
 database/*.bak
+
+# Claude Code's local tool settings (preview server config) — per laptop
+.claude/

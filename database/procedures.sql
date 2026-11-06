@@ -69,6 +69,12 @@ BEGIN
      WHERE ua.account_id = p_account_id
        AND ua.is_active
        AND p.code = p_code
+       -- A deactivated hospital or doctor takes its accounts' rights with it
+       -- (stress test H3.1): switching off a hospital must switch off its staff.
+       AND (ua.hospital_id IS NULL OR EXISTS (SELECT 1 FROM hospital h
+                                               WHERE h.hospital_id = ua.hospital_id AND h.is_active))
+       AND (ua.doctor_id IS NULL OR EXISTS (SELECT 1 FROM doctor d
+                                             WHERE d.doctor_id = ua.doctor_id AND d.is_active))
   );
 END $$
 
@@ -80,11 +86,87 @@ CREATE FUNCTION resolve_patient(p_uhid VARCHAR(20))
 RETURNS INT UNSIGNED
 READS SQL DATA
 BEGIN
-  DECLARE v_id   INT UNSIGNED;
-  DECLARE v_surv INT UNSIGNED;
+  DECLARE v_id    INT UNSIGNED;
+  DECLARE v_surv  INT UNSIGNED;
+  DECLARE v_hops  TINYINT UNSIGNED DEFAULT 0;
   SELECT patient_id INTO v_id FROM patient WHERE uhid = p_uhid;
-  SELECT surviving_patient_id INTO v_surv FROM patient_merge WHERE losing_patient_id = v_id;
-  RETURN COALESCE(v_surv, v_id);
+  -- Follow the WHOLE chain (stress test H1.2): A merged into B, then B into
+  -- C, must lead from A to C, not stop at the empty B. A record can be the
+  -- losing side of only one merge (patient_merge's key), so the chain cannot
+  -- branch; the hop limit only guards against a loop that the merge rules
+  -- already make impossible.
+  WHILE v_id IS NOT NULL AND v_hops < 50 DO
+    SET v_surv = NULL;
+    SELECT surviving_patient_id INTO v_surv FROM patient_merge WHERE losing_patient_id = v_id;
+    IF v_surv IS NULL THEN
+      RETURN v_id;
+    END IF;
+    SET v_id = v_surv, v_hops = v_hops + 1;
+  END WHILE;
+  RETURN v_id;
+END $$
+
+-- A Bangladeshi mobile number as its 11 local digits: '01711-482031',
+-- '+880 1711 482031' and '8801711482031' all become '01711482031'.
+-- Searches and the registration check compare numbers in this form, so a
+-- country code or spacing never hides a duplicate (stress test H3.1).
+DROP FUNCTION IF EXISTS local_phone $$
+CREATE FUNCTION local_phone(p_phone VARCHAR(30))
+RETURNS VARCHAR(30)
+DETERMINISTIC NO SQL
+BEGIN
+  DECLARE v_d VARCHAR(30) DEFAULT REGEXP_REPLACE(COALESCE(p_phone, ''), '[^0-9]', '');
+  IF CHAR_LENGTH(v_d) = 13 AND LEFT(v_d, 3) = '880' THEN
+    RETURN CONCAT('0', SUBSTRING(v_d, 4));
+  END IF;
+  RETURN v_d;
+END $$
+
+-- Does a clinician have a reason, already in the database, to be seeing this
+-- patient at this hospital? Used before an encounter is opened and before
+-- an admission (decision 2: an encounter or an admission makes a doctor
+-- 'treating', so neither may be a quiet way in).
+--   an appointment today, with this doctor (or, for an admission, any doctor
+--     here), booked by the patient or by staff of this hospital
+--   a referral to this hospital whose consent grant is still live
+--   a live consent grant to this hospital (and to this doctor, if it names one)
+--   an open admission here
+--   for an admission only: a visit at this hospital that began today
+-- p_doctor NULL = the question is asked for the hospital (an admission).
+DROP FUNCTION IF EXISTS care_basis $$
+CREATE FUNCTION care_basis(p_patient INT UNSIGNED, p_hospital SMALLINT UNSIGNED, p_doctor SMALLINT UNSIGNED)
+RETURNS BOOLEAN
+READS SQL DATA
+BEGIN
+  RETURN
+       EXISTS (SELECT 1 FROM appointment a
+                 JOIN doctor_posting dp ON dp.posting_id = a.posting_id
+                 JOIN user_account bk   ON bk.account_id = a.booked_by
+                WHERE a.patient_id = p_patient AND a.status = 'booked'
+                  AND DATE(a.slot_start) = CURDATE()
+                  AND dp.hospital_id = p_hospital
+                  AND (p_doctor IS NULL OR a.doctor_id = p_doctor)
+                  -- Stress test H2.9: a booking made by a receptionist at some
+                  -- other hospital is not a reason to be seeing the patient here.
+                  AND (bk.patient_id <=> p_patient OR bk.hospital_id <=> p_hospital))
+    OR EXISTS (SELECT 1 FROM referral r
+                 JOIN consent_grant g ON g.referral_id = r.referral_id
+                WHERE r.patient_id = p_patient AND r.to_hospital_id = p_hospital
+                  AND r.status = 'issued'
+                  -- Stress test H1.4: the referral counts only while the consent
+                  -- it carried is live. A patient who revokes it closes this door too.
+                  AND g.revoked_at IS NULL AND NOW() BETWEEN g.granted_at AND g.expires_at)
+    OR EXISTS (SELECT 1 FROM consent_grant g
+                WHERE g.patient_id = p_patient AND g.to_hospital_id = p_hospital
+                  AND (g.to_doctor_id IS NULL OR g.to_doctor_id <=> p_doctor)
+                  AND g.scope IN ('clinical', 'full') AND g.revoked_at IS NULL
+                  AND NOW() BETWEEN g.granted_at AND g.expires_at)
+    OR EXISTS (SELECT 1 FROM admission a JOIN encounter e ON e.encounter_id = a.encounter_id
+                WHERE e.patient_id = p_patient AND e.hospital_id = p_hospital
+                  AND a.discharged_at IS NULL)
+    OR (p_doctor IS NULL AND EXISTS (SELECT 1 FROM encounter e
+                WHERE e.patient_id = p_patient AND e.hospital_id = p_hospital
+                  AND e.started_at >= CURDATE()));
 END $$
 
 -- The name to show for an account: the patient's or doctor's own name, or
@@ -127,6 +209,17 @@ BEGIN
   IF p_patient_id IS NULL THEN
     SET v_msg = CONCAT('No patient holds UHID ', COALESCE(p_uhid, '(blank)'), '.');
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg, MYSQL_ERRNO = 5404;
+  END IF;
+END $$
+
+-- A patient recorded as having died is not booked, seen or admitted again
+-- (stress test H2.11). The record stays readable; it just takes no new care.
+DROP PROCEDURE IF EXISTS require_alive $$
+CREATE PROCEDURE require_alive(IN p_patient_id INT UNSIGNED)
+BEGIN
+  IF EXISTS (SELECT 1 FROM admission a JOIN encounter e ON e.encounter_id = a.encounter_id
+              WHERE e.patient_id = p_patient_id AND a.outcome = 'died') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'This patient is recorded as having died.';
   END IF;
 END $$
 
@@ -271,7 +364,9 @@ BEGIN
   DECLARE v_serial5   CHAR(5);
   DECLARE v_uhid      CHAR(15);
   DECLARE v_patient   INT UNSIGNED;
-  DECLARE v_nid       VARCHAR(17) DEFAULT NULLIF(TRIM(p_nid), '');
+  -- Spaces and dashes typed in an NID are dropped, so '1978 4199 2304 1'
+  -- and '1978419923041' are one NID, not two (stress test H2.7).
+  DECLARE v_nid       VARCHAR(17) DEFAULT NULLIF(REGEXP_REPLACE(COALESCE(p_nid, ''), '[ -]', ''), '');
   DECLARE v_list      VARCHAR(500) DEFAULT NULLIF(TRIM(p_allergies), '');
   DECLARE v_item      VARCHAR(80);
   DECLARE v_allergen  SMALLINT UNSIGNED;
@@ -290,8 +385,14 @@ BEGIN
   IF NULLIF(TRIM(p_name), '') IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Enter the full name before issuing a UHID.';
   END IF;
-  IF p_dob IS NULL OR p_dob > CURDATE() THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Enter a date of birth that is not in the future.';
+  IF p_dob IS NULL OR p_dob > CURDATE() OR p_dob < '1900-01-01' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Enter a real date of birth: not in the future, not before 1900.';
+  END IF;
+  IF v_nid IS NOT NULL AND NOT REGEXP_LIKE(v_nid, '^([0-9]{10}|[0-9]{13}|[0-9]{17})$') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A national ID has 10, 13 or 17 digits.';
+  END IF;
+  IF NULLIF(TRIM(p_phone), '') IS NOT NULL AND NOT REGEXP_LIKE(TRIM(p_phone), '^[+]?[0-9][0-9 -]{6,18}[0-9]$') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Enter the mobile number as digits, e.g. 01711-482031.';
   END IF;
 
   IF NULLIF(TRIM(p_district), '') IS NOT NULL THEN
@@ -331,7 +432,7 @@ BEGIN
      identity_verified, verified_by, verified_at)
   VALUES
     (v_uhid, TRIM(p_name), p_dob, p_sex, COALESCE(NULLIF(p_blood, ''), 'Unknown'),
-     p_phone, v_nid, v_district, NULLIF(TRIM(p_address), ''),
+     NULLIF(TRIM(p_phone), ''), v_nid, v_district, NULLIF(TRIM(p_address), ''),
      NULLIF(TRIM(p_kin_name), ''), NULLIF(TRIM(p_kin_relation), ''), NULLIF(TRIM(p_kin_phone), ''),
      CURDATE(), v_hospital,
      v_nid IS NOT NULL,
@@ -428,16 +529,16 @@ BEGIN
     INSERT INTO tmp_search
     SELECT resolve_patient(UPPER(v_q)), 'UHID' FROM DUAL WHERE resolve_patient(UPPER(v_q)) IS NOT NULL;
 
-  ELSEIF NOT REGEXP_LIKE(v_q, '[[:alpha:]]') AND CHAR_LENGTH(v_digits) IN (10, 13, 17) THEN
+  ELSEIF NOT REGEXP_LIKE(v_q, '[[:alpha:]]') AND LEFT(v_q, 1) <> '+' AND CHAR_LENGTH(v_digits) IN (10, 13, 17) THEN
     INSERT INTO tmp_search
     SELECT p.patient_id, 'NID' FROM patient p
      WHERE p.nid = v_digits
        AND NOT EXISTS (SELECT 1 FROM patient_merge m WHERE m.losing_patient_id = p.patient_id);
 
-  ELSEIF NOT REGEXP_LIKE(v_q, '[[:alpha:]]') AND CHAR_LENGTH(v_digits) = 11 THEN
+  ELSEIF NOT REGEXP_LIKE(v_q, '[[:alpha:]]') AND CHAR_LENGTH(local_phone(v_q)) = 11 THEN
     INSERT INTO tmp_search
     SELECT p.patient_id, 'mobile number' FROM patient p
-     WHERE REGEXP_REPLACE(p.phone, '[^0-9]', '') = v_digits
+     WHERE local_phone(p.phone) = local_phone(v_q)
        AND NOT EXISTS (SELECT 1 FROM patient_merge m WHERE m.losing_patient_id = p.patient_id)
      ORDER BY p.name LIMIT 20;
 
@@ -474,9 +575,9 @@ CREATE PROCEDURE registration_matches(
   IN p_ip         VARCHAR(45)
 )
 BEGIN
-  DECLARE v_nid    VARCHAR(17)  DEFAULT NULLIF(TRIM(p_nid), '');
+  DECLARE v_nid    VARCHAR(17)  DEFAULT NULLIF(REGEXP_REPLACE(COALESCE(p_nid, ''), '[ -]', ''), '');
   DECLARE v_name   VARCHAR(100) DEFAULT NULLIF(TRIM(p_name), '');
-  DECLARE v_digits VARCHAR(20)  DEFAULT REGEXP_REPLACE(COALESCE(p_phone, ''), '[^0-9]', '');
+  DECLARE v_digits VARCHAR(30)  DEFAULT local_phone(p_phone);
   DECLARE v_like   VARCHAR(220);
 
   CALL require_permission(p_account_id, 'patient.register');
@@ -499,7 +600,7 @@ BEGIN
     FROM patient p
    WHERE (p.nid = v_nid
           OR (p.name LIKE v_like AND p.dob = p_dob)
-          OR (CHAR_LENGTH(v_digits) >= 11 AND REGEXP_REPLACE(p.phone, '[^0-9]', '') = v_digits))
+          OR (CHAR_LENGTH(v_digits) >= 11 AND local_phone(p.phone) = v_digits))
      AND NOT EXISTS (SELECT 1 FROM patient_merge m WHERE m.losing_patient_id = p.patient_id)
    ORDER BY p.name
    LIMIT 10;
@@ -634,6 +735,7 @@ BEGIN
 
   CALL require_permission(p_account_id, 'appointment.book');
   CALL require_patient(p_uhid, v_patient);
+  CALL require_alive(v_patient);
 
   -- A patient may book only for themselves.
   SELECT r.code, ua.patient_id INTO v_role, v_own
@@ -656,6 +758,12 @@ BEGIN
      AND (dp.valid_to IS NULL OR DATE(p_slot_start) <= dp.valid_to);
   IF v_doctor IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That doctor does not hold this posting on that date.', MYSQL_ERRNO = 5404;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM doctor_posting dp
+                   JOIN doctor d   ON d.doctor_id = dp.doctor_id
+                   JOIN hospital h ON h.hospital_id = dp.hospital_id
+                  WHERE dp.posting_id = p_posting_id AND d.is_active AND h.is_active) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That doctor or hospital is not taking bookings.', MYSQL_ERRNO = 5404;
   END IF;
 
   -- Serialise on the DOCTOR, not the posting: one human, one diary, however
@@ -795,12 +903,19 @@ BEGIN
   DECLARE v_grant_exp DATETIME;
   DECLARE v_clinical  BOOLEAN;
 
-  CALL require_patient(p_uhid, v_patient);
-
   SELECT r.code, ua.hospital_id, ua.doctor_id, ua.patient_id
     INTO v_role, v_hospital, v_doctor, v_own
     FROM user_account ua JOIN role r ON r.role_id = ua.role_id
    WHERE ua.account_id = p_account_id AND ua.is_active;
+
+  -- A patient gets the same answer for someone else's UHID and for one that
+  -- does not exist, so the record screen cannot be used to discover which
+  -- UHIDs are real (stress test H3.2).
+  IF v_role = 'patient' AND NOT (resolve_patient(p_uhid) <=> v_own) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A patient can only open their own record.', MYSQL_ERRNO = 5403;
+  END IF;
+
+  CALL require_patient(p_uhid, v_patient);
 
   IF v_role = 'patient' THEN
     IF v_own <> v_patient THEN
@@ -839,10 +954,10 @@ BEGIN
       SET v_basis = 'treating';
     ELSEIF v_grant_exp IS NOT NULL THEN
       SET v_basis = 'consent';
-    ELSEIF p_break_glass AND NULLIF(TRIM(p_justification), '') IS NOT NULL THEN
+    ELSEIF p_break_glass AND CHAR_LENGTH(TRIM(COALESCE(p_justification, ''))) >= 8 THEN
       SET v_basis = 'break_glass';
     ELSEIF p_break_glass THEN
-      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Break-glass access needs a written reason.';
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Break-glass needs a written reason of at least 8 characters.';
     ELSE
       SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'You have no consent grant or open encounter for this patient. Use break-glass only in an emergency.',
@@ -1035,7 +1150,19 @@ BEGIN
   DECLARE v_reason   VARCHAR(300) DEFAULT NULLIF(TRIM(p_reason), '');
 
   CALL require_permission(p_account_id, 'encounter.write');
+
+  -- Without a reason, an unknown UHID gets the same answer as a real patient
+  -- the doctor has no basis for, so UHIDs cannot be probed unlogged
+  -- (stress test H3.2). With a reason, a real UHID leaves a reviewed log row.
+  SET v_patient = resolve_patient(p_uhid);
+  IF v_patient IS NULL AND v_reason IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No appointment today, referral, consent or admission for this patient. Give a reason: it is logged and reviewed.', MYSQL_ERRNO = 5423;
+  END IF;
   CALL require_patient(p_uhid, v_patient);
+  CALL require_alive(v_patient);
+  IF v_reason IS NOT NULL AND CHAR_LENGTH(v_reason) < 8 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Write the reason in at least 8 characters.';
+  END IF;
 
   SELECT type_id INTO v_type FROM encounter_type WHERE code = p_type_code;
   IF v_type IS NULL THEN
@@ -1056,20 +1183,16 @@ BEGIN
 
   -- The basis check (A1). Each line is one reason the doctor may already be
   -- seeing this patient.
-  SET v_basis =
-       EXISTS (SELECT 1 FROM appointment
-                WHERE patient_id = v_patient AND doctor_id = v_doctor
-                  AND status = 'booked' AND DATE(slot_start) = CURDATE())
-    OR EXISTS (SELECT 1 FROM referral
-                WHERE patient_id = v_patient AND to_hospital_id = v_hospital AND status = 'issued')
-    OR EXISTS (SELECT 1 FROM consent_grant
-                WHERE patient_id = v_patient AND to_hospital_id = v_hospital
-                  AND (to_doctor_id IS NULL OR to_doctor_id = v_doctor)
-                  AND scope IN ('clinical', 'full') AND revoked_at IS NULL
-                  AND NOW() BETWEEN granted_at AND expires_at)
-    OR EXISTS (SELECT 1 FROM admission a JOIN encounter e ON e.encounter_id = a.encounter_id
-                WHERE e.patient_id = v_patient AND e.hospital_id = v_hospital
-                  AND a.discharged_at IS NULL);
+  SET v_basis = care_basis(v_patient, v_hospital, v_doctor);
+
+  -- One open visit per doctor and patient (stress test H3.1): a second one
+  -- would split the visit's diagnoses and drugs across two encounters.
+  IF EXISTS (SELECT 1 FROM encounter e JOIN encounter_type t ON t.type_id = e.type_id
+              WHERE e.patient_id = v_patient AND e.posting_id = v_posting
+                AND e.ended_at IS NULL AND t.code <> 'Inpatient') THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'You already have an open visit for this patient. Close it before starting another.';
+  END IF;
 
   IF NOT v_basis AND v_reason IS NULL THEN
     SIGNAL SQLSTATE '45000'
@@ -1109,6 +1232,29 @@ BEGIN
   SELECT v_enc AS encounter_id;
 END $$
 
+-- A visit refused half-way is rolled back whole — including the flagged
+-- access_log row start_encounter wrote for a doctor with no basis. But the
+-- refusal itself may have told the doctor something clinical ("Allergy
+-- conflict: … Penicillin"). So the route calls this AFTER the rollback,
+-- outside the transaction: it writes the same flagged row again, and that
+-- one stays (stress test H2.2). With a basis, or no reason, nothing is
+-- written — there was nothing to review.
+DROP PROCEDURE IF EXISTS log_unsaved_encounter $$
+CREATE PROCEDURE log_unsaved_encounter(IN p_account_id INT UNSIGNED, IN p_uhid VARCHAR(20), IN p_reason VARCHAR(300))
+BEGIN
+  DECLARE v_patient  INT UNSIGNED DEFAULT resolve_patient(p_uhid);
+  DECLARE v_doctor   SMALLINT UNSIGNED;
+  DECLARE v_hospital SMALLINT UNSIGNED;
+  DECLARE v_reason   VARCHAR(300) DEFAULT NULLIF(TRIM(p_reason), '');
+
+  CALL require_permission(p_account_id, 'encounter.write');
+  SELECT doctor_id, hospital_id INTO v_doctor, v_hospital FROM user_account WHERE account_id = p_account_id;
+  IF v_patient IS NOT NULL AND v_reason IS NOT NULL AND NOT care_basis(v_patient, v_hospital, v_doctor) THEN
+    INSERT INTO access_log (patient_id, account_id, hospital_id, action, basis, is_break_glass, justification)
+    VALUES (v_patient, p_account_id, v_hospital, 'encounter.attempt', 'break_glass', TRUE, v_reason);
+  END IF;
+END $$
+
 DROP PROCEDURE IF EXISTS add_diagnosis $$
 CREATE PROCEDURE add_diagnosis(
   IN p_account_id   INT UNSIGNED,
@@ -1129,6 +1275,12 @@ BEGIN
   IF v_dx IS NULL THEN
     SET v_msg = CONCAT('ICD-10 code ', COALESCE(p_icd10, '(blank)'), ' is not in the diagnosis catalogue.');
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+  END IF;
+
+  -- Checked first, so a refused repeat never leaves the visit without a
+  -- primary diagnosis (stress test H3.1).
+  IF EXISTS (SELECT 1 FROM encounter_diagnosis WHERE encounter_id = p_encounter_id AND diagnosis_id = v_dx) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That diagnosis is already recorded on this visit.';
   END IF;
 
   -- One primary diagnosis per encounter: making this one primary demotes
@@ -1164,8 +1316,19 @@ BEGIN
   CALL require_permission(p_account_id, 'prescription.write');
   CALL require_encounter_author(p_account_id, p_encounter_id, TRUE);
 
+  IF NULLIF(TRIM(p_dose), '') IS NULL OR NULLIF(TRIM(p_frequency), '') IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A drug line needs a dose and a frequency.';
+  END IF;
+  IF p_days IS NOT NULL AND (p_days < 1 OR p_days > 365) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Days must be 1 to 365, or empty for a medicine that continues.';
+  END IF;
+
   SELECT ended_at INTO v_ended FROM encounter WHERE encounter_id = p_encounter_id;
   SELECT prescription_id INTO v_rx FROM prescription WHERE encounter_id = p_encounter_id;
+  IF v_rx IS NOT NULL AND EXISTS (SELECT 1 FROM prescription_item
+                                   WHERE prescription_id = v_rx AND medicine_id = p_medicine_id) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That medicine is already on this prescription.';
+  END IF;
 
   IF v_rx IS NULL THEN
     INSERT INTO prescription (encounter_id, prescribed_by) VALUES (p_encounter_id, p_account_id);
@@ -1230,6 +1393,13 @@ BEGIN
                   JOIN user_account ua ON ua.hospital_id = e.hospital_id
                  WHERE o.order_id = p_order_id AND ua.account_id = p_account_id) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That lab order does not exist at your hospital.', MYSQL_ERRNO = 5404;
+  END IF;
+  -- A value 50 times the top of the normal range is a typing or units
+  -- mistake, not a result (stress test H3.1).
+  IF p_value_num IS NOT NULL AND (p_value_num < 0 OR p_value_num > 50 * COALESCE(
+       (SELECT t.ref_high FROM lab_order o JOIN lab_test t ON t.test_id = o.test_id WHERE o.order_id = p_order_id),
+       p_value_num)) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That value is not plausible for this test. Check the number and the units.';
   END IF;
   INSERT INTO lab_result (order_id, value_num, value_text, reported_by)
   VALUES (p_order_id, p_value_num, NULLIF(TRIM(p_value_text), ''), p_account_id);
@@ -1312,6 +1482,7 @@ CREATE PROCEDURE admit_patient(
 BEGIN
   DECLARE v_patient INT UNSIGNED;
   DECLARE v_hosp    SMALLINT UNSIGNED;
+  DECLARE v_basis   BOOLEAN;
   DECLARE v_where   VARCHAR(120);
   DECLARE v_enc     INT UNSIGNED;
   DECLARE v_adm     INT UNSIGNED;
@@ -1331,6 +1502,19 @@ BEGIN
                   WHERE posting_id = p_posting_id AND hospital_id = v_hosp
                     AND CURDATE() >= valid_from AND (valid_to IS NULL OR CURDATE() <= valid_to)) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Choose a consultant who currently works at this hospital.';
+  END IF;
+  CALL require_alive(v_patient);
+
+  -- Stress test H1.5: an admission opens an Inpatient encounter, which makes
+  -- the admitting department 'treating'. So an admission needs the same kind
+  -- of reason an encounter does: a visit here today, an appointment, a live
+  -- referral or consent, or — for a patient with none of these — the
+  -- written reason for admission, logged and reviewed like break-glass.
+  SET v_basis = care_basis(v_patient, v_hosp, NULL);
+  IF NOT v_basis AND CHAR_LENGTH(TRIM(COALESCE(p_complaint, ''))) < 8 THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'No visit, appointment or consent here for this patient. Write the reason for admission; it is reviewed.',
+          MYSQL_ERRNO = 5423;
   END IF;
 
   START TRANSACTION;
@@ -1355,6 +1539,12 @@ BEGIN
   INSERT INTO admission (encounter_id, admitted_at, admitted_by)
   VALUES (v_enc, NOW(), p_account_id);
   SET v_adm = LAST_INSERT_ID();
+
+  IF NOT v_basis THEN
+    INSERT INTO access_log (patient_id, account_id, hospital_id, encounter_id, action, basis,
+                            is_break_glass, justification)
+    VALUES (v_patient, p_account_id, v_hosp, v_enc, 'admission.open', 'break_glass', TRUE, TRIM(p_complaint));
+  END IF;
 
   -- trg_bed_occupancy_bi checks the bed is free, in service and in this
   -- hospital; trg_bed_occupancy_ai then marks it occupied.
@@ -1511,7 +1701,9 @@ BEGIN
   END;
 
   CALL require_permission(p_account_id, 'referral.create');
-  CALL require_own_encounter(p_account_id, p_encounter_id);
+  -- Only the visit's own doctor refers from it (stress test H2.8): a
+  -- referral also grants the receiving hospital 24 hours of consent.
+  CALL require_encounter_author(p_account_id, p_encounter_id, TRUE);
 
   IF NULLIF(TRIM(p_reason), '') IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A referral needs a reason.';
@@ -1520,6 +1712,9 @@ BEGIN
   SELECT patient_id INTO v_patient FROM encounter WHERE encounter_id = p_encounter_id;
   IF NULLIF(p_to_dept, '') IS NOT NULL THEN
     SELECT department_id INTO v_dept FROM department WHERE name = p_to_dept;
+    IF v_dept IS NULL THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Unknown department. Choose one from the list, or leave it empty.';
+    END IF;
   END IF;
 
   START TRANSACTION;
@@ -1598,6 +1793,13 @@ BEGIN
           MYSQL_ERRNO = 5403;
   END IF;
 
+  -- Stress test H1.3: two open admissions would leave one person in two beds.
+  IF (SELECT COUNT(DISTINCT e.patient_id) FROM admission a JOIN encounter e ON e.encounter_id = a.encounter_id
+       WHERE e.patient_id IN (v_lose, v_keep) AND a.discharged_at IS NULL) = 2 THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Both records have an open admission. Discharge one of them before merging.';
+  END IF;
+
   START TRANSACTION;
   SET @uhid_merging = 1;
 
@@ -1606,15 +1808,27 @@ BEGIN
   UPDATE referral      SET patient_id = v_keep WHERE patient_id = v_lose;
   UPDATE consent_grant SET patient_id = v_keep WHERE patient_id = v_lose;
 
-  -- An allergy recorded on both keeps the surviving record's row.
+  -- An allergy recorded on both keeps the surviving record's row, at the
+  -- MORE severe of the two (stress test H2.10): a merge must never make a
+  -- recorded reaction look milder.
+  UPDATE patient_allergy k
+    JOIN patient_allergy l ON l.allergen_id = k.allergen_id AND l.patient_id = v_lose
+     SET k.severity = l.severity
+   WHERE k.patient_id = v_keep
+     AND FIELD(l.severity, 'Mild', 'Moderate', 'Severe') > FIELD(k.severity, 'Mild', 'Moderate', 'Severe');
   INSERT IGNORE INTO patient_allergy (patient_id, allergen_id, severity, note, first_recorded_encounter_id, recorded_at)
   SELECT v_keep, allergen_id, severity, note, first_recorded_encounter_id, recorded_at
     FROM patient_allergy WHERE patient_id = v_lose;
   DELETE FROM patient_allergy WHERE patient_id = v_lose;
 
   -- A login moves only if the survivor has none (one account per person).
+  -- Otherwise the old login would point at a merged-away record and its
+  -- owner could not open their own history; it is switched off instead, and
+  -- they sign in with the survivor's login (stress test H2.10).
   IF NOT EXISTS (SELECT 1 FROM user_account WHERE patient_id = v_keep) THEN
     UPDATE user_account SET patient_id = v_keep WHERE patient_id = v_lose;
+  ELSE
+    UPDATE user_account SET is_active = FALSE WHERE patient_id = v_lose;
   END IF;
 
   -- The NID moves to the survivor if only the losing record had one.
@@ -1629,6 +1843,104 @@ BEGIN
 
   SET @uhid_merging = NULL;
   COMMIT;
+END $$
+
+
+-- =====================================================================
+-- 10b. LISTS WITH CLINICAL CONTENT — read through procedures, not views
+--
+-- v_bed_board (diagnoses), v_referral_inbox (referral reasons) and
+-- v_break_glass_queue (emergency reasons) hold clinical content. A view
+-- cannot check who is asking, so the web server may not read them
+-- directly (grants.sql); it calls these, which check the permission and
+-- keep to the caller's own hospital in the database (stress test H2.3,
+-- H2.4). The views stay, for these procedures and for queries as root.
+-- =====================================================================
+
+DROP PROCEDURE IF EXISTS bed_board $$
+CREATE PROCEDURE bed_board(IN p_account_id INT UNSIGNED)
+BEGIN
+  CALL require_permission(p_account_id, 'bed.view');
+  SELECT v.* FROM v_bed_board v JOIN user_account ua ON ua.hospital_id = v.hospital_id
+   WHERE ua.account_id = p_account_id
+   ORDER BY v.ward_id, v.no;
+END $$
+
+DROP PROCEDURE IF EXISTS referral_inbox $$
+CREATE PROCEDURE referral_inbox(IN p_account_id INT UNSIGNED)
+BEGIN
+  CALL require_permission(p_account_id, 'patient.read_clinical');
+  SELECT v.* FROM v_referral_inbox v JOIN user_account ua ON ua.hospital_id = v.toHospitalId
+   WHERE ua.account_id = p_account_id
+   ORDER BY v.referredAt;
+END $$
+
+DROP PROCEDURE IF EXISTS break_glass_queue $$
+CREATE PROCEDURE break_glass_queue(IN p_account_id INT UNSIGNED)
+BEGIN
+  CALL require_permission(p_account_id, 'audit.review');
+  -- A hospital admin sees their own hospital's queue; the system admin
+  -- (no hospital) sees the country's.
+  SELECT v.* FROM v_break_glass_queue v JOIN user_account ua ON ua.account_id = p_account_id
+   WHERE ua.hospital_id IS NULL OR v.hospitalId = ua.hospital_id
+   ORDER BY v.at DESC;
+END $$
+
+-- A doctor records an allergy found during a visit (stress test H2.10:
+-- until now an allergy could be recorded only at registration). Only from
+-- the doctor's own open visit — the same 'treating' rule as reading —
+-- and the visit is kept as where it was first recorded. Recording it again
+-- updates the severity and note.
+DROP PROCEDURE IF EXISTS record_allergy $$
+CREATE PROCEDURE record_allergy(
+  IN p_account_id INT UNSIGNED,
+  IN p_uhid       VARCHAR(20),
+  IN p_allergen   VARCHAR(80),
+  IN p_severity   VARCHAR(10),
+  IN p_note       VARCHAR(200)
+)
+BEGIN
+  DECLARE v_patient  INT UNSIGNED;
+  DECLARE v_doctor   SMALLINT UNSIGNED;
+  DECLARE v_hospital SMALLINT UNSIGNED;
+  DECLARE v_enc      INT UNSIGNED;
+  DECLARE v_allergen SMALLINT UNSIGNED;
+  DECLARE v_msg      VARCHAR(200);
+
+  CALL require_permission(p_account_id, 'encounter.write');
+  CALL require_patient(p_uhid, v_patient);
+  SELECT doctor_id, hospital_id INTO v_doctor, v_hospital FROM user_account WHERE account_id = p_account_id;
+
+  SELECT e.encounter_id INTO v_enc
+    FROM encounter e
+    JOIN doctor_posting dp ON dp.posting_id = e.posting_id
+    JOIN encounter_type t  ON t.type_id = e.type_id
+   WHERE e.patient_id = v_patient AND e.hospital_id = v_hospital AND e.ended_at IS NULL
+     AND (t.code <> 'OPD' OR e.started_at >= CURDATE())
+     AND (dp.doctor_id = v_doctor
+          OR e.department_id IN (SELECT mine.department_id FROM doctor_posting mine
+                                  WHERE mine.doctor_id = v_doctor AND mine.hospital_id = v_hospital
+                                    AND CURDATE() >= mine.valid_from
+                                    AND (mine.valid_to IS NULL OR CURDATE() <= mine.valid_to)))
+   ORDER BY e.started_at DESC
+   LIMIT 1;
+  IF v_enc IS NULL THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Record an allergy from an open visit: open one for this patient first.', MYSQL_ERRNO = 5423;
+  END IF;
+
+  SELECT allergen_id INTO v_allergen FROM allergen WHERE name = TRIM(p_allergen);
+  IF v_allergen IS NULL THEN
+    SET v_msg = CONCAT('"', COALESCE(p_allergen, ''), '" is not in the allergen catalogue.');
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+  END IF;
+  IF p_severity NOT IN ('Mild', 'Moderate', 'Severe') OR p_severity IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Severity must be Mild, Moderate or Severe.';
+  END IF;
+
+  INSERT INTO patient_allergy (patient_id, allergen_id, severity, note, first_recorded_encounter_id, recorded_at)
+  VALUES (v_patient, v_allergen, p_severity, NULLIF(TRIM(p_note), ''), v_enc, NOW()) AS n
+  ON DUPLICATE KEY UPDATE severity = n.severity, note = COALESCE(n.note, patient_allergy.note);
 END $$
 
 

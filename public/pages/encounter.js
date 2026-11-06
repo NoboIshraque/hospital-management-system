@@ -324,7 +324,8 @@ async function saveEncounter(end) {
     if (e.status === 423 && $('#e-reason')) $('#e-reason').focus();
     err.innerHTML = `<div class="banner crit" style="margin-bottom:16px">${warnIcon}<div><b>Nothing was saved</b>${esc(e.message)}
       <br><span class="txt" style="font-size:12px">The whole visit was rolled back, including every line before the one refused. Correct it and save again.</span></div></div>`;
-    err.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    err.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
     return;
   }
 

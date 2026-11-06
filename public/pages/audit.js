@@ -29,7 +29,7 @@ async function renderAudit(root) {
   root.innerHTML = `
     <div class="page-h">
       <h2>Break-glass review</h2>
-      <p>Emergency reads ${esc(scope)} that nobody has reviewed yet. Each doctor gave a reason; your job is to ask whether it holds. The patient sees the same entry in their own access log.</p>
+      <p>Access ${esc(scope)} that bypassed the usual reasons and nobody has reviewed yet: emergency break-glass reads, and visits or admissions opened for a patient with no appointment, referral or consent. Each came with a written reason; your job is to ask whether it holds. The patient sees the same entry in their own access log.</p>
     </div>
     ${rows.length ? `<div class="sec-h" style="margin-top:0"><h3>${rows.length} waiting</h3><span>newest first</span></div>` : ''}
     ${rows.length ? `<div class="card queue">${rows.map(r => `
@@ -37,7 +37,7 @@ async function renderAudit(root) {
         <span class="pill ${r.hoursWaiting >= 72 ? 'crit' : r.hoursWaiting >= 24 ? 'warn' : 'info'}"><i class="dot"></i>${esc(waitLabel(r.hoursWaiting))}</span>
         <div class="who"><b>${esc(r.reader)}</b><span class="meta">${esc(r.hospital || '—')}</span></div>
         <div class="what">
-          Opened the record of <b>${esc(r.patient)}</b> <span class="mono" style="font-size:12px">${esc(r.uhid)}</span><br>
+          ${ACTION_WORDS[r.action] || 'Opened the record of'} <b>${esc(r.patient)}</b> <span class="mono" style="font-size:12px">${esc(r.uhid)}</span><br>
           &ldquo;${esc(r.justification)}&rdquo;
           <div class="meta">${esc(fmtDateTime(r.at))}</div>
         </div>
@@ -73,5 +73,15 @@ function confirmReview(r) {
     renderAudit($('#view'));
   });
 }
+
+/* The queue holds four kinds of flagged access, all with a written reason:
+   a break-glass read, a visit opened with no basis, a visit refused
+   half-way, and an admission with no basis (stress test, 7 Nov 2026). */
+const ACTION_WORDS = {
+  'record.read': 'Opened the record of',
+  'encounter.open': 'Opened a visit, with no basis, for',
+  'encounter.attempt': 'Tried to record a visit, with no basis, for',
+  'admission.open': 'Admitted, with no visit or consent here,'
+};
 
 boot(renderAudit);

@@ -6,7 +6,11 @@
 /* Offline only: the prototype's invented grid. Online the grid is
    doctor_availability() — schedule, minus leave, minus bookings. */
 function buildSlots() {
-  const labels = ['Mon 31 Aug', 'Tue 1 Sep', 'Wed 2 Sep'];
+  // The next three days from today, not three fixed dates (stress test H3.5).
+  const labels = [1, 2, 3].map(n => {
+    const d = new Date(); d.setDate(d.getDate() + n);
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+  });
   const times  = ['09:00','09:20','09:40','10:00','10:20','10:40','11:00','11:20','11:40','12:00'];
   const taken  = [[1,2,5,6,9], [0,3,4], [2,7]];
   return labels.map((label, di) => ({
@@ -28,7 +32,7 @@ function renderBook(root) {
       <div><label class="label" for="fl-dept">Department</label>
         <select class="field" id="fl-dept"><option value="">All departments</option>${DEPARTMENTS.map(d => `<option>${esc(d)}</option>`).join('')}</select></div>
       <div><label class="label" for="fl-hosp">Hospital</label>
-        <select class="field" id="fl-hosp"><option value="">All hospitals</option>${HOSPITALS.map(h => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select></div>
+        <select class="field" id="fl-hosp"><option value="">All hospitals</option>${HOSPITALS.map(h => `<option value="${Number(h.id)}">${esc(h.name)}</option>`).join('')}</select></div>
       <div><label class="label" for="fl-q">Doctor name</label>
         <input class="field" id="fl-q" placeholder="Search&hellip;"></div>
     </div>
@@ -56,7 +60,7 @@ function runDoctorFilter() {
 
   const nexts = ['today 11:20','today 14:00','tomorrow 09:40','tomorrow 10:00','Tue 09:20','Tue 16:30'];
   out.innerHTML = `
-    <p style="font-size:12.5px;color:var(--ink-3);margin:0 0 11px">${list.length} doctors available nationally</p>
+    <p style="font-size:12.5px;color:var(--ink-3);margin:0 0 11px">${list.length} doctor${list.length === 1 ? '' : 's'} available nationally</p>
     <div class="doc-list">${list.map((d, i) => {
       const h = hospital(d.hospitalId);
       return `
@@ -70,7 +74,7 @@ function runDoctorFilter() {
         </div>
         <div class="doc-foot">
           <span class="next-free">Next free &middot; <b>${esc(API.online ? (d.nextFree || 'none in 14 days') : nexts[i % nexts.length])}</b><br><span class="fee">&#2547;${Number(d.fee)} consultation</span></span>
-          <button class="btn primary sm" data-doc="${d.id}">See slots</button>
+          <button class="btn primary sm" data-doc="${Number(d.id)}">See slots</button>
         </div>
       </div>`;
     }).join('')}</div>`;

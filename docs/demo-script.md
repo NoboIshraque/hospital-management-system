@@ -21,8 +21,8 @@ hours from the moment the seed data is loaded.
 ```powershell
 cd E:\hospital-management-system\server
 npm run db:reset          # fresh sample data — ends "Database rebuilt: 40 tables, …"
-npm run db:test           # 145 database tests — every line PASS
-npm run api:test          # 88 API checks — "88 passed, 0 failed"
+npm run db:test           # 196 database tests — every line PASS
+npm run api:test          # 103 API checks — "103 passed, 0 failed"
 npm start                 # "UHID running at http://localhost:3000"
 ```
 
@@ -85,7 +85,9 @@ Every demo password is `demo1234`.
    booking"**. **Say:** "The procedure locks the doctor's row, so the second request waits, then
    sees the first booking and is told politely. And if the lock were missing, the UNIQUE key on
    doctor and slot would still refuse the second row. Correctness from the constraint, a clean
-   answer from the lock."
+   answer from the lock." The same script then races two **admissions** to one bed, five rounds:
+   each ends **"✓ exactly one patient in the bed"** — the bed trigger locks the bed row while it
+   checks it.
 
 ## 5. Wards — decision 7 — 1.5 minutes
 
@@ -161,8 +163,10 @@ Every demo password is `demo1234`.
 ## 8. The administrator — decisions 2 and 1 — 2 minutes
 
 1. Sign in as `nasima` (hospital admin, Dhaka Medical). **Break-glass review** shows Dr.
-   Anisur's read of Fatema Begum from step 6, with the reason given. **Say:** "Every emergency read
-   waits here. A hospital admin sees reads made at their own hospital only — Chattogram has one
+   Anisur's read of Fatema Begum from step 6, with the reason given — and Rezaul's admission of
+   Abdul Karim Mia from step 5, because Abdul had no visit, appointment or consent at Dhaka Medical,
+   so the reason for admission is reviewed too. **Say:** "Every emergency read, and every visit or
+   admission opened without a reason already in the database, waits here. A hospital admin sees reads made at their own hospital only — Chattogram has one
    waiting too, and the procedure would refuse an attempt to clear it from here. The system admin sees the
    country."
 2. **Mark reviewed** → **Mark reviewed**. **Say:** "That is the one change the access log's
@@ -231,7 +235,7 @@ Then open `database/queries.sql` and run two or three: **1** (one patient, every
 **5** (possible duplicate patients — a self-join), **7** (busiest departments — a window
 function), **11** (a calendar from a recursive CTE).
 
-Finally, in the second PowerShell window: `npm run db:test` — **145 tests, every one PASS**, each
+Finally, in the second PowerShell window: `npm run db:test` — **196 tests, every one PASS**, each
 proving a rule refuses what it must with the exact error number. (It resets the database when it
 finishes, so do it last, or restart `npm start` afterwards.)
 

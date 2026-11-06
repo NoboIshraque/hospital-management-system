@@ -74,7 +74,7 @@ async function renderWards(root) {
     </div>
     ${WARDS.map((w, wi) => {
       const occ = w.beds.filter(b => b.status === 'occupied').length;
-      const pct = Math.round(occ / w.beds.length * 100);
+      const pct = w.beds.length ? Math.round(occ / w.beds.length * 100) : 0;
       const cls = pct >= 85 ? 'crit' : pct >= 65 ? 'warn' : '';
       return `
       <div class="card ward">
@@ -124,7 +124,7 @@ function openBed(wi, bi) {
         <button class="btn primary" data-discharge>Discharge</button>
       </div>`);
     $('[data-transfer]', sc).addEventListener('click', () => { sc.remove(); openTransfer(wi, bi); });
-    $('[data-discharge]', sc).addEventListener('click', async () => {
+    $('[data-discharge]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
       if (API.online) {
         try { await API.post(`/admissions/${b.admissionId}/discharge`, { outcome: 'recovered' }); }
         catch (e) { toast('Not discharged', e.message, 'err'); return; }
@@ -133,7 +133,7 @@ function openBed(wi, bi) {
       }
       sc.remove();
       afterChange('Patient discharged', `${b.no} released and sent for cleaning.`);
-    });
+    }));
     return;
   }
 
@@ -142,12 +142,12 @@ function openBed(wi, bi) {
       <div class="modal-h"><h3>${esc(b.no)}</h3><p>${esc(w.name)}</p></div>
       <div class="modal-b">This bed is being cleaned after a discharge. Mark it clean when it is ready for the next patient.</div>
       <div class="modal-f"><button class="btn" data-close>Close</button><button class="btn primary" data-ok>Mark clean</button></div>`);
-    $('[data-ok]', sc).addEventListener('click', async () => {
+    $('[data-ok]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
       try { await API.post('/beds/clean', { wardId: w.id, bedNo: b.no }); }
       catch (e) { toast('Not changed', e.message, 'err'); return; }
       sc.remove();
       afterChange('Bed ready', `${b.no} is clean and free.`);
-    });
+    }));
     return;
   }
 
@@ -186,7 +186,7 @@ function openBed(wi, bi) {
         <label class="label" for="ad-dx">${API.online ? 'Reason for admission' : 'Admitting diagnosis'}</label>
         <input class="field" id="ad-dx" placeholder="e.g. Pneumonia" value="Pneumonia">
       </div></div>
-      <p class="hint">Allocating the bed and opening the admission happen in one transaction &mdash; both succeed, or neither does.</p>
+      <p class="hint">Allocating the bed and opening the admission happen in one transaction &mdash; both succeed, or neither does.${API.online ? ' If the patient has no visit, appointment or consent at this hospital, the reason for admission is logged and reviewed by the hospital administrator.' : ''}</p>
     </div>
     <div class="modal-f">
       <button class="btn" data-close>Cancel</button>
@@ -208,7 +208,7 @@ function openBed(wi, bi) {
     $('#ad-q', sc).focus();
   }
 
-  $('[data-ok]', sc).addEventListener('click', async () => {
+  $('[data-ok]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
     const uhid = $('#ad-uhid', sc).value;
     if (!uhid) { toast('No patient chosen', 'Find the patient first.', 'err'); return; }
     const chosen = store.find(uhid) || (S.patient && S.patient.uhid === uhid ? S.patient : null);
@@ -228,7 +228,7 @@ function openBed(wi, bi) {
     }
     sc.remove();
     afterChange('Patient admitted', `${chosen ? chosen.name : uhid} into ${b.no}, ${w.name}.`);
-  });
+  }));
 }
 
 /* Move an inpatient to another bed. Online, transfer_patient() closes the
@@ -259,7 +259,7 @@ function openTransfer(wi, bi) {
     </div>
     <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Transfer</button></div>`);
 
-  $('[data-ok]', sc).addEventListener('click', async () => {
+  $('[data-ok]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
     const [ti, tj] = $('#tr-bed', sc).value.split(':').map(Number);
     const tw = WARDS[ti];
     const tb = tw.beds[tj];
@@ -272,7 +272,7 @@ function openTransfer(wi, bi) {
     }
     sc.remove();
     afterChange('Patient transferred', `${tb.patient || b.patient || 'Patient'} moved from ${b.no} to ${tb.no}, ${tw.name}.`);
-  });
+  }));
 }
 
 boot(renderWards);

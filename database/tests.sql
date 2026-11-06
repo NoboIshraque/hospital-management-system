@@ -348,7 +348,7 @@ CALL t_value('…and the trigger marks the bed occupied',
 CALL t_expect('Admitting someone who is already an inpatient is refused',
   "CALL admit_patient(1, 'BD-2023-38104-6', 15, 1, 'GM-08', 'x')", 1644);
 CALL t_expect('Admitting to an occupied bed is refused',
-  "CALL admit_patient(1, 'BD-2020-27615-1', 15, 2, 'GF-01', 'x')", 1644);
+  "CALL admit_patient(1, 'BD-2020-27615-1', 15, 2, 'GF-01', 'Chest infection')", 1644);
 CALL t_expect('Admitting a man to the female ward is refused',
   "CALL admit_patient(1, 'BD-2019-04821-5', 15, 2, 'GF-03', 'x')", 1644);
 CALL t_expect('Admitting an adult to the paediatric ward is refused',
@@ -554,6 +554,155 @@ CALL t_expect('A9: a grant cannot be revoked twice',
 CALL t_expect('A9: nor can an expired one',
   "CALL revoke_consent(17, (SELECT grant_id FROM consent_grant WHERE patient_id = 1 AND to_hospital_id = 7 AND granted_via = 'in_person'))", 1644);
 
+
+
+-- =====================================================================
+-- 10. THE STRESS TEST, 7 November 2026 (CHECKLIST.md section H)
+--     Three test agents attacked the project; each rule below closes a
+--     hole one of them found. Concurrency (two admissions to one bed at
+--     the same instant, H1.1) cannot be shown in a single session: npm run
+--     race shows it.
+-- =====================================================================
+
+-- H1.2 · a chain of merges leads to the last survivor.
+CALL t_expect('H1.2 setup: a third test patient',
+  "CALL register_patient(1, 'Chain Three', '1992-02-02', 'Male', NULL, NULL, NULL, 'Dhaka', NULL, NULL, NULL, NULL, NULL)", 0);
+SET @c1 = (SELECT uhid FROM patient WHERE name = 'Test Patient');
+SET @c2 = (SELECT uhid FROM patient WHERE name = 'Second Test');
+SET @c3 = (SELECT uhid FROM patient WHERE name = 'Chain Three');
+CALL t_expect('H1.2: merge the second into the first…',
+  CONCAT("CALL merge_patients(2, '", @c2, "', '", @c1, "', 'Same person: chain test')"), 0);
+CALL t_expect('H1.2: …then the first into the third',
+  CONCAT("CALL merge_patients(2, '", @c1, "', '", @c3, "', 'Same person: chain test')"), 0);
+CALL t_value('H1.2: the oldest UHID now leads to the last survivor, not the empty middle record',
+  CONCAT("SELECT resolve_patient('", @c2, "') = (SELECT patient_id FROM patient WHERE uhid = '", @c3, "')"), '1');
+
+-- H1.5 · an admission needs a basis, or a written reason that is reviewed.
+CALL t_expect('H1.5: admitting a patient with no visit, appointment or consent here, and no reason, is refused',
+  CONCAT("CALL admit_patient(1, '", @c3, "', 15, 1, 'GM-08', NULL)"), 5423);
+CALL t_expect('H1.5: with a written reason the admission goes ahead…',
+  CONCAT("CALL admit_patient(1, '", @c3, "', 15, 1, 'GM-08', 'Collapsed at home, admitted for observation')"), 0);
+CALL t_value('H1.5: …and waits in the review queue as an admission',
+  CONCAT("SELECT COUNT(*) FROM v_break_glass_queue WHERE uhid = '", @c3, "' AND action = 'admission.open'"), '1');
+
+-- H1.3 · no merge while both records are in a bed.
+CALL t_expect('H1.3: two records that both have an open admission cannot be merged',
+  "CALL merge_patients(5, (SELECT uhid FROM patient WHERE patient_id = 6), (SELECT uhid FROM patient WHERE patient_id = 7), 'Same person?')", 1644);
+
+-- H2.11 · a patient recorded as having died takes no new care.
+SET @c3_adm = (SELECT a.admission_id FROM admission a JOIN encounter e ON e.encounter_id = a.encounter_id
+                WHERE e.patient_id = (SELECT patient_id FROM patient WHERE uhid = @c3) AND a.discharged_at IS NULL);
+CALL t_expect('H2.11: a doctor records the death at discharge',
+  CONCAT("CALL discharge_patient(16, ", @c3_adm, ", 'Cardiac arrest on the ward', 'died')"), 0);
+CALL t_expect('H2.11: …and the patient can no longer be booked',
+  CONCAT("CALL book_appointment(1, 1, '", @c3, "', '", TIMESTAMP(@sun, '10:20'), "')"), 1644);
+CALL t_expect('H2.11: …or admitted',
+  CONCAT("CALL admit_patient(1, '", @c3, "', 15, 1, 'GM-08', 'Collapsed at home, admitted again')"), 1644);
+
+-- H1.4 · revoking a referral's consent closes the referral as a basis too.
+SET @r3_grant = (SELECT g.grant_id FROM consent_grant g JOIN referral r ON r.referral_id = g.referral_id
+                  WHERE r.patient_id = 1 AND r.to_hospital_id = 3);
+CALL t_value('H1.4: Rahim''s referral to Chattogram is a basis there…',
+  "SELECT care_basis(1, 3, 3)", '1');
+CALL t_expect('H1.4: …until he revokes the consent it carried',
+  CONCAT("CALL revoke_consent(17, ", @r3_grant, ")"), 0);
+CALL t_value('H1.4: …after which it is not',
+  "SELECT care_basis(1, 3, 3)", '0');
+CALL t_expect('H1.4: so a Chattogram doctor may not open an encounter without a reason',
+  "CALL start_encounter(8, 'BD-2019-04821-5', 'OPD', 'Referral review', NULL, NULL)", 5423);
+
+-- H2.7 · an NID is 10, 13 or 17 digits; spacing does not make a second person.
+CALL t_expect('H2.7: an NID typed with dashes is stored as digits',
+  "CALL register_patient(1, 'Dash Nid', '1985-05-05', 'Female', NULL, NULL, '123-456-7890', 'Dhaka', NULL, NULL, NULL, NULL, NULL)", 0);
+CALL t_expect('H2.7: …so the same NID without dashes is a duplicate',
+  "CALL register_patient(1, 'Plain Nid', '1985-05-05', 'Female', NULL, NULL, '1234567890', 'Dhaka', NULL, NULL, NULL, NULL, NULL)", 1644);
+CALL t_expect('H2.7: an NID with letters is refused',
+  "CALL register_patient(1, 'Bad Nid', '1985-05-05', 'Female', NULL, NULL, 'abc', 'Dhaka', NULL, NULL, NULL, NULL, NULL)", 1644);
+CALL t_expect('H2.7: the table itself refuses a malformed NID',
+  "UPDATE patient SET nid = '12-34' WHERE patient_id = 5", 3819);
+CALL t_expect('H3.1: a date of birth before 1900 is refused',
+  "CALL register_patient(1, 'Old Date', '1800-01-01', 'Male', NULL, NULL, NULL, 'Dhaka', NULL, NULL, NULL, NULL, NULL)", 1644);
+CALL t_expect('H3.1: a phone that is not a number is refused',
+  "CALL register_patient(1, 'Bad Phone', '1985-05-05', 'Male', NULL, 'not a phone', NULL, 'Dhaka', NULL, NULL, NULL, NULL, NULL)", 1644);
+CALL t_value('H3.1: +880 and local mobile numbers compare equal',
+  "SELECT local_phone('+880 1711-482031')", '01711482031');
+
+-- H2.8 · only the visit's own doctor refers; an unknown department is refused.
+SET @fe = (SELECT MAX(encounter_id) FROM encounter WHERE patient_id = 2 AND posting_id = 1);
+CALL t_expect('H2.8: a colleague may not refer another doctor''s visit',
+  CONCAT("CALL refer_patient(7, ", @fe, ", 7, NULL, 'Second opinion', 'routine')"), 5403);
+CALL t_expect('H2.8: an unknown department is refused, not silently dropped',
+  CONCAT("CALL refer_patient(6, ", @fe, ", 7, 'Nonexistent', 'Second opinion', 'routine')"), 1644);
+
+-- H2.12 and H3.1 · plausible clinical values.
+SET @mb = (SELECT MAX(encounter_id) FROM encounter WHERE patient_id = 1 AND posting_id = 15 AND ended_at IS NULL);
+CALL t_expect('H2.12: one blood-pressure reading without the other is refused',
+  CONCAT("CALL record_vitals(16, ", @mb, ", 250, NULL, NULL, NULL, NULL, NULL)"), 3819);
+CALL t_expect('H3.1: a drug line with no dose is refused',
+  CONCAT("CALL prescribe(16, ", @mb, ", 4, '', 'once daily', 5, NULL)"), 1644);
+CALL t_expect('H3.1: a drug line for 0 days is refused',
+  CONCAT("CALL prescribe(16, ", @mb, ", 4, '1 tablet', 'once daily', 0, NULL)"), 1644);
+CALL t_expect('H3.1: a valid drug line is accepted…',
+  CONCAT("CALL prescribe(16, ", @mb, ", 4, '1 tablet', 'once daily', 5, NULL)"), 0);
+CALL t_expect('H3.1: …but not the same medicine twice',
+  CONCAT("CALL prescribe(16, ", @mb, ", 4, '1 tablet', 'twice daily', 5, NULL)"), 1644);
+CALL t_expect('H3.1: a diagnosis is added as primary…',
+  CONCAT("CALL add_diagnosis(16, ", @mb, ", 'I10', TRUE, 'confirmed', NULL)"), 0);
+CALL t_expect('H3.1: …adding it again is refused…',
+  CONCAT("CALL add_diagnosis(16, ", @mb, ", 'I10', TRUE, 'confirmed', NULL)"), 1644);
+CALL t_value('H3.1: …and the visit still has its primary diagnosis',
+  CONCAT("SELECT COUNT(*) FROM encounter_diagnosis WHERE encounter_id = ", @mb, " AND is_primary"), '1');
+CALL t_expect('H3.1: a second open visit for the same doctor and patient is refused',
+  "CALL start_encounter(16, 'BD-2019-04821-5', 'OPD', 'Again', NULL, NULL)", 1644);
+CALL t_expect('H3.1: the doctor orders a haemoglobin…',
+  CONCAT("CALL order_lab(16, ", @mb, ", 'Haemoglobin')"), 0);
+CALL t_expect('H3.1: …and a value of 99,999 g/dL is refused as implausible',
+  "CALL report_lab_result(4, (SELECT MAX(order_id) FROM lab_order), 99999, NULL)", 1644);
+CALL t_expect('H3.1: a one-word break-glass reason is refused',
+  "CALL get_patient_record(7, 'BD-2021-11904-5', TRUE, 'x', NULL)", 1644);
+
+-- H2.10 · a doctor records an allergy from their own open visit.
+CALL t_expect('H2.10: the treating doctor records a new allergy',
+  "CALL record_allergy(16, 'BD-2019-04821-5', 'Latex', 'Severe', 'Hives with gloves')", 0);
+CALL t_value('H2.10: …linked to the visit it was found in',
+  CONCAT("SELECT first_recorded_encounter_id FROM patient_allergy WHERE patient_id = 1 AND allergen_id = 5"), CAST(@mb AS CHAR));
+CALL t_expect('H2.10: a doctor with no open visit for the patient may not',
+  "CALL record_allergy(7, 'BD-2019-04821-5', 'Latex', 'Mild', NULL)", 5423);
+
+-- H3.2 · UHIDs cannot be probed.
+CALL t_expect('H3.2: a patient asking for a UHID that does not exist gets the same answer as for someone else''s',
+  "CALL get_patient_record(17, 'BD-2026-99999-5', FALSE, NULL, NULL)", 5403);
+CALL t_expect('H3.2: a doctor gets the no-basis answer for an unknown UHID too',
+  "CALL start_encounter(6, 'BD-2026-99999-5', 'OPD', 'Probe', NULL, NULL)", 5423);
+
+-- H2.3, H2.4 · lists with clinical content go through procedures.
+CALL t_expect('H2.3: a lab technician may not see the bed board',
+  "CALL bed_board(4)", 5403);
+CALL t_expect('H2.3: a receptionist sees their hospital''s board',
+  "CALL bed_board(1)", 0);
+CALL t_value('H2.4: the web server has no grant on the views with clinical content',
+  "SELECT COUNT(*) FROM information_schema.TABLE_PRIVILEGES WHERE GRANTEE LIKE '%uhid_app%'
+     AND TABLE_NAME IN ('v_bed_board', 'v_referral_inbox', 'v_break_glass_queue')", '0');
+
+-- H3.3 · the server may run only the procedures it calls.
+CALL t_value('H3.3: uhid_app may run search_patients…',
+  "SELECT COUNT(*) FROM mysql.procs_priv WHERE User = 'uhid_app' AND Routine_name = 'search_patients'", '1');
+CALL t_value('H3.3: …but not an internal helper',
+  "SELECT COUNT(*) FROM mysql.procs_priv WHERE User = 'uhid_app' AND Routine_name IN ('require_permission', 'resolve_patient', 'care_basis')", '0');
+
+-- H2.2 · a refused visit with a reason still leaves its review entry.
+CALL t_expect('H2.2: after a refused visit, the reason is logged outside the rolled-back transaction',
+  "CALL log_unsaved_encounter(11, 'BD-2021-11904-5', 'Walked in, visit refused half-way')", 0);
+CALL t_value('H2.2: …and waits for review',
+  "SELECT COUNT(*) FROM v_break_glass_queue WHERE action = 'encounter.attempt' AND uhid = 'BD-2021-11904-5'", '1');
+
+-- H3.1 · a deactivated hospital takes its staff's rights with it.
+CALL t_expect('H3.1: Square Hospital is switched off…',
+  "UPDATE hospital SET is_active = FALSE WHERE hospital_id = 7", 0);
+CALL t_value('H3.1: …and its doctor holds no permissions',
+  "SELECT has_permission(11, 'encounter.write')", '0');
+CALL t_expect('H3.1: (switched back on)',
+  "UPDATE hospital SET is_active = TRUE WHERE hospital_id = 7", 0);
 
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message
   FROM t_result ORDER BY test_no;

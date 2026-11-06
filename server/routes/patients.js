@@ -8,6 +8,7 @@
    POST /api/patients            register a patient and issue a UHID
    POST /api/patients/:uhid/read the clinical record — a logged read
         { breakGlass: true, reason }   emergency access, flagged for review
+   POST /api/allergies           { uhid, allergen, severity, note } a doctor records an allergy
    GET  /api/consents            a patient's own consent grants (A9)
    POST /api/consents/:id/revoke the patient takes one back
 
@@ -21,7 +22,7 @@
 const express = require('express');
 const { call } = require('../db/pool');
 const { ah, id } = require('../db/errors');
-const { requireLogin } = require('../auth');
+const { requireLogin, clientIp } = require('../auth');
 const { bool, num } = require('../lib/format');
 
 const router = express.Router();
@@ -32,14 +33,14 @@ const searchRow = p => ({ ...p, identityVerified: bool(p.identityVerified), enco
 
 router.post('/patients/search', requireLogin, ah(async (req, res) => {
   const q = typeof req.body.q === 'string' ? req.body.q.slice(0, 100) : '';
-  const [rows] = await call('search_patients', [req.session.account.id, q, req.ip]);
+  const [rows] = await call('search_patients', [req.session.account.id, q, clientIp(req)]);
   res.json(rows.map(searchRow));
 }));
 
 router.post('/patients/matches', requireLogin, ah(async (req, res) => {
   const b = req.body;
   const [rows] = await call('registration_matches', [req.session.account.id,
-    b.name || null, b.dob || null, b.phone || null, b.nid || null, req.ip]);
+    b.name || null, b.dob || null, b.phone || null, b.nid || null, clientIp(req)]);
   res.json(rows.map(searchRow));
 }));
 
@@ -67,7 +68,7 @@ router.post('/patients/:uhid/read', requireLogin, ah(async (req, res) => {
   const breakGlass = req.body.breakGlass === true;
   const reason = typeof req.body.reason === 'string' ? req.body.reason : null;
   const sets = await call('get_patient_record', [
-    req.session.account.id, req.params.uhid, breakGlass, reason, req.ip
+    req.session.account.id, req.params.uhid, breakGlass, reason, clientIp(req)
   ]);
   const [patientRows, allergies, encounters, rxLines, labs, vitals, referrals, accessLog] = sets;
   const p = patientRows[0];
@@ -101,6 +102,15 @@ router.post('/patients/:uhid/read', requireLogin, ah(async (req, res) => {
     referrals,
     accessLog: accessLog.map(l => ({ ...l, reviewed: bool(l.reviewed) }))
   });
+}));
+
+/* record_allergy() lets a doctor record an allergy from their own open
+   visit (stress test H2.10: before, allergies were set only at registration). */
+router.post('/allergies', requireLogin, ah(async (req, res) => {
+  const b = req.body;
+  await call('record_allergy', [req.session.account.id, b.uhid || null, b.allergen || null,
+    b.severity || null, b.note || null]);
+  res.status(201).json({ recorded: true });
 }));
 
 /* A9. The patient's side of consent. Both procedures find the patient

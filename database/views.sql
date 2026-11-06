@@ -15,8 +15,15 @@
 -- the default). So the application user can SELECT from v_doctor_directory
 -- without having SELECT on doctor_posting. grants.sql relies on this.
 --
--- Clinical content is deliberately NOT in any view. It is only reachable
--- through get_patient_record(), which logs the read.
+-- Clinical content: a patient's record is only reachable through
+-- get_patient_record(), which logs the read. Three views below do carry a
+-- little clinical content — v_bed_board (each inpatient's diagnosis),
+-- v_referral_inbox (the referral reason) and v_break_glass_queue (the
+-- emergency reason) — so the web server has NO grant on them (grants.sql):
+-- it reads them only through bed_board(), referral_inbox() and
+-- break_glass_queue(), which check the permission and keep to the caller's
+-- own hospital (stress test, 7 Nov 2026). A view cannot check who is asking;
+-- a procedure can.
 -- =====================================================================
 
 USE uhid;
@@ -158,6 +165,7 @@ SELECT l.log_id     AS id,
        l.hospital_id AS hospitalId,
        p.uhid,
        p.name       AS patient,
+       l.action,
        l.justification,
        TIMESTAMPDIFF(HOUR, l.at, NOW()) AS hoursWaiting
   FROM access_log l

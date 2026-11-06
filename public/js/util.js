@@ -49,23 +49,63 @@ function ageFrom(dob) {
   return a;
 }
 
+/* Today as YYYY-MM-DD in the computer's own time zone. toISOString() is
+   UTC, which before 06:00 in Dhaka is still yesterday (stress test H3.5). */
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/* Run an async action from a button once: the button is disabled while it
+   runs, so a double click cannot send it twice (stress test H3.5). */
+async function busy(btn, action) {
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  try { await action(); } finally { if (btn.isConnected) btn.disabled = false; }
+}
+
 function toast(title, msg, kind) {
+  const box = $('#toasts');
+  // Announced by screen readers; errors interrupt, the rest wait their turn.
+  box.setAttribute('role', 'status');
+  box.setAttribute('aria-live', 'polite');
   const el = document.createElement('div');
+  if (kind === 'err') el.setAttribute('role', 'alert');
   el.className = 'toast' + (kind === 'err' ? ' err' : '');
   el.innerHTML = `<b>${esc(title)}</b><span>${esc(msg)}</span>`;
-  $('#toasts').appendChild(el);
+  box.appendChild(el);
   setTimeout(() => el.remove(), 4600);
 }
 
+/* A dialog. Keyboard users land inside it, Tab stays inside it, Escape
+   closes it, and focus goes back to where it was when it closes — however
+   it closes, even when a caller simply removes it (stress test H3.5). */
 function modal(html) {
+  const before = document.activeElement;
   const scrim = document.createElement('div');
   scrim.className = 'scrim';
   scrim.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+  const box = $('.modal', scrim);
+  const title = $('h3', box);
+  if (title) { title.id = 'modal-title-' + Date.now(); box.setAttribute('aria-labelledby', title.id); }
   scrim.addEventListener('click', e => { if (e.target === scrim) scrim.remove(); });
-  const onKey = e => { if (e.key === 'Escape') { scrim.remove(); document.removeEventListener('keydown', onKey); } };
-  document.addEventListener('keydown', onKey);
+  // The key listener lives on the dialog itself, so it goes when the dialog goes.
+  scrim.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { scrim.remove(); return; }
+    if (e.key !== 'Tab') return;
+    const f = $$('button, [href], input, select, textarea', box).filter(x => !x.disabled);
+    if (!f.length) return;
+    if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f.at(-1).focus(); }
+    else if (!e.shiftKey && document.activeElement === f.at(-1)) { e.preventDefault(); f[0].focus(); }
+  });
   $$('[data-close]', scrim).forEach(b => b.addEventListener('click', () => scrim.remove()));
   document.body.appendChild(scrim);
+  const first = $('input, select, textarea, button.primary, button', box);
+  if (first) first.focus();
+  const watch = new MutationObserver(() => {
+    if (!scrim.isConnected) { watch.disconnect(); if (before && before.isConnected) before.focus(); }
+  });
+  watch.observe(document.body, { childList: true });
   return scrim;
 }
 

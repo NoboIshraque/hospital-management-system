@@ -20,6 +20,7 @@ function enterApp(role) {
    the user off the screen they just landed on. Online, "signed in"
    means the server still has a session for this browser. */
 API.ready.then(async online => {
+  if (API.down) return;            // the sign-in form says why when it is used
   if (online) {
     try {
       const me = await API.get('/me');
@@ -74,6 +75,10 @@ $('#login-form').addEventListener('submit', async e => {
   }
 
   let role;
+  if (await API.ready && API.down) {
+    fail(`The server is running, but its database is not answering: ${API.down}`);
+    return;
+  }
   if (await API.ready) {
     /* The real check: the server compares the password with the bcrypt
        hash in user_account and starts a session. */

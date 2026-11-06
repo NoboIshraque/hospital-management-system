@@ -41,6 +41,7 @@ Every demo password is `demo1234`. What each actor may do is decided by `role_pe
 | UC16 | Review break-glass access | Hospital Admin, System Admin | `v_break_glass_queue`, `review_break_glass()` | 2 |
 | UC17 | Merge two UHIDs for one person | Hospital Admin, System Admin | `v_possible_duplicates`, `merge_patients()` | 1 |
 | UC18 | See and revoke a consent | Patient | `list_consents()`, `revoke_consent()` | 2 |
+| UC19 | Record an allergy found during a visit | Doctor | `record_allergy()` | 5 |
 
 ---
 
@@ -212,12 +213,19 @@ the screen (`pages/lab.html`) shows the database's verdict.
 
 **Actor:** Receptionist. **Goal:** patient into a free bed, with the bed board updated.
 
-1. The receptionist picks a free bed, the patient, the consultant and the reason for admission.
-2. `admit_patient()` runs as one transaction: it opens an Inpatient encounter, the `admission`
-   and a `bed_occupancy` row.
-3. `trg_bed_occupancy_bi` checks the bed is free and in service, in this hospital, in a ward the
-   patient's sex and age allow, and that the admission has no other open bed.
-4. `trg_bed_occupancy_ai` sets the bed to **occupied**. The procedure never touches `bed`.
+1. The receptionist picks a free bed, finds the patient by search, and chooses the consultant and
+   the reason for admission.
+2. `admit_patient()` asks `care_basis()` whether the patient has a reason to be here already — a
+   visit here today, an appointment, a live referral or consent. If not, the reason for admission
+   (at least 8 characters) is required and written to `access_log` as a flagged entry for the
+   hospital administrator to review: an admission makes the admitting department *treating*, so it
+   must not be a quiet way into a record.
+3. It runs as one transaction: it opens an Inpatient encounter, the `admission` and a
+   `bed_occupancy` row.
+4. `trg_bed_occupancy_bi` locks the bed row and checks it is free and in service, in this
+   hospital, in a ward the patient's sex and age allow, and that the admission has no other open
+   bed. The lock means two admissions to one bed at the same instant cannot both succeed.
+5. `trg_bed_occupancy_ai` sets the bed to **occupied**. The procedure never touches `bed`.
 
 **Alternatives:** patient already an inpatient anywhere → refused, naming the hospital. Bed not
 free, wrong ward, wrong hospital → refused, and nothing is saved.
@@ -292,3 +300,17 @@ made at their own hospital only; the system admin, who has no hospital, reviews 
 **Alternatives:** a grant that has expired or was already revoked → refused (1644); another
 patient's grant, or a staff account trying → refused (5403). The row is never deleted: that the
 grant existed, and when it ended, stays part of the record.
+
+## UC19 — Record an allergy found during a visit
+
+**Actor:** Doctor. **Goal:** an allergy discovered after registration is on the record, so the
+database refuses any drug in its class from then on.
+
+1. On the record of a patient they are treating, the doctor chooses *Record an allergy*, picks the
+   allergen from the catalogue, a severity and an optional note.
+2. `record_allergy()` requires the doctor's own open visit for this patient (or one in their
+   department) — the same *treating* rule as reading — and links the allergy to that visit.
+3. Recording the same allergen again updates its severity and note.
+
+**Alternatives:** no open visit → refused (5423); an allergen not in the catalogue, or a severity
+other than Mild, Moderate or Severe → refused.

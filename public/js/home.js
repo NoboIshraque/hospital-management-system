@@ -436,13 +436,19 @@ function renderHospitals() {
    place to change it.
    ------------------------------------------------------------ */
 
+/* Drawn twice: once at once from the built-in list, again when the API
+   answers. The listeners are added only the first time, and the chosen
+   department survives the redraw (stress test H3.5). */
+let doctorFiltersBound = false;
 function renderDoctors() {
-  $('#d-dept').innerHTML =
-    `<option value="">All departments</option>` +
-    DEPARTMENTS.map(d => `<option>${esc(d)}</option>`).join('');
-
-  $('#d-q').addEventListener('input', runDoctorList);
-  $('#d-dept').addEventListener('change', runDoctorList);
+  const chosen = $('#d-dept').value;
+  $('#d-dept').innerHTML = `<option value="">All departments</option>${DEPARTMENTS.map(d =>
+    `<option${d === chosen ? ' selected' : ''}>${esc(d)}</option>`).join('')}`;
+  if (!doctorFiltersBound) {
+    $('#d-q').addEventListener('input', runDoctorList);
+    $('#d-dept').addEventListener('change', runDoctorList);
+    doctorFiltersBound = true;
+  }
   runDoctorList();
 }
 

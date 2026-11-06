@@ -66,10 +66,19 @@
   <p>
     The browser never holds a list of patients. Staff find someone by searching for that one
     person; at most twenty come back, with the national ID and mobile number masked, and each
-    person shown is written to the access log. To label the screens while you move between
-    them, the UHID and name of the patient you last opened are kept in the browser&rsquo;s
-    <strong>session storage</strong> for that tab only, and are gone when the tab closes.
+    person shown is written to the access log.
   </p>
+  <p>
+    The browser keeps a few small things for convenience, none of them clinical:
+  </p>
+  <ul>
+    <li>in <strong>local storage</strong>, which role you signed in as (<span class="mono">uhid.session.v1</span>), so the
+      menu can be drawn before the server answers &mdash; the server still decides who you are;</li>
+    <li>in <strong>session storage</strong>, for the open tab only and gone when it closes: the UHID and name of
+      the patient you last opened (to label the screens), a search you started from the top bar on its way to the
+      search screen, and the text of a message waiting to be shown on the next page (which can include a
+      patient&rsquo;s name).</li>
+  </ul>
 
   <h2>Opened straight from disk: the data stays in your browser</h2>
   <p>
@@ -134,7 +143,7 @@
     department.
   </p>
 
-  <p class="doc-updated">Last reviewed 1 November 2026</p>
+  <p class="doc-updated">Last reviewed 7 November 2026</p>
 </main>
 
 <footer class="site-foot">

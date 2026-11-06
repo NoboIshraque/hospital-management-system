@@ -108,6 +108,8 @@ function runMatchOnline() {
   const enough = body.nid || (body.name && body.dob) || body.phone.replace(/\D/g, '').length >= 11;
   if (!enough) { matchSeq++; drawMatches(box, []); return; }
   const seq = ++matchSeq;
+  // Say it is checking, rather than "no match", while the answer is on its way.
+  box.innerHTML = `<div class="match-empty">Checking the national register&hellip;</div>`;
   matchTimer = setTimeout(async () => {
     let rows;
     try { rows = await API.post('/patients/matches', body); }
@@ -178,7 +180,9 @@ async function submitRegistration(e) {
   if (!name) { toast('Name required', 'Enter the full name before issuing a UHID.', 'err'); $('#f-name').focus(); return; }
   if (!dob)  { toast('Date of birth required', 'Age drives dosing and ward allocation — it is not optional.', 'err'); $('#f-dob').focus(); return; }
 
-  if (currentMatches().some(m => m.score >= 90)) {
+  // Offline only: online the NID check is the database's (register_patient
+  // refuses a repeated NID), and the browser holds no full NIDs to compare.
+  if (!API.online && currentMatches().some(m => m.score >= 90)) {
     toast('Blocked — exact match', 'This NID already holds a UHID. Open the existing record instead of creating a second one.', 'err');
     return;
   }
@@ -233,7 +237,7 @@ function offlinePatient(v, name, dob, nid) {
     district: v('f-dist') || $('#f-div').value,
     address:  v('f-addr') || '—',
     kin:      v('f-kin') ? v('f-kin') + (v('f-kinphone') ? ' · ' + v('f-kinphone') : '') : '—',
-    registeredAt: new Date().toISOString().slice(0, 10),
+    registeredAt: todayLocal(),
     registeredHospitalId: S.account.hospitalId || 1,
     identityVerified: Boolean(nid),
     allergies: v('f-allergy')

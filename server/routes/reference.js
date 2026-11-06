@@ -47,24 +47,32 @@ router.get('/catalogue', requireLogin, ah(async (req, res) => {
 /* One row per current posting (er-design.md §4.2): id is the posting id.
    nextFree comes from ONE call to doctor_availability() for every posting
    over the next fortnight — the first slot per posting that is not taken. */
+/* The doctor list is public and runs doctor_availability() for every
+   posting, so it is kept for 30 seconds (stress test H3.4): a burst of
+   visitors costs one query, not one each. A booking shows on the grid at
+   once; only the "next free" time on the cards may be 30 seconds old. */
+let doctorsCache = { at: 0, body: null };
 router.get('/doctors', ah(async (req, res) => {
+  if (doctorsCache.body && Date.now() - doctorsCache.at < 30000) return res.json(doctorsCache.body);
   const [doctors] = await pool.query('SELECT * FROM v_doctor_directory ORDER BY id');
   const [slots] = await call('doctor_availability', [null, todayYmd(), 14]);
   const first = new Map();
   for (const s of slots) {
     if (!s.taken && !first.has(s.posting_id)) first.set(s.posting_id, s.slot_start);
   }
-  res.json(doctors.map(d => ({
+  const body = doctors.map(d => ({
     ...d,
     fee: num(d.fee),
     nextFree: first.has(d.id) ? nextFreeLabel(first.get(d.id)) : null
-  })));
+  }));
+  doctorsCache = { at: Date.now(), body };
+  res.json(body);
 }));
 
 router.get('/doctors/:id/availability', ah(async (req, res) => {
   const id = Number(req.params.id);
   const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 31);
-  if (!Number.isInteger(id) || id < 1) throw httpError(400, 'Doctor id must be a positive number.');
+  if (!/^[0-9]{1,7}$/.test(req.params.id) || id < 1) throw httpError(400, 'Doctor id must be a positive number.');
   const [rows] = await call('doctor_availability', [id, todayYmd(), days]);
   res.json(groupSlotsByDay(rows));
 }));

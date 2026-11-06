@@ -48,8 +48,8 @@ constraint, a trigger or a stored procedure — not by application code that cou
 | Frontend | HTML, CSS, JavaScript — no framework, no build step |
 | Architecture | Static pages calling a JSON API with `fetch`, both served by Express |
 
-In numbers: 40 tables, 21 triggers, 35 stored procedures and 4 functions, 9 views,
-20 demonstration queries, 145 database tests, 32 API endpoints with 88 end-to-end checks.
+In numbers: 40 tables, 21 triggers, 41 stored procedures and 6 functions, 9 views,
+20 demonstration queries, 196 database tests, 32 API endpoints with 103 end-to-end checks.
 
 ---
 
@@ -108,14 +108,14 @@ database/   schema.sql      40 tables, CHECKs and foreign keys
             seed.sql        sample data: 8 hospitals, 11 doctors, 18 patients
             grants.sql      the least-privilege uhid_app user
             queries.sql     20 demonstration queries
-            tests.sql       145 tests
+            tests.sql       196 tests
 server/     app.js, auth.js, routes/, db/, lib/, scripts/   the Express API
 public/     the website: landing page, sign-in, privacy, 404, and the clinical console
 docs/       er-design.md        the ER model and the reasoning behind it
             er-diagrams/        Chen and crow's-foot diagrams (draw.io)
             data-dictionary.md  every table and column
             normalization.md    1NF to BCNF, and every deliberate redundancy
-            use-cases.md        17 use cases, each mapped to its procedure
+            use-cases.md        19 use cases, each mapped to its procedure
             api.md              every endpoint and the procedure behind it
             demo-script.md      the viva demonstration, click by click
             guides/             learning guides for each team member

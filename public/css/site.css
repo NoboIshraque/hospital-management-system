@@ -32,7 +32,7 @@ html { scroll-behavior: smooth; }
 }
 .util-nums { gap: 16px; }
 .util-nums a { color: var(--rail-ink-2); text-decoration: none; white-space: nowrap; transition: color .12s; }
-.util-nums a:hover { color: #fff; }
+.util-nums a:hover { color: var(--on-dark); }
 .util-nums b { color: var(--rail-ink); font-weight: 600; }
 
 /* ------------------------------------------------------------
@@ -465,7 +465,7 @@ a.btn { text-decoration: none; }
   padding: 20px 24px; border-radius: 8px;
   background: var(--rail); color: var(--rail-ink);
 }
-.cta-band b { display: block; margin-bottom: 3px; font-size: 16px; color: #fff; }
+.cta-band b { display: block; margin-bottom: 3px; font-size: 16px; color: var(--on-dark); }
 .cta-band span { font-size: 13px; }
 
 /* ------------------------------------------------------------
@@ -489,9 +489,11 @@ a.btn { text-decoration: none; }
 
 /* ------------------------------------------------------------
    FAQ
-   The panel animates on grid-template-rows rather than max-height,
-   so it opens to exactly the height of its answer instead of to a
-   guessed maximum that is either too short or slow to close.
+   The panel opens on grid-template-rows (0fr → 1fr), so it is exactly
+   the height of its answer. It is NOT animated: a transition on
+   grid-template-rows re-lays-out the page every frame, and the project
+   animates transform and opacity only (stress test H3.5). The chevron
+   still turns, which is a transform.
    ------------------------------------------------------------ */
 
 /* .faq-wrap takes the section's centred column; .faq narrows to a
@@ -513,7 +515,7 @@ a.btn { text-decoration: none; }
 .faq-item.open .faq-btn { color: var(--brand-ink); }
 .faq-item.open .chev { transform: rotate(180deg); color: var(--brand); }
 
-.faq-a { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .24s ease; }
+.faq-a { display: grid; grid-template-rows: 0fr; }
 .faq-item.open .faq-a { grid-template-rows: 1fr; }
 .faq-a-in { overflow: hidden; }
 .faq-a p {
@@ -557,7 +559,7 @@ a.btn { text-decoration: none; }
   display: grid; grid-template-columns: 1.1fr 1.9fr; gap: 38px;
 }
 .foot-brand .brand { margin-bottom: 13px; }
-.foot-brand .brand-name { color: #fff; }
+.foot-brand .brand-name { color: var(--on-dark); }
 .foot-brand .brand p { color: var(--rail-ink-2); font-size: 10.5px; }
 .foot-note { margin: 0; max-width: 46ch; font-size: 12px; line-height: 1.6; color: var(--rail-ink-2); }
 .foot-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
@@ -571,7 +573,7 @@ a.btn { text-decoration: none; }
   color: var(--rail-ink); text-decoration: none; font-size: 13px;
   transition: color .12s;
 }
-.foot-col a:hover { color: #fff; }
+.foot-col a:hover { color: var(--on-dark); }
 .foot-bar {
   max-width: 1180px; margin: 0 auto;
   border-top: 1px solid rgba(255,255,255,.09);
@@ -581,7 +583,7 @@ a.btn { text-decoration: none; }
 }
 .foot-legal { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .foot-legal a { color: var(--rail-ink-2); text-decoration: none; transition: color .12s; }
-.foot-legal a:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+.foot-legal a:hover { color: var(--on-dark); text-decoration: underline; text-underline-offset: 3px; }
 
 /* ------------------------------------------------------------
    DOCUMENT PAGE
@@ -614,4 +616,5 @@ a.btn { text-decoration: none; }
   .glow { animation: none; }
   .thread::after { display: none; }
   .svc:hover { transform: none; }
+  .skip-link, .faq-btn .chev { transition: none; }
 }

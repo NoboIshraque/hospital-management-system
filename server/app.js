@@ -22,7 +22,11 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 const app = express();
 app.disable('x-powered-by');                 // don't advertise the framework
-app.set('trust proxy', 'loopback');          // req.ip is the real client when run behind a local proxy
+// No proxy is trusted (stress test H2.1). With 'loopback', every client of a
+// server bound to 127.0.0.1 counted as a proxy, so any of them could name its
+// own address in X-Forwarded-For: dodge the per-address login limit and forge
+// the IP written to access_log. Behind a real proxy, set the hop count here.
+app.set('trust proxy', false);
 app.use(securityHeaders);                    // W3: CSP, no framing, nosniff (security.js)
 app.use(express.json({ limit: '100kb' }));
 app.use(sessionMiddleware);

@@ -23,6 +23,10 @@
   --brand-ink:   #0A5570;
   --brand-soft:  #DDEDF3;
   --on-brand:    #FFFFFF;
+  /* Text on surfaces that stay dark in BOTH themes (the console's left
+     rail, the landing page's footer and call-to-action band). Not
+     --on-brand, which turns dark in the dark theme. */
+  --on-dark:     #FFFFFF;
   --ok:          #17753F;
   --ok-soft:     #DCF0E4;
   --warn:        #96550A;

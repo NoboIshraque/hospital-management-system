@@ -44,7 +44,7 @@ async function loadPicked(uhids) {
 function suggestKeep(a, b) {
   const pa = store.find(a), pb = store.find(b);
   if (!pa || !pb) return [a, b];
-  const score = p => p.encounterCount * 10 + (p.identityVerified ? 5 : 0) + (p.nid ? 1 : 0);
+  const score = p => (Number(p.encounterCount) || 0) * 10 + (p.identityVerified ? 5 : 0) + (p.nid ? 1 : 0);
   return score(pa) >= score(pb) ? [a, b] : [b, a];
 }
 
@@ -112,11 +112,11 @@ function pickCard(side, title, uhid) {
           <dt>Name</dt><dd${same('name')}>${esc(p.name)}</dd>
           <dt>Born</dt><dd${same('dob')}>${fmtDate(p.dob)} &middot; ${esc(p.sex)}</dd>
           <dt>Blood</dt><dd${same('blood')}>${esc(p.blood || '—')}</dd>
-          <dt>Mobile</dt><dd class="mono">${esc(p.phone || '—')}</dd>
-          <dt>NID</dt><dd class="mono">${esc(p.nid || '— none')}</dd>
+          <dt>Mobile</dt><dd class="mono"${same('phone')}>${esc(p.phone || '—')}</dd>
+          <dt>NID</dt><dd class="mono"${same('nid')}>${esc(p.nid || '— none')}</dd>
           <dt>District</dt><dd>${esc(p.district || '—')}</dd>
           <dt>Registered</dt><dd>${fmtDate(p.registeredAt)}, ${esc(hospital(p.registeredHospitalId).name)}</dd>
-          <dt>Encounters</dt><dd class="mono">${Number(p.encounterCount)}</dd>
+          <dt>Encounters</dt><dd class="mono">${Number(p.encounterCount) || 0}</dd>
           <dt>Identity</dt><dd>${p.identityVerified ? '<span class="pill ok"><i class="dot"></i>Verified</span>' : '<span class="pill warn"><i class="dot"></i>Unverified</span>'}</dd>
         </dl>`
       : uhid ? `<p class="hint">No live record holds ${esc(uhid)}. It may already have been merged away.</p>`

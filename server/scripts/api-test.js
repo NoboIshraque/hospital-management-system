@@ -97,6 +97,13 @@ async function signIn(base, username) {
     for (let i = 0; i < 5; i++) await anon('POST', '/api/login', { username: 'nosuchuser', password: 'guess' + i });
     r = await anon('POST', '/api/login', { username: 'nosuchuser', password: 'guess5' });
     check('After 5 failed sign-ins for one username, the next is refused with 429 (S1)', r.status === 429);
+    const burst = await Promise.all(Array.from({ length: 12 }, (_, i) =>
+      anon('POST', '/api/login', { username: 'burstuser', password: 'guess' + i })));
+    check('A parallel burst of guesses is still limited to 5 (H1.6)', burst.filter(x => x.status === 401).length === 5);
+    r = await anon('POST', '/api/login', { username: '\uff53\uff59\uff53\uff41\uff44\uff4d\uff49\uff4e', password: 'demo1234' });
+    check('A full-width spelling of a username does not sign in (H1.6)', r.status === 401);
+    r = await anon('GET', '/api/districts');
+    check('GET /api/districts lists the 64 districts', r.status === 200 && r.body.length === 64);
 
     const rezaul = await signIn(base, 'rezaul');
     const anisur = await signIn(base, 'anisur');
@@ -143,6 +150,14 @@ async function signIn(base, username) {
       r.status === 409 && r.body.error.includes(`BD-${year}-00001-1`));
     r = await anisur('POST', '/api/patients', { name: 'X', dob: '1995-05-05', sex: 'Male' });
     check('A doctor registering a patient is 403', r.status === 403);
+    r = await rezaul('POST', '/api/patients', { name: ['a', 'b'], dob: '1995-05-05', sex: 'Male' });
+    check('A list where one value belongs is 400, not shifted into other parameters (H2.6)', r.status === 400);
+    r = await rezaul('POST', '/api/patients', { name: 'Bad Date', dob: 'notadate', sex: 'Male' });
+    check('A date that is not a date is 400, not 500 (H2.5)', r.status === 400);
+    r = await rezaul('POST', '/api/patients', { name: 'Bad Nid', dob: '1990-01-01', sex: 'Male', nid: 'abc' });
+    check('An NID that is not 10, 13 or 17 digits is refused (H2.7)', r.status === 409);
+    r = await rezaul('GET', '/api/catalogue');
+    check('GET /api/catalogue returns the four catalogues', r.status === 200 && r.body.allergens.length > 0 && r.body.medicines.length > 0);
 
     r = await anisur('GET', '/api/patients/BD-2019-04821-5');
     check('A link (a GET) cannot open a record (W1)', r.status === 404);
@@ -199,8 +214,12 @@ async function signIn(base, username) {
       return w.flatMap(x => x.beds).find(b => b.no === no).status;
     };
     check('…and the bed board shows it occupied', await bedStatus('GM-04') === 'occupied');
-    r = await rezaul('POST', '/api/admissions', { uhid: 'BD-2020-27615-1', postingId: 15, wardId: 2, bedNo: 'GF-01' });
+    r = await rezaul('POST', '/api/admissions', { uhid: 'BD-2020-27615-1', postingId: 15, wardId: 2, bedNo: 'GF-03' });
+    check('Admitting with no basis and no reason is 423 (H1.5)', r.status === 423);
+    r = await rezaul('POST', '/api/admissions', { uhid: 'BD-2020-27615-1', postingId: 15, wardId: 2, bedNo: 'GF-01', complaint: 'Chest infection' });
     check('Admitting to an occupied bed is 409', r.status === 409);
+    r = await (await signIn(base, 'rumana'))('GET', '/api/wards');
+    check('A lab technician has no bed board (403, H2.3)', r.status === 403);
     r = await rezaul('POST', `/api/admissions/${admissionId}/transfer`, { wardId: 1, bedNo: 'GM-08' });
     check('A transfer moves the patient', r.status === 200 && await bedStatus('GM-04') === 'cleaning' && await bedStatus('GM-08') === 'occupied');
     r = await rezaul('POST', `/api/admissions/${admissionId}/discharge`, { summary: 'x' });
@@ -239,6 +258,8 @@ async function signIn(base, username) {
     r = await anisur('POST', '/api/encounters', { uhid: 'BD-2019-04821-5', diagnoses: [{ icd10: 'I10' }],
       prescriptions: Array.from({ length: 21 }, () => ({ medicineId: 4, dose: '1', frequency: 'once daily' })) });
     check('More than 20 drug lines in one visit is 400 (I3)', r.status === 400);
+    r = await anisur('POST', '/api/encounters', { uhid: 'BD-2019-04821-5', diagnoses: [null] });
+    check('A diagnosis that is not an object is 400, not a crash (H2.5)', r.status === 400);
     r = await anisur('POST', '/api/encounters', { uhid: 'BD-2019-04821-5', diagnoses: [{ icd10: 'I10' }],
       vitals: { systolic: 80, diastolic: 120 } });
     check('A CHECK refusal comes back as a plain sentence, not a constraint name (W4)',
@@ -251,6 +272,19 @@ async function signIn(base, username) {
     r = await nasima('GET', '/api/audit/break-glass');
     check('…and the reason waits in the hospital admin review queue',
       r.status === 200 && r.body.some(x => x.justification === 'Walk-in with chest pain'));
+    r = await anisur('POST', '/api/encounters', { uhid: 'BD-2019-04821-5', complaint: 'Rash after a new soap', diagnoses: [{ icd10: 'L25.9' }], end: false });
+    check('A doctor keeps a visit open…', r.status === 201);
+    r = await anisur('POST', '/api/allergies', { uhid: 'BD-2019-04821-5', allergen: 'Latex', severity: 'Moderate', note: 'Rash with gloves' });
+    check('…and records an allergy from it (H2.10)', r.status === 201);
+    r = await read(anisur, 'BD-2019-04821-5');
+    check('…which then shows on the record', r.body.allergies.some(a => a.agent === 'Latex'));
+    const tahminaProbe = await signIn(base, 'tahmina');
+    r = await tahminaProbe('POST', '/api/encounters', { uhid: 'BD-2019-04821-5', reason: 'Walked in asking for a refill',
+      diagnoses: [{ icd10: 'I10' }], prescriptions: [{ medicineId: 15, dose: '1 capsule', frequency: 'three times daily', days: 5 }] });
+    check('A visit refused half-way (allergy) is still 409…', r.status === 409 && /Allergy/.test(r.body.error));
+    r = await (await signIn(base, 'sysadmin'))('GET', '/api/audit/break-glass');
+    check('…but its reason is kept in the review queue (H2.2)',
+      r.body.some(x => x.action === 'encounter.attempt' && x.justification === 'Walked in asking for a refill'));
 
     // ---------- labs, referrals, audit, merge ----------
     const rumana = await signIn(base, 'rumana');

@@ -42,6 +42,12 @@ router.post('/encounters', requireLogin, ah(async (req, res) => {
   const diagnoses = list(b.diagnoses, 'diagnoses', 10);
   const prescriptions = list(b.prescriptions, 'drug lines', 20);
   const labTests = list(b.labTests, 'lab tests', 20);
+  // Each line must be the right shape (stress test H2.5: [null] crashed with a 500).
+  const isObj = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+  if (!diagnoses.every(d => isObj(d) && typeof d.icd10 === 'string')) throw httpError(400, 'Each diagnosis needs an icd10 code.');
+  if (!prescriptions.every(isObj)) throw httpError(400, 'Each drug line must be an object.');
+  if (!labTests.every(t => typeof t === 'string')) throw httpError(400, 'Each lab test is a name.');
+  if (b.vitals != null && !isObj(b.vitals)) throw httpError(400, 'vitals must be an object.');
 
   const conn = await pool.getConnection();
   try {
@@ -70,6 +76,14 @@ router.post('/encounters', requireLogin, ah(async (req, res) => {
     res.status(201).json({ encounterId });
   } catch (err) {
     await conn.rollback();
+    // The rollback also undid the flagged access_log row start_encounter
+    // wrote for a doctor with no basis — but the refusal may already have
+    // told them something (an allergy). Log it again, outside the
+    // transaction, so it stays (stress test H2.2).
+    if (b.reason) {
+      try { await call('log_unsaved_encounter', [me, String(b.uhid), String(b.reason).slice(0, 300)]); }
+      catch (e) { /* the visit's own error is the one to report */ }
+    }
     throw err;
   } finally {
     conn.release();     // always give the connection back, or the pool runs dry
@@ -103,10 +117,10 @@ router.post('/referrals', requireLogin, ah(async (req, res) => {
   res.status(201).json({ referralId: r.referral_id });
 }));
 
-router.get('/referrals/inbox', requirePermission('patient.read_clinical'), ah(async (req, res) => {
-  const [rows] = await pool.query(
-    'SELECT * FROM v_referral_inbox WHERE toHospitalId = ? ORDER BY referredAt',
-    [req.session.account.hospitalId]);
+/* referral_inbox() checks the permission and keeps to the caller's
+   hospital in the database: referral reasons are clinical content. */
+router.get('/referrals/inbox', requireLogin, ah(async (req, res) => {
+  const [rows] = await call('referral_inbox', [req.session.account.id]);
   res.json(rows);
 }));
 

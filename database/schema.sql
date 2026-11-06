@@ -282,7 +282,19 @@ CREATE TABLE patient (
   CONSTRAINT ck_patient_verified CHECK (
     (identity_verified = FALSE AND verified_by IS NULL AND verified_at IS NULL)
     OR (identity_verified = TRUE AND verified_by IS NOT NULL)
-  )
+  ),
+
+  -- Stress test 7 Nov 2026 (H2.7, H3.1). An NID is digits only, 10, 13 or 17
+  -- of them — otherwise '1234567890' and '123-456-7890' are two people to
+  -- uq_patient_nid. A phone is digits with optional spaces, dashes and a
+  -- leading +. A date of birth before 1900 is a typing mistake.
+  CONSTRAINT ck_patient_nid CHECK (
+    nid IS NULL OR REGEXP_LIKE(nid, '^([0-9]{10}|[0-9]{13}|[0-9]{17})$')
+  ),
+  CONSTRAINT ck_patient_phone CHECK (
+    phone IS NULL OR REGEXP_LIKE(phone, '^[+]?[0-9][0-9 -]{6,18}[0-9]$')
+  ),
+  CONSTRAINT ck_patient_dob CHECK (dob >= '1900-01-01')
 ) ENGINE = InnoDB;
 
 -- One login table for all six roles. patient_id / doctor_id / hospital_id are
@@ -835,9 +847,12 @@ CREATE TABLE encounter_vitals (
     REFERENCES user_account (account_id) ON DELETE RESTRICT,
   -- Plausibility, not diagnosis: wide enough for any living patient, narrow
   -- enough to catch a value typed into the wrong box.
+  -- Both readings or neither (stress test H2.12): with one NULL, the second
+  -- branch alone would be UNKNOWN, which a CHECK lets through.
   CONSTRAINT ck_vitals_bp CHECK (
     (bp_systolic IS NULL AND bp_diastolic IS NULL)
-    OR (bp_systolic BETWEEN 40 AND 300 AND bp_diastolic BETWEEN 20 AND 200
+    OR (bp_systolic IS NOT NULL AND bp_diastolic IS NOT NULL
+        AND bp_systolic BETWEEN 40 AND 300 AND bp_diastolic BETWEEN 20 AND 200
         AND bp_systolic > bp_diastolic)
   ),
   CONSTRAINT ck_vitals_pulse  CHECK (pulse     IS NULL OR pulse     BETWEEN 20 AND 250),

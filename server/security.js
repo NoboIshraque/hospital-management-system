@@ -99,14 +99,33 @@ const loginLimiter = {
     }
     return 0;
   },
-  fail(ip, username) {
+  /* Counted BEFORE the password is checked, in the same tick as
+     blockedFor() (stress test H1.6). Counting after the check let 40
+     parallel guesses all pass blockedFor() before any was counted. A
+     correct password then refunds the attempt (succeed). */
+  attempt(ip, username) {
     for (const key of [`ip:${ip}`, `user:${username}`]) {
       const e = entry(key);
       if (e) e.count++;
       else failures.set(key, { count: 1, first: Date.now() });
     }
   },
-  succeed(username) { failures.delete(`user:${username}`); }
+  succeed(ip, username) {
+    failures.delete(`user:${username}`);
+    const e = entry(`ip:${ip}`);
+    if (e && e.count > 0) e.count--;
+  }
+};
+
+/* Expired entries are swept every five minutes, and the map is capped, so
+   a stream of made-up usernames cannot grow it without end (stress test
+   H3.4). unref(): the timer never keeps the process alive on its own. */
+setInterval(() => { for (const k of failures.keys()) entry(k); }, 5 * 60 * 1000).unref();
+const MAX_KEYS = 20000;
+const _attempt = loginLimiter.attempt;
+loginLimiter.attempt = (ip, username) => {
+  if (failures.size > MAX_KEYS) failures.clear();
+  _attempt(ip, username);
 };
 
 module.exports = { securityHeaders, sameOriginWrites, loginLimiter };

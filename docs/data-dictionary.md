@@ -616,7 +616,7 @@ Every read of a patient record, with the authority it happened under (decision 2
 | `account_id` | INT UNSIGNED | no |  | FK → user_account.account_id |  |
 | `hospital_id` | SMALLINT UNSIGNED | yes |  | FK → hospital.hospital_id | NULL when a patient reads their own |
 | `encounter_id` | INT UNSIGNED | yes |  | FK → encounter.encounter_id |  |
-| `action` | VARCHAR(40) | no |  |  | 'record.read', 'record.demographics', 'search.match', 'encounter.open' |
+| `action` | VARCHAR(40) | no |  |  | 'record.read', 'record.demographics', 'search.match', 'encounter.open', 'encounter.attempt', 'admission.open' |
 | `basis` | ENUM('own_record','treating','consent','break_glass' | yes |  |  | The authority the read happened under: own_record, treating, consent, break_glass or demographics_only. |
 | `'demographics_only')` | NOT | no |  |  |  |
 | `is_break_glass` | BOOLEAN | no | `FALSE` |  | Always equal to basis = 'break_glass' (ck_log_basis_flag); indexed for the review queue. |
@@ -819,3 +819,11 @@ Records that two UHIDs were found to be one person, and which record survived.
 
 - `ck_merge_distinct` — `losing_patient_id <> surviving_patient_id`
 
+## Constraints added on 7 November 2026 (stress test)
+
+| Table | Constraint | Rule |
+|---|---|---|
+| `patient` | `ck_patient_nid` | `nid` is NULL or 10, 13 or 17 digits |
+| `patient` | `ck_patient_phone` | `phone` is NULL or digits with optional spaces, dashes and a leading + |
+| `patient` | `ck_patient_dob` | `dob` is 1 January 1900 or later |
+| `encounter_vitals` | `ck_vitals_bp` (tightened) | both blood-pressure readings or neither |

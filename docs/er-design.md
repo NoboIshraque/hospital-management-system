@@ -924,8 +924,33 @@ HTTPS (S3). `npm audit` reports 0 vulnerabilities (D5).
 | L2, A8, L5 | A verdict and note on each break-glass review; recording that the patient agreed to a referral; who cancelled an appointment | Each needs new columns, and so a change to the ER diagrams handed in. Worth doing after submission; none of them changes a rule the database enforces today. |
 | L3 | Paging through more than the latest 25 access-log entries | A screen convenience; the full log is in the database and `queries.sql` can read it. |
 
+### 8.6 The stress test (7 November 2026)
+
+Three test agents attacked the finished system at once — the database through the web server's
+own account, the server from outside, the frontend and documents by reading — and found what the
+earlier review had not. Every finding is fixed and has a test; `CHECKLIST.md` §H lists them all.
+The design changes:
+
+| Found | Rule now | Where |
+|---|---|---|
+| Two admissions to one bed at the same instant both succeeded | The bed trigger locks the bed row (`FOR UPDATE`) while it checks it; `npm run race` proves it | `trg_bed_occupancy_bi` |
+| Merging A into B, then B into C, left A pointing at the empty B | `resolve_patient()` follows the whole chain | procedures.sql |
+| A merge could leave one person with two open admissions | Refused while both records are in a bed | `merge_patients()` |
+| A revoked consent still let the referred-to hospital open a visit | One function, `care_basis()`, decides whether a clinician may be seeing a patient; a referral counts only while its consent is live | `care_basis()` |
+| An admission made the department *treating* with nothing logged | An admission with no basis needs a reason, logged and reviewed like break-glass | `admit_patient()` |
+| The bed board, referral inbox and review queue were views holding clinical text that the server could read for any hospital | Read only through `bed_board()`, `referral_inbox()`, `break_glass_queue()`; the server has no grant on the views; a new permission `bed.view` | grants.sql, seed.sql |
+| The server could run every procedure, helpers included | EXECUTE granted per procedure the server calls | grants.sql |
+| A visit refused half-way erased its own review entry while revealing an allergy | The entry is written again outside the rolled-back transaction | `log_unsaved_encounter()` |
+| NID, phone and dates were free text | CHECKs: NID 10/13/17 digits (dashes and spaces removed), phone shape, birth date from 1900 | schema.sql |
+| A recorded death changed nothing | No booking, visit or admission after it | `require_alive()` |
+| Allergies could be recorded only at registration | `record_allergy()` from the doctor's own open visit; a merge keeps the more severe of two | procedures.sql |
+
+Accepted and written down: the UHID serial has five digits, so the format holds 99,999 patients a
+year nationally — enough for this project; a real deployment would widen the serial, which changes
+the format and the check-digit rule in both places.
+
 Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
-145 tests that check every constraint, trigger and procedure rejects what §4 says it must.
+196 tests that check every constraint, trigger and procedure rejects what §4 says it must.
 
 ---
 

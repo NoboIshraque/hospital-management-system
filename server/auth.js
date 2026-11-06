@@ -73,4 +73,9 @@ function requirePermission(code) {
 const FRONTEND_ROLE = { hospital_admin: 'admin' };
 const frontendRole = code => FRONTEND_ROLE[code] || code;
 
-module.exports = { sessionMiddleware, requireLogin, requirePermission, frontendRole };
+/* The caller's address, as written to access_log: a real IP or nothing
+   (stress test H2.1 — a forged or oversized value once broke every logged read). */
+const net = require('net');
+const clientIp = req => (net.isIP(req.ip || '') ? req.ip : null);
+
+module.exports = { sessionMiddleware, requireLogin, requirePermission, frontendRole, clientIp };

@@ -20,6 +20,7 @@ const API_ROOT = '/api';
 
 const API = {
   online: false,
+  down: null,          // set when the server answers but the API fails at start-up (H2.14)
   patients: [],        // the patients this page has found by searching (never the whole country)
 
   async request(method, url, body) {
@@ -36,6 +37,13 @@ const API = {
     }
     let data = null;
     try { data = await res.json(); } catch (e) { /* an empty or non-JSON body */ }
+    // The session ended (30 minutes idle, 8 hours, or a server restart):
+    // back to sign-in, instead of an error box on every screen (H2.14).
+    // Not for the sign-in calls themselves, which answer 401 on purpose.
+    if (res.status === 401 && API.online && url !== '/login' && url !== '/me') {
+      try { session.clear(); } catch (e) { /* store.js not loaded on this page */ }
+      location.replace(LOGIN_HREF);
+    }
     if (!res.ok) throw apiError(res.status, (data && data.error) || `Request failed (${res.status}).`, data);
     return data;
   },
@@ -105,9 +113,18 @@ API.ready = (async () => {
     replaceContents(DEPARTMENTS, departments);
     API.online = true;
   } catch (e) {
-    // Served over http but no API behind it (a static preview server):
-    // fall back to the sample data rather than showing a broken page.
-    API.online = false;
+    if (e.status >= 500) {
+      // The server is there but its API is failing (MySQL stopped, most
+      // likely). Do NOT fall back to the sample data: that would show
+      // invented patients and accept the offline demo passwords with no
+      // warning (stress test H2.14). Pages show API.down instead.
+      API.online = true;
+      API.down = e.message;
+    } else {
+      // Served over http but no API behind it (a static preview server):
+      // fall back to the sample data rather than showing a broken page.
+      API.online = false;
+    }
   }
   return API.online;
 })();

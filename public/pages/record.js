@@ -124,12 +124,13 @@ function drawRecord(root, p) {
 
     ${accessBanner}
     ${allergyBanner}
+    ${canRecordAllergy(access) ? '<div style="margin:-6px 0 14px"><button class="btn sm" id="allergy-btn">Record an allergy&hellip;</button></div>' : ''}
 
-    <div class="tabs" id="rec-tabs">
-      <button data-tab="timeline" class="on">Encounter timeline</button>
-      <button data-tab="rx">Prescriptions</button>
-      <button data-tab="access">Who has viewed this</button>
-      ${isSelf && API.online ? '<button data-tab="consents">Who may read it</button>' : ''}
+    <div class="tabs" id="rec-tabs" role="tablist" aria-label="Record">
+      <button role="tab" aria-selected="true" data-tab="timeline" class="on">Encounter timeline</button>
+      <button role="tab" aria-selected="false" data-tab="rx">Prescriptions</button>
+      <button role="tab" aria-selected="false" data-tab="access">Who has viewed this</button>
+      ${isSelf && API.online ? '<button role="tab" aria-selected="false" data-tab="consents">Who may read it</button>' : ''}
     </div>
     <div id="rec-body"></div>
     <p class="print-only print-foot">Printed from the UHID national health record by ${esc(S.account.name)} (${esc(ROLES[S.role].label)}), ${esc(fmtDateTime(new Date()))}. Access basis: ${esc(BASIS_LABEL[access.basis] || access.basis)}. Confidential clinical information.</p>`;
@@ -137,10 +138,13 @@ function drawRecord(root, p) {
   $('#rec-tabs').addEventListener('click', e => {
     const b = e.target.closest('[data-tab]');
     if (!b) return;
-    $$('#rec-tabs button').forEach(x => x.classList.toggle('on', x === b));
+    $$('#rec-tabs button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); });
     S.tab = b.dataset.tab;
     renderRecordBody();
   });
+
+  const allergyBtn = $('#allergy-btn');
+  if (allergyBtn) allergyBtn.addEventListener('click', () => openAllergy(p));
 
   const consentBtn = $('#consent-btn');
   if (consentBtn) consentBtn.addEventListener('click', () => showConsent(p, access));
@@ -318,6 +322,41 @@ async function drawConsents(box) {
       toast('Consent revoked', `${g.hospital} can no longer read your record on that permission.`);
       drawConsents(box);
     });
+  }));
+}
+
+/* A doctor treating the patient records an allergy found during the visit.
+   record_allergy() needs the doctor's own open visit (the same 'treating'
+   rule as reading), so the button shows only on that basis; the database
+   is the check (stress test H2.10). */
+const canRecordAllergy = access => API.online && S.role === 'doctor' && access.basis === 'treating';
+
+async function openAllergy(p) {
+  let cat;
+  try { cat = await API.get('/catalogue'); }
+  catch (e) { toast('Catalogue unavailable', e.message, 'err'); return; }
+  const sc = modal(`
+    <div class="modal-h"><h3>Record an allergy</h3><p>${esc(p.name)} &middot; from your open visit</p></div>
+    <div class="modal-b">
+      <div class="row c2">
+        <div><label class="label" for="al-agent">Allergen</label>
+          <select class="field" id="al-agent">${cat.allergens.map(a => `<option>${esc(a.name)}</option>`).join('')}</select></div>
+        <div><label class="label" for="al-sev">Severity</label>
+          <select class="field" id="al-sev"><option>Mild</option><option selected>Moderate</option><option>Severe</option></select></div>
+      </div>
+      <div class="row"><div><label class="label" for="al-note">What happened <span style="color:var(--ink-3)">optional</span></label>
+        <input class="field" id="al-note" maxlength="200" placeholder="e.g. Hives within an hour"></div></div>
+      <p class="hint">From now on the database refuses any prescription in the same drug class.</p>
+    </div>
+    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Record</button></div>`);
+  $('[data-ok]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
+    try {
+      await API.post('/allergies', { uhid: p.uhid, allergen: $('#al-agent', sc).value,
+        severity: $('#al-sev', sc).value, note: $('#al-note', sc).value.trim() });
+    } catch (err) { toast('Not recorded', err.message, 'err'); return; }
+    sc.remove();
+    toast('Allergy recorded', `${$('#al-agent', sc).value} is now on ${p.name}'s record.`);
+    loadRecord($('#view'), p.uhid, null);
   }));
 }
 

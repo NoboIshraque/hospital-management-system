@@ -25,7 +25,7 @@ database refused (see `server/db/errors.js`):
 
 | Status | Meaning | Comes from |
 |---|---|---|
-| 400 | The request is missing something, or an id is not a whole number, or a list is too long (at most 10 diagnoses, 20 drug lines, 20 lab tests per visit) | the route (`id()`, `list()` in `db/errors.js`) |
+| 400 | The request is missing something, a value is the wrong type, too long or not a valid date (MySQL 1406, 1265, 1292, 1366, 1264, 1048), a field holds a list or object where one value belongs, an id is not a whole number, or a list is too long (at most 10 diagnoses, 20 drug lines, 20 lab tests per visit) | the route (`id()`, `list()` in `db/errors.js`) |
 | 401 | Not signed in | `requireLogin` |
 | 403 | Your role may not do this — or the write came from another website | `require_permission()` — MYSQL_ERRNO 5403; `sameOriginWrites` in `security.js` |
 | 404 | No such patient / thing | MYSQL_ERRNO 5404 |
@@ -56,7 +56,7 @@ database refused (see `server/db/errors.js`):
 | `POST /api/patients/merge` | admin | `{ losingUhid, survivingUhid, reason }` | `merge_patients()` |
 | `POST /api/appointments` | reception, patient (own) | `{ postingId, uhid, slotStart }` | `book_appointment()` |
 | `DELETE /api/appointments/:id` | reception, patient (own) | — | `cancel_appointment()` |
-| `GET /api/wards` | hospital staff | — | `v_bed_board` for the signed-in hospital |
+| `GET /api/wards` | reception, doctors, hospital admin (`bed.view`) | — | `bed_board()` — the signed-in hospital only; a procedure because the board shows diagnoses |
 | `POST /api/admissions` | reception | `{ uhid, postingId, wardId, bedNo, complaint }` | `admit_patient()` |
 | `POST /api/admissions/:id/transfer` | reception, doctor | `{ wardId, bedNo }` | `transfer_patient()` |
 | `POST /api/admissions/:id/discharge` | doctor | `{ summary, outcome }` | `discharge_patient()` |
@@ -65,8 +65,9 @@ database refused (see `server/db/errors.js`):
 | `GET /api/lab-orders` | lab technician | — | `lab_worklist()` — the caller's hospital only; a procedure, not a view, because test names are clinical content |
 | `POST /api/lab-results` | lab technician | `{ orderId, valueNum, valueText }` → `{ reported, abnormal }` | `report_lab_result()`; `abnormal` is what `trg_lab_result_bi` decided |
 | `POST /api/referrals` | doctor | `{ encounterId, toHospitalId, dept, reason, urgency }` | `refer_patient()` |
-| `GET /api/referrals/inbox` | doctors | — | `v_referral_inbox` |
-| `GET /api/audit/break-glass` | hospital admin (own hospital), system admin (all) | — | `v_break_glass_queue` |
+| `GET /api/referrals/inbox` | doctors | — | `referral_inbox()` — the signed-in hospital only |
+| `POST /api/allergies` | doctor with an open visit for the patient | `{ uhid, allergen, severity, note }` | `record_allergy()` — linked to that visit |
+| `GET /api/audit/break-glass` | hospital admin (own hospital), system admin (all) | — | `break_glass_queue()` — break-glass reads, and visits or admissions opened with no basis (`action` says which) |
 | `POST /api/audit/break-glass/:id/review` | hospital admin (own hospital), system admin (all) | — | `review_break_glass()` — refuses another hospital's read with 403 |
 
 "Who" is what the seed data's role permissions allow. The permission check itself is in the

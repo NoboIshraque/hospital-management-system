@@ -89,7 +89,10 @@ async function signOut() {
    if it did, S.role is null and we must not render a clinical screen
    into a document that is on its way out. */
 function boot(render) {
-  SHELL_READY.then(() => { if (S.role) render($('#view')); });
+  SHELL_READY
+    .then(() => { if (S.role) return render($('#view')); })
+    // A screen that throws shows why, instead of a blank page (stress test H2.14).
+    .catch(e => { const v = $('#view'); if (v) v.innerHTML = errorHtml('This screen failed to draw', e.message); });
 }
 
 /* While anything is being fetched, the screen says so. */
@@ -113,6 +116,11 @@ const needsServerHtml = what => `
 const SHELL_READY = (async function start() {
   S.page = document.body.dataset.page;
   const online = await API.ready;
+  if (API.down) {
+    document.body.innerHTML = errorHtml('The server is running, but its database is not answering',
+      `${API.down} Check that the MySQL84 service is running, then reload.`);
+    return;
+  }
 
   /* Access is granted, not assumed — a signed-out browser never
      reaches a clinical screen. Online, the SERVER decides: GET
@@ -172,8 +180,7 @@ const SHELL_READY = (async function start() {
      button, middle-click and open-in-new-tab all work — so the nav
      should be marked up as what it actually is. */
   $('#nav').innerHTML = r.nav.map(([id, label]) =>
-    `<a href="${id}.html${patientQuery()}" data-page="${id}"${id === S.page ? ' class="on"' : ''}>` +
-    `<span class="ic">${icon(id)}</span>${label}</a>`).join('');
+    `<a href="${id}.html${patientQuery()}" data-page="${id}"${id === S.page ? ' class="on" aria-current="page"' : ''}><span class="ic">${icon(id)}</span>${label}</a>`).join('');
 
   $('#signout').addEventListener('click', signOut);
   $('#reset-demo-2').addEventListener('click', resetDemo);
@@ -182,8 +189,11 @@ const SHELL_READY = (async function start() {
   showFlashes();
 })();
 
-/* Global search jumps to the first match. Online it is a real search,
-   with the same rules as the search screen. */
+/* Global search. Online it is a real search, with the same rules as the
+   search screen. Exactly one match opens that record; several go to the
+   search screen to choose (stress test H2.14: opening the first of twenty
+   was a logged read of whoever happened to be first). The query is handed
+   over in sessionStorage for this tab, never in the address. */
 $('#gsearch').addEventListener('keydown', async e => {
   if (e.key !== 'Enter') return;
   const q = e.target.value.trim().toLowerCase();
@@ -194,7 +204,11 @@ $('#gsearch').addEventListener('keydown', async e => {
     try { rows = await API.searchPatients(q); }
     catch (err) { toast('Search failed', err.message, 'err'); return; }
     e.target.value = '';
-    if (rows.length) openPatient(rows[0].uhid);
+    if (rows.length === 1) openPatient(rows[0].uhid);
+    else if (rows.length > 1) {
+      try { sessionStorage.setItem('uhid.q.v1', q); } catch (err) { /* the search screen starts empty */ }
+      go('search');
+    }
     else toast('No match', 'Nobody on file matches that.', 'err');
     return;
   }

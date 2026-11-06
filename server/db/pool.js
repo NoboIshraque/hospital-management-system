@@ -40,6 +40,18 @@ const pool = mysql.createPool({
    `db` is the pool by default; pass a single connection instead when the
    call is one step of a transaction (see routes/clinical.js). */
 async function call(procedure, args = [], db = pool) {
+  // Every argument must be ONE value. mysql2 expands an array into a list,
+  // so a JSON array sent where a string was expected would shift the values
+  // into the wrong parameters (stress test H2.6). An object or array is
+  // refused here; undefined becomes NULL.
+  args = args.map(a => {
+    if (a !== null && typeof a === 'object') {
+      const e = new Error('Each field must be a single value, not a list or an object.');
+      e.status = 400;
+      throw e;
+    }
+    return a === undefined ? null : a;
+  });
   const placeholders = args.map(() => '?').join(', ');
   const [result] = await db.query(`CALL ${procedure}(${placeholders})`, args);
   // The last element is MySQL's status packet for the CALL itself, not rows.

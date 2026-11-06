@@ -16,6 +16,9 @@ function renderSearch(root) {
       <input class="field" id="ps" placeholder="Start typing&hellip;">
     </div>
     <div id="ps-out"></div>`;
+  let handed = null;
+  try { handed = sessionStorage.getItem('uhid.q.v1'); sessionStorage.removeItem('uhid.q.v1'); } catch (e) { /* none */ }
+  if (handed) $('#ps').value = handed;
   $('#ps').addEventListener('input', API.online ? searchOnline : runSearch);
   if (API.online) searchOnline(); else runSearch();
 }
@@ -68,7 +71,7 @@ function drawHits(out, hits, q, wholeList) {
     return;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   out.innerHTML = `
     <p style="font-size:12.5px;color:var(--ink-3);margin:0 0 10px">
       ${hits.length} record${hits.length > 1 ? 's' : ''}${wholeList ? ' on file' : ' found nationally'}${hits.length >= 20 && API.online ? ' &mdash; the first 20; be more specific to narrow it' : ''}

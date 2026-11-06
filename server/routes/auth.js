@@ -4,7 +4,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool, call } = require('../db/pool');
 const { ah } = require('../db/errors');
-const { requireLogin, frontendRole } = require('../auth');
+const { requireLogin, frontendRole, clientIp } = require('../auth');
 const { loginLimiter } = require('../security');
 
 const router = express.Router();
@@ -19,11 +19,22 @@ router.post('/login', ah(async (req, res) => {
   const username = String(req.body.username || '').trim().toLowerCase().slice(0, 40);
   const password = String(req.body.password || '').slice(0, 200);
 
+  const ip = clientIp(req) || 'unknown';
+
   // S1. Too many failures for this username or this address: wait.
-  const wait = loginLimiter.blockedFor(req.ip, username);
+  const wait = loginLimiter.blockedFor(ip, username);
   if (wait) {
     res.set('Retry-After', String(wait));
     return res.status(429).json({ error: `Too many failed sign-ins. Try again in ${Math.ceil(wait / 60)} minute(s).` });
+  }
+  // Count this attempt now, before anything is awaited (stress test H1.6).
+  loginLimiter.attempt(ip, username);
+
+  // Usernames are plain ASCII (stress test H1.6). MySQL compares text
+  // ignoring accents and width, so 'ｓｙｓａｄｍｉｎ' or 'sýsadmin' found the
+  // account 'sysadmin' — each spelling with a fresh limit of its own.
+  if (!/^[a-z0-9._-]{1,40}$/.test(username)) {
+    return res.status(401).json({ error: 'No account matches those details.' });
   }
 
   const [rows] = await call('get_login', [username]);
@@ -33,11 +44,8 @@ router.post('/login', ah(async (req, res) => {
   // the hash. The plaintext never reaches SQL. One message for "no such
   // user" and "wrong password", so the form cannot reveal usernames.
   const ok = await bcrypt.compare(password, account ? account.password_hash : DUMMY_HASH) && Boolean(account);
-  if (!ok) {
-    loginLimiter.fail(req.ip, username);
-    return res.status(401).json({ error: 'No account matches those details.' });
-  }
-  loginLimiter.succeed(username);
+  if (!ok) return res.status(401).json({ error: 'No account matches those details.' });
+  loginLimiter.succeed(ip, username);
 
   await pool.query('CALL record_login(?)', [account.account_id]);
 

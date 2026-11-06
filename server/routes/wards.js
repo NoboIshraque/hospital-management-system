@@ -25,8 +25,9 @@ const router = express.Router();
 router.get('/wards', requireLogin, ah(async (req, res) => {
   const hospitalId = req.session.account.hospitalId;
   if (!hospitalId) throw httpError(400, 'The bed board belongs to a hospital, and this account has none.');
-  const [rows] = await pool.query(
-    'SELECT * FROM v_bed_board WHERE hospital_id = ? ORDER BY ward_id, no', [hospitalId]);
+  // bed_board() checks bed.view and keeps to the caller's hospital in the
+  // database; the view holds diagnoses, so the server has no grant on it.
+  const [rows] = await call('bed_board', [req.session.account.id]);
   const wards = [];
   for (const r of rows) {
     let w = wards[wards.length - 1];

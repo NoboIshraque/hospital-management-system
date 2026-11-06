@@ -42,7 +42,42 @@ EXECUTE create_app_user;
 DEALLOCATE PREPARE create_app_user;
 SET @create_app_user = NULL;
 
-GRANT EXECUTE ON uhid.* TO 'uhid_app'@'localhost';
+-- EXECUTE on each procedure the server calls, by name — not on uhid.*
+-- (stress test H3.3). The helpers inside them (require_permission,
+-- resolve_patient, care_basis…) run with the definer's rights when a
+-- procedure calls them, so the server needs no right to call them itself.
+GRANT EXECUTE ON PROCEDURE uhid.add_diagnosis          TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.admit_patient          TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.book_appointment       TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.bed_board              TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.break_glass_queue      TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.cancel_appointment     TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.discharge_patient      TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.doctor_availability    TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.end_encounter          TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.get_login              TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.get_patient_record     TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.lab_worklist           TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.list_consents          TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.log_unsaved_encounter  TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.mark_bed_clean         TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.merge_patients         TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.order_lab              TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.prescribe              TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.record_allergy         TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.record_login           TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.record_vitals          TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.refer_patient          TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.referral_inbox         TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.register_patient       TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.registration_matches   TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.report_lab_result      TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.review_break_glass     TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.revoke_consent         TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.search_patients        TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.start_encounter        TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.transfer_patient       TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON FUNCTION  uhid.has_permission         TO 'uhid_app'@'localhost';
 
 GRANT SELECT ON uhid.v_hospital_directory  TO 'uhid_app'@'localhost';
 GRANT SELECT ON uhid.v_doctor_directory    TO 'uhid_app'@'localhost';
@@ -50,10 +85,11 @@ GRANT SELECT ON uhid.v_doctor_directory    TO 'uhid_app'@'localhost';
 -- handing it to the web server was a bulk export (security review L1).
 -- Patients are found through search_patients(), which needs a specific
 -- query, returns at most 20, masks NID and phone, and logs each match.
-GRANT SELECT ON uhid.v_bed_board           TO 'uhid_app'@'localhost';
 GRANT SELECT ON uhid.v_ward_occupancy      TO 'uhid_app'@'localhost';
-GRANT SELECT ON uhid.v_break_glass_queue   TO 'uhid_app'@'localhost';
-GRANT SELECT ON uhid.v_referral_inbox      TO 'uhid_app'@'localhost';
+-- Not v_bed_board, v_break_glass_queue or v_referral_inbox: they hold
+-- clinical content (diagnoses, reasons), so the server reads them only
+-- through bed_board(), break_glass_queue() and referral_inbox(), which
+-- check the permission and the hospital (stress test H2.4).
 GRANT SELECT ON uhid.v_district_list       TO 'uhid_app'@'localhost';
 GRANT SELECT ON uhid.v_possible_duplicates TO 'uhid_app'@'localhost';
 

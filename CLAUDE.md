@@ -110,7 +110,7 @@ docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
               er-diagrams/uhid-er-chen-boxed.drawio (Chen, the one to hand in),
               er-diagrams/uhid-er-chen.drawio (Chen, ellipse styling),
               er-diagrams/uhid-er.drawio (crow's foot, logical — no longer maintained since 1 Nov 2026)
-              use-cases.md (17 use cases, each mapped to its procedure/trigger/view),
+              use-cases.md (19 use cases, each mapped to its procedure/trigger/view),
               data-dictionary.md (all 40 tables, generated from schema.sql),
               normalization.md (1NF → BCNF worked examples, and every deliberate redundancy)
               guides/nobo.md, abir.md, noria.md — the team's learning guides (see Team below)
@@ -120,7 +120,7 @@ database/     schema.sql (40 tables) → triggers.sql → procedures.sql → vie
               → grants.sql (uhid_app: EXECUTE on procedures, SELECT on views and lookups only)
               queries.sql — 20 demonstration queries (joins, ROLLUP, window functions, CTEs,
               INTERSECT), each tied to a design decision; run as root, not uhid_app
-              tests.sql — 145 tests of constraints, triggers and procedures (npm run db:test)
+              tests.sql — 196 tests of constraints, triggers and procedures (npm run db:test)
 server/       Express app — serves public/ AND the JSON API under /api (docs/api.md)
   app.js        wiring only: session, routes, static files, 404, error handler
   auth.js       sessions, requireLogin, requirePermission (asks has_permission() in MySQL)
@@ -128,7 +128,8 @@ server/       Express app — serves public/ AND the JSON API under /api (docs/a
   db/           pool.js (connects as uhid_app), errors.js (MYSQL_ERRNO → HTTP, id/list checks), run-sql.js, reset.js
   routes/       auth, reference, patients, appointments, wards, clinical, audit
   lib/format.js turns rows into the shapes public/ renders
-  scripts/      api-test.js (npm run api:test, 88 checks), race-booking.js (npm run race)
+  scripts/      api-test.js (npm run api:test, 103 checks), race-booking.js (npm run race:
+                double booking AND double admission to one bed, 5 rounds each)
   practice/<name>/ — each teammate's practice files, created by them (guides Part 0.8)
 public/       Frontend, served as static files (also works opened straight from disk)
   index.html    public landing page
@@ -214,6 +215,13 @@ allergy severity, appointment state. Never use `--brand` to mean "good".
 - **No controllers/ or services/ layer, on purpose.** The stored procedures are the service
   layer; a route validates input, calls one procedure (or a few, in one transaction), and shapes
   the result. Business rules go in `database/`, never in a route.
+- **A new procedure the server calls needs its own GRANT** in `database/grants.sql`
+  (`GRANT EXECUTE ON PROCEDURE uhid.<name> TO 'uhid_app'@'localhost';`). Since 7 Nov 2026 the
+  server may run only the procedures it calls, by name, not `uhid.*` — without the line the
+  route fails with error 1370 "execute command denied". Helpers called only from inside other
+  procedures need no grant.
+- **"May this clinician be seeing this patient?" is one function, `care_basis()`**, used by
+  `start_encounter()`, `admit_patient()` and `log_unsaved_encounter()`. Change the rule there, once.
 - **No stored procedure, function or trigger ever builds SQL from text** — no `PREPARE`, no
   `CONCAT` into a statement; every value is a typed parameter. Procedures run with root's rights
   (that is how `uhid_app` reaches tables it cannot touch), so one injectable procedure would be
@@ -321,9 +329,10 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Use cases | Done — `docs/use-cases.md` |
 | ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched). The crow's-foot file is no longer maintained |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
-| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (35 + 4 functions), views (9), seed, grants, 20 demonstration queries, 135 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 145/145 (6 Nov 2026: before then the 38 `t_value` checks silently recorded nothing — see the comment on `t_value` in tests.sql — so "74/74" was 74 of 101)** |
+| **`database/`** | **schema (40 tables, phase 1 + 2), triggers (21), procedures (41 + 6 functions), views (9), seed, grants, 20 demonstration queries, 196 tests — all built and loaded together, 31 Oct 2026. `npm run db:test` passes 196/196 (6 Nov 2026: before then the 38 `t_value` checks silently recorded nothing — see the comment on `t_value` in tests.sql — so "74/74" was 74 of 101)** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
-| Express API | Done 31 Oct 2026 — 32 endpoints, `docs/api.md`; `npm run api:test` passes 88/88; `npm run race` shows 5/5 single bookings |
+| Express API | Done 31 Oct 2026 — 32 endpoints, `docs/api.md`; `npm run api:test` passes 103/103; `npm run race` shows 5/5 single bookings and 5/5 single admissions to one bed |
+| Stress test, 7 Nov 2026 | Done the same day — three agents (database, server, frontend + docs) found 7 fix-before-viva, 14 should-fix and a batch of low items; **all fixed** and tested (`CHECKLIST.md` §H, `er-design.md` §8.6), browser-checked online and offline |
 | Security review, group 1 (fix before the viva) | Done 6 Nov 2026 — A1–A6, L1, W1, I2 (`er-design.md` §8.3). Each DB rule has a `tests.sql` §9 test with its errno; browser-tested as receptionist, doctor and hospital admin, plus offline mode |
 | Security review, groups 2–4 | Done 6 Nov 2026 — accepted risks written down (§8.4); S1, S3 (behind `COOKIE_SECURE=1`), S5, S6, W2, W3, W4, I3, A7, A9, D5 built and tested (`server/security.js`; §8.5). Left on purpose, with reasons in §8.5: S2, S4, D3, L2, A8, L5, L3 |
 | Data dictionary, normalization write-up | Done — `docs/data-dictionary.md`, `docs/normalization.md` |
@@ -349,11 +358,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   checks the caller's hospital (wards, cancel, merge), an encounter is written only by its own
   doctor (or the admitting department for an inpatient), `start_encounter()` needs a basis or a
   reviewed reason, and `treating` means the reader's own encounter or department.
-- **`CHECKLIST.md`**: sections A–G are done and verified (G by 6 Nov 2026). **Section H is open:**
-  the 7 Nov 2026 stress test (three agents: database, server, frontend and docs) — 7 items to fix
-  before the viva (H1: concurrent admission to one bed, merge chains, merge with two open
-  admissions, revoked consent vs referral, admission granting access, login-limit bypass, doc
-  counts), 14 should-fix (H2), and low-priority polish (H3). Each item says how it was found.
+- **`CHECKLIST.md`**: every section, A–H, is done and verified (H, the stress test, on 7 Nov 2026).
   New work: add it there first, then tick it when it is run and checked.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
   small version of one slice of the database and backend: Nobo the hardest (transactions,

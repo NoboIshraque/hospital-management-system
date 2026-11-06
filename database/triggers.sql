@@ -278,12 +278,19 @@ BEGIN
 
     -- Item 10: the bed must be free (or reserved for this admission) and in
     -- service, and in the hospital the patient was admitted to.
+    --
+    -- FOR UPDATE locks the bed row while it is checked (stress test H1.1).
+    -- Without it, two admissions to one bed at the same instant both read
+    -- 'free' from their own snapshot and both got in. With it, the second
+    -- waits until the first commits, then reads the bed as it now is —
+    -- 'occupied' — and is refused. Transfers come through here too.
     SELECT s.code, b.is_out_of_service, w.hospital_id
       INTO v_status, v_oos, v_bed_hosp
       FROM bed b
       JOIN bed_status s ON s.status_id = b.status_id
       JOIN ward w       ON w.ward_id   = b.ward_id
-     WHERE b.ward_id = NEW.ward_id AND b.bed_no = NEW.bed_no;
+     WHERE b.ward_id = NEW.ward_id AND b.bed_no = NEW.bed_no
+       FOR UPDATE;
 
     IF v_oos THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That bed is out of service.';
