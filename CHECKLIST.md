@@ -236,3 +236,44 @@ cross-site writes refused for every edge case tried; static files never expose `
 matches what the pages load; every value escaped and every storage access in try/catch; the
 debounced searches drop stale answers; no secret in git history; the visit transaction releases
 its connection on every path.
+
+## I. Shipment-ready — everything a real deployment needs except the hosting itself (opened 8 Nov 2026)
+
+Found by comparing the app with what a hospital would need on day one. Order = build order: the
+first items block shipping outright. Hosting (I14) is the only part that needs a real server.
+
+**Accounts — blocks shipping**
+- [ ] **I1. Real accounts.** Every account shares `demo1234`, and the login page prints it. Needed:
+      change your own password; an administrator creates staff accounts, resets passwords and
+      switches accounts off; reception issues a patient their portal login with a one-time
+      password; a forced change at first sign-in; the demo account list shown only in demo mode.
+
+**Everyday work that has no screen**
+- [ ] **I2. Appointment lists.** A doctor's day list, a patient's own appointments (with cancel),
+      reception's list for the hospital (cancel, no-show). Cancelling exists in the API but no
+      screen offers it.
+- [ ] **I3. Discharge form.** Discharge always records "recovered" with no summary.
+- [ ] **I4. Update a patient's details** (phone, address, next of kin) and verify their identity
+      after registration.
+
+**Running it without editing SQL — blocks shipping**
+- [ ] **I5. Administration screens** for hospitals, doctors and their postings and fees, weekly
+      schedules, leave, wards and beds (out of service). Today these exist only in `seed.sql`.
+
+**Operations**
+- [ ] **I6. Sessions survive a restart** (stored in MySQL, not server memory).
+- [ ] **I7. A production install**: build the database with the reference data but no demo
+      patients, and create the first system administrator.
+- [ ] **I8. Backups**: `npm run db:backup` and a tested restore.
+- [ ] **I9. Health check, request log, clean shutdown**, and running as a Windows service.
+- [ ] **I10. Runtime secrets split**: the running site needs only `uhid_app`'s password, not root's.
+
+**Record-keeping the earlier reviews left for later (schema changes)**
+- [ ] **I11.** A verdict and note on each break-glass review; who cancelled an appointment; the
+      patient's agreement recorded on a referral.
+- [ ] **I12.** The patient pages through their whole access log, not the latest 25.
+- [ ] **I13.** Lab sample collection as its own step (ordered → collected → reported).
+
+**Needs a real server — last**
+- [ ] **I14. Hosting**: a domain, HTTPS (`COOKIE_SECURE=1`), email or SMS for password resets and
+      appointment reminders, off-site backups, uptime monitoring.
