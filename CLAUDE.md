@@ -361,7 +361,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Privacy / data-handling page | Done |
 | Repo + GitHub | Done |
 | Use cases | Done — `docs/use-cases.md` |
-| ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched). The crow's-foot file is no longer maintained |
+| ER diagrams | Three draw.io files, 6 pages each. `uhid-er-chen-boxed.drawio` is the one to hand in — author's own styling, page 1 his, 2–6 matched to it. Both Chen files updated 1 Nov 2026 with the six changes in er-design.md §8.2 (pages 2–5; page 1 untouched), and 7 Nov 2026 with web_session and the section-I columns (pages 2–5, §8.8). The crow's-foot file is no longer maintained |
 | **ER model** | **Agreed — `docs/er-design.md`. The 5 open questions were decided 27 Sep 2026; §8 records them** |
 | **`database/`** | **schema (41 tables, phase 1 + 2 + web_session), triggers (21), procedures (76 + 8 functions), views (9), reference, seed, grants, 20 demonstration queries, 309 tests — all built and loaded together. `npm run db:test` passes 309/309 (7 Nov 2026, after checklist section I) (6 Nov 2026: before then the 38 `t_value` checks silently recorded nothing — see the comment on `t_value` in tests.sql — so "74/74" was 74 of 101)** |
 | MySQL 8 and Node.js on the laptop | Both installed 11 Oct 2026 and tested together — see "The author's laptop" under Stack |
@@ -398,9 +398,6 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 - **`CHECKLIST.md`**: sections A–H done and verified; section I (shipment-ready) done on 7 Nov 2026
   except **I14, hosting**, which needs a real server and domain (`docs/operations.md` §5).
   New work: add it there first, then tick it when it is run and checked.
-- **The Chen ER diagrams lag the schema by one entity:** they do not show `web_session`
-  (user_account 1 : N web_session) or the columns added 7 Nov 2026 (`er-design.md` §8.8 lists
-  them). Pages 2–6 need them drawn; page 1 is the author's — ask before touching it.
 - **The Claude Docs were refreshed for checklist section I on 7 Nov 2026** (links in
   `handover.md`): the explainer, demo guide (new Part 12) and how-to-change guide describe the
   new screens and scripts; the frontend report has 13 new live screenshots (§4.12–4.14 and the

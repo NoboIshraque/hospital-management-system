@@ -726,6 +726,7 @@ partial — optional.
 | `department` receives `referral` | (0,1) | (0,n) | 1 : N | Optional: a referral may name only a hospital |
 | `patient` grants `consent_grant` | (1,1) | (0,n) | 1 : N | — |
 | `user_account` reads `access_log` | (1,1) | (0,n) | 1 : N | Append-only — no update, no delete |
+| `user_account` opens `web_session` | (0,1) | (0,n) | 1 : N | Added 7 Nov 2026. `account_id` may be NULL by the schema, but only signed-in sessions are saved; switching the account off or resetting its password deletes its sessions |
 
 ---
 
@@ -976,9 +977,10 @@ Until now every account shared one demo password. A real installation cannot wor
 | Fourteen setup procedures and permission `org.manage` | Hospitals, postings, sessions, leave, wards and beds without editing SQL | procedures §13 |
 | `reference.sql` split from `seed.sql` | A real installation loads the reference data and not the demo | `db:install` |
 
-**For the ER diagrams:** the Chen files do not yet show `web_session` (1 user_account : N
-web_session, partial on both sides) or the new attributes above — pages 2–6 to be updated by hand;
-page 1 is the author's.
+**In the ER diagrams** (both Chen files, 7 Nov 2026): page 4 shows `web_session` and the
+`opens` relationship (1 user_account : N web_session) and `must_change_password`; page 2 adds
+`collected_at` on *orders*; page 3 `cancelled_at` on appointment; page 5 `review_verdict` on
+*reads* and `patient_agreed` on *refers*. Pages 1 and 6 are unchanged.
 
 Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
 309 tests that check every constraint, trigger and procedure rejects what §4 says it must.
