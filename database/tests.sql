@@ -322,9 +322,9 @@ CALL t_expect('Break-glass with a reason is allowed…',
 CALL t_value('…and waits in the review queue',
   "SELECT COUNT(*) FROM v_break_glass_queue WHERE uhid = 'BD-2021-11904-5'", '1');
 CALL t_expect('A hospital admin reviews it once…',
-  "CALL review_break_glass(2, (SELECT MAX(log_id) FROM access_log))", 0);
+  "CALL review_break_glass(2, (SELECT MAX(log_id) FROM access_log), 'justified', NULL)", 0);
 CALL t_expect('…but not twice',
-  "CALL review_break_glass(2, (SELECT MAX(log_id) FROM access_log))", 1644);
+  "CALL review_break_glass(2, (SELECT MAX(log_id) FROM access_log), 'justified', NULL)", 1644);
 CALL t_expect('A receptionist can open a record…',
   "CALL get_patient_record(1, 'BD-2019-04821-5', FALSE, NULL, NULL)", 0);
 CALL t_value('…but only demographics, and that is what is logged',
@@ -394,7 +394,7 @@ CALL t_expect('A referred patient is seen at the receiving hospital',
 CALL t_value('…and the referral is now marked arrived',
   "SELECT status FROM referral WHERE referral_id = 2", 'arrived');
 CALL t_expect('A doctor refers from an encounter at their hospital',
-  "CALL refer_patient(11, 10, 3, 'Cardiology', 'Second opinion', 'routine')", 0);
+  "CALL refer_patient(11, 10, 3, 'Cardiology', 'Second opinion', 'routine', TRUE)", 0);
 CALL t_value('…and the receiving hospital gets a consent grant with it',
   "SELECT COUNT(*) FROM consent_grant WHERE patient_id = 1 AND to_hospital_id = 3 AND granted_via = 'referral'", '1');
 
@@ -433,13 +433,13 @@ CALL t_expect('…and orders a test on it…',
 CALL t_expect('…which a lab technician at Dhaka Medical may not report',
   "CALL report_lab_result(4, (SELECT MAX(order_id) FROM lab_order), 12.5, NULL)", 5404);
 CALL t_expect('A hospital admin may not review a break-glass read made at another hospital',
-  "CALL review_break_glass(2, 5)", 5403);
+  "CALL review_break_glass(2, 5, 'justified', NULL)", 5403);
 CALL t_value('…so it stays in the queue',
   "SELECT COUNT(*) FROM v_break_glass_queue WHERE id = 5", '1');
 CALL t_expect('The system admin reviews break-glass reads at any hospital',
-  "CALL review_break_glass(5, 5)", 0);
+  "CALL review_break_glass(5, 5, 'justified', NULL)", 0);
 CALL t_expect('Reviewing an entry that does not exist is not found',
-  "CALL review_break_glass(5, 999999)", 5404);
+  "CALL review_break_glass(5, 999999, 'justified', NULL)", 5404);
 
 
 -- =====================================================================
@@ -634,9 +634,9 @@ CALL t_value('H3.1: +880 and local mobile numbers compare equal',
 -- H2.8 · only the visit's own doctor refers; an unknown department is refused.
 SET @fe = (SELECT MAX(encounter_id) FROM encounter WHERE patient_id = 2 AND posting_id = 1);
 CALL t_expect('H2.8: a colleague may not refer another doctor''s visit',
-  CONCAT("CALL refer_patient(7, ", @fe, ", 7, NULL, 'Second opinion', 'routine')"), 5403);
+  CONCAT("CALL refer_patient(7, ", @fe, ", 7, NULL, 'Second opinion', 'routine', TRUE)"), 5403);
 CALL t_expect('H2.8: an unknown department is refused, not silently dropped',
-  CONCAT("CALL refer_patient(6, ", @fe, ", 7, 'Nonexistent', 'Second opinion', 'routine')"), 1644);
+  CONCAT("CALL refer_patient(6, ", @fe, ", 7, 'Nonexistent', 'Second opinion', 'routine', TRUE)"), 1644);
 
 -- H2.12 and H3.1 · plausible clinical values.
 SET @mb = (SELECT MAX(encounter_id) FROM encounter WHERE patient_id = 1 AND posting_id = 15 AND ended_at IS NULL);
@@ -839,6 +839,74 @@ CALL t_expect('I4: a different NID than the one on file is refused',
   CONCAT("CALL verify_identity(1, '", @iv, "', '1978555999999', NULL)"), 1644);
 CALL t_expect('I4: a doctor does not verify identity',
   "CALL verify_identity(6, 'BD-2021-11904-5', '1991773310448', NULL)", 5403);
+
+-- =====================================================================
+-- 14. REVIEW VERDICTS, CANCELLATIONS, REFERRAL AGREEMENT, LOG PAGING,
+--     SAMPLE COLLECTION (checklist I11–I13, 7 November 2026)
+-- =====================================================================
+
+-- I11 · a review is a verdict
+INSERT INTO access_log (patient_id, account_id, hospital_id, action, basis, is_break_glass, justification)
+VALUES (2, 6, 1, 'record.read', 'break_glass', TRUE, 'Test: unconscious on arrival');
+SET @bg = LAST_INSERT_ID();
+CALL t_expect('I11: a review must give a verdict',
+  CONCAT("CALL review_break_glass(2, ", @bg, ", NULL, NULL)"), 1644);
+CALL t_expect('I11: "not justified" must say why',
+  CONCAT("CALL review_break_glass(2, ", @bg, ", 'not_justified', 'no')"), 1644);
+CALL t_expect('I11: an admin records a reasoned verdict',
+  CONCAT("CALL review_break_glass(2, ", @bg, ", 'not_justified', 'Patient was awake and could have been asked.')"), 0);
+CALL t_value('I11: …and it is stored with the review',
+  CONCAT("SELECT review_verdict FROM access_log WHERE log_id = ", @bg), 'not_justified');
+CALL t_expect('I11: a verdict without a reviewer is refused by the CHECK',
+  "INSERT INTO access_log (patient_id, account_id, action, basis, review_verdict) VALUES (1, 1, 'x', 'demographics_only', 'justified')", 3819);
+
+-- I11 · who cancelled
+SET @tc = (SELECT MIN(a.appointment_id) FROM appointment a JOIN doctor_posting dp ON dp.posting_id = a.posting_id
+            WHERE dp.hospital_id = 1 AND a.status = 'booked' AND a.slot_start > NOW());
+CALL t_expect('I11: reception cancels a booking',
+  CONCAT("CALL cancel_appointment(1, ", @tc, ")"), 0);
+CALL t_value('I11: …and the row says who cancelled it, and when',
+  CONCAT("SELECT CONCAT(cancelled_by, ' ', cancelled_at IS NOT NULL) FROM appointment WHERE appointment_id = ", @tc), '1 1');
+CALL t_expect('I11: a cancelled status with nobody named is refused by the CHECK',
+  CONCAT("UPDATE appointment SET cancelled_by = NULL WHERE appointment_id = ", @tc), 3819);
+
+-- I11 · the record travels with the patient's agreement only
+SET @fe2 = (SELECT MAX(encounter_id) FROM encounter WHERE ended_at IS NULL AND posting_id IN
+             (SELECT posting_id FROM doctor_posting WHERE doctor_id = 1));
+CALL t_expect('I11: a referral the patient did not agree to is still made',
+  CONCAT("CALL refer_patient(6, ", @fe2, ", 4, NULL, 'Second opinion without sharing', 'routine', FALSE)"), 0);
+CALL t_value('I11: …but writes no consent grant',
+  "SELECT COUNT(*) FROM consent_grant WHERE referral_id = (SELECT MAX(referral_id) FROM referral)", '0');
+CALL t_expect('I11: with agreement…',
+  CONCAT("CALL refer_patient(6, ", @fe2, ", 5, NULL, 'Second opinion, shared', 'routine', TRUE)"), 0);
+CALL t_value('I11: …the 24-hour grant is written',
+  "SELECT COUNT(*) FROM consent_grant WHERE referral_id = (SELECT MAX(referral_id) FROM referral)", '1');
+
+-- I12 · paging the access log
+CALL t_expect('I12: a patient pages through their own access log',
+  "CALL access_log_page(17, 'BD-2019-04821-5', NULL)", 0);
+CALL t_expect('I12: …but not someone else''s',
+  "CALL access_log_page(17, 'BD-2021-11904-5', NULL)", 5403);
+CALL t_expect('I12: an admin may page any',
+  "CALL access_log_page(2, 'BD-2021-11904-5', 1000000)", 0);
+CALL t_expect('I12: a receptionist may not',
+  "CALL access_log_page(1, 'BD-2021-11904-5', NULL)", 5403);
+
+-- I13 · ordered → collected → reported
+SET @lo = (SELECT MIN(o.order_id) FROM lab_order o JOIN encounter e ON e.encounter_id = o.encounter_id
+            WHERE e.hospital_id = 1 AND o.status = 'ordered');
+CALL t_expect('I13: a result before the sample is collected is refused',
+  CONCAT("CALL report_lab_result(4, ", @lo, ", 12.5, NULL)"), 1644);
+CALL t_expect('I13: another hospital''s technician cannot collect it',
+  CONCAT("CALL collect_sample(6, ", @lo, ")"), 5403);
+CALL t_expect('I13: the lab technician collects the sample',
+  CONCAT("CALL collect_sample(4, ", @lo, ")"), 0);
+CALL t_value('I13: …which records who and when',
+  CONCAT("SELECT CONCAT(status, ' ', collected_by) FROM lab_order WHERE order_id = ", @lo), 'collected 4');
+CALL t_expect('I13: …only once',
+  CONCAT("CALL collect_sample(4, ", @lo, ")"), 1644);
+CALL t_expect('I13: then the result is accepted',
+  CONCAT("CALL report_lab_result(4, ", @lo, ", 12.5, NULL)"), 0);
 
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message
   FROM t_result ORDER BY test_no;

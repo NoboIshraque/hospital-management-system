@@ -3,6 +3,7 @@
 
    POST /api/encounters      a whole visit, in ONE transaction
    GET  /api/lab-orders      the lab technician's worklist at their hospital
+   POST /api/lab-orders/:id/collect   the sample is taken (I13)
    POST /api/lab-results     { orderId, valueNum, valueText } → { abnormal }
    POST /api/referrals       { encounterId, toHospitalId, dept, reason, urgency }
    GET  /api/referrals/inbox patients referred to this hospital, not yet arrived
@@ -99,6 +100,12 @@ router.get('/lab-orders', requireLogin, ah(async (req, res) => {
 
 /* The answer says whether the result is abnormal — decided by
    trg_lab_result_bi from the test's reference range, not by this code. */
+/* Checklist I13: the sample is taken before a result can be reported. */
+router.post('/lab-orders/:id/collect', requireLogin, ah(async (req, res) => {
+  await call('collect_sample', [req.session.account.id, id(req.params.id, 'The order id')]);
+  res.json({ status: 'collected' });
+}));
+
 router.post('/lab-results', requireLogin, ah(async (req, res) => {
   const { orderId, valueNum, valueText } = req.body;
   if (!orderId || (valueNum == null && !valueText)) throw httpError(400, 'orderId and a value are required.');
@@ -107,13 +114,14 @@ router.post('/lab-results', requireLogin, ah(async (req, res) => {
   res.status(201).json({ reported: true, abnormal: bool(r.abnormal) });
 }));
 
-/* refer_patient() writes the referral AND a 24-hour consent grant to the
-   receiving hospital, in one transaction — the seam between decisions 2 and 6. */
+/* refer_patient() writes the referral AND, when the patient agreed
+   (patientAgreed: true), a 24-hour consent grant to the receiving hospital,
+   in one transaction — the seam between decisions 2 and 6. */
 router.post('/referrals', requireLogin, ah(async (req, res) => {
-  const { encounterId, toHospitalId, dept, reason, urgency } = req.body;
+  const { encounterId, toHospitalId, dept, reason, urgency, patientAgreed } = req.body;
   if (!encounterId || !toHospitalId) throw httpError(400, 'encounterId and toHospitalId are required.');
   const [[r]] = await call('refer_patient', [req.session.account.id, id(encounterId, 'encounterId'), id(toHospitalId, 'toHospitalId'),
-    dept || null, reason || null, urgency || null]);
+    dept || null, reason || null, urgency || null, patientAgreed === true]);
   res.status(201).json({ referralId: r.referral_id });
 }));
 

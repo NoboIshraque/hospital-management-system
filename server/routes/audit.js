@@ -24,10 +24,13 @@ router.get('/audit/break-glass', requireLogin, ah(async (req, res) => {
 }));
 
 /* review_break_glass() makes the one change the access log's triggers
-   allow: stamping reviewed_by, once. */
+   allow: stamping reviewed_by, once — with a verdict, and a reason when the
+   access was not justified (checklist I11). */
 router.post('/audit/break-glass/:id/review', requireLogin, ah(async (req, res) => {
-  await call('review_break_glass', [req.session.account.id, id(req.params.id, 'The log id')]);
-  res.json({ reviewed: true });
+  const { verdict, note } = req.body;
+  await call('review_break_glass', [req.session.account.id, id(req.params.id, 'The log id'),
+    verdict ? String(verdict) : null, note ? String(note) : null]);
+  res.json({ reviewed: true, verdict });
 }));
 
 /* Pairs the database thinks may be one person (a self-join view). Only for

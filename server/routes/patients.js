@@ -11,6 +11,7 @@
    POST /api/patients/:uhid/details { phone, district, address, kinName, kinRelation, kinPhone }
                                   reception, or the patient, updates contact details (I4)
    POST /api/patients/:uhid/verify  { nid }  reception has seen the ID card (I4)
+   GET  /api/patients/:uhid/access-log?before=<id>  older log entries (I12)
    POST /api/allergies           { uhid, allergen, severity, note } a doctor records an allergy
    GET  /api/consents            a patient's own consent grants (A9)
    POST /api/consents/:id/revoke the patient takes one back
@@ -51,6 +52,14 @@ router.post('/patients/matches', requireLogin, ah(async (req, res) => {
    locked UHID serial, the allergy lookup — in one transaction. The route
    only passes the form through. */
 const str = v => (v === undefined || v === null ? null : String(v));
+
+/* Checklist I12: older access-log entries, 25 at a time, before ?before=<id>.
+   A GET: it reads the log, it does not write it. */
+router.get('/patients/:uhid/access-log', requireLogin, ah(async (req, res) => {
+  const before = req.query.before === undefined ? null : id(req.query.before, 'before');
+  const [rows] = await call('access_log_page', [req.session.account.id, req.params.uhid, before]);
+  res.json(rows.map(l => ({ ...l, reviewed: bool(l.reviewed) })));
+}));
 
 router.post('/patients/:uhid/details', requireLogin, ah(async (req, res) => {
   const b = req.body;

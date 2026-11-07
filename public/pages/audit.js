@@ -41,7 +41,7 @@ async function renderAudit(root) {
           &ldquo;${esc(r.justification)}&rdquo;
           <div class="meta">${esc(fmtDateTime(r.at))}</div>
         </div>
-        <div class="acts"><button class="btn sm primary" data-review="${Number(r.id)}">Mark reviewed</button></div>
+        <div class="acts"><button class="btn sm primary" data-review="${Number(r.id)}">Review&hellip;</button></div>
       </div>`).join('')}</div>`
     : `<div class="card empty-state"><b>Nothing waiting for review</b>Every break-glass read ${esc(scope)} has been reviewed. A new one appears here the moment a doctor uses break-glass.</div>`}`;
 
@@ -53,7 +53,7 @@ const waitLabel = h => h < 1 ? 'just now' : h < 48 ? `${h} h waiting` : `${Math.
 
 function confirmReview(r) {
   const sc = modal(`
-    <div class="modal-h"><h3>Mark this read reviewed</h3><p>Your name and the time are stamped on the entry. This cannot be undone.</p></div>
+    <div class="modal-h"><h3>Review this access</h3><p>Your verdict, your name and the time are stamped on the entry. This cannot be undone.</p></div>
     <div class="modal-b">
       <dl class="kv">
         <dt>Read by</dt><dd>${esc(r.reader)}</dd>
@@ -61,17 +61,29 @@ function confirmReview(r) {
         <dt>Patient</dt><dd>${esc(r.patient)} <span class="mono" style="font-size:12px;color:var(--ink-3)">${esc(r.uhid)}</span></dd>
         <dt>Reason given</dt><dd>${esc(r.justification)}</dd>
       </dl>
-      <p class="hint" style="margin-top:14px">Reviewing records that you looked. If the reason does not hold, take it up with the doctor; the entry itself stays in the log for ever, unchanged.</p>
+      <div class="row" style="margin-top:14px"><div>
+        <label class="label" for="rv-verdict">Does the reason hold?</label>
+        <select class="field" id="rv-verdict"><option value="justified">Justified</option><option value="not_justified">Not justified</option></select>
+      </div></div>
+      <div class="row"><div>
+        <label class="label" for="rv-note">Note <span id="rv-need">(optional)</span></label>
+        <textarea class="field" id="rv-note" rows="3" maxlength="300" placeholder="What you checked, or why the reason does not hold"></textarea>
+      </div></div>
+      <p class="hint">A &ldquo;not justified&rdquo; verdict needs a note: it is what anyone following it up will read. The patient sees the verdict in their access log.</p>
     </div>
-    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Mark reviewed</button></div>`);
-  $('[data-ok]', sc).addEventListener('click', async () => {
-    $('[data-ok]', sc).disabled = true;
-    try { await API.post(`/audit/break-glass/${Number(r.id)}/review`); }
-    catch (e) { sc.remove(); toast('Not reviewed', e.message, 'err'); return; }
-    sc.remove();
-    toast('Reviewed', `${r.reader}'s read of ${r.patient}'s record is signed off.`);
-    renderAudit($('#view'));
+    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Record verdict</button></div>`);
+  $('#rv-verdict', sc).addEventListener('change', e => {
+    $('#rv-need', sc).textContent = e.target.value === 'not_justified' ? '(required)' : '(optional)';
   });
+  $('[data-ok]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
+    const verdict = $('#rv-verdict', sc).value, note = $('#rv-note', sc).value.trim();
+    if (verdict === 'not_justified' && note.length < 10) { toast('Say why', 'A "not justified" verdict needs a note of at least 10 characters.', 'err'); return; }
+    try { await API.post(`/audit/break-glass/${Number(r.id)}/review`, { verdict, note }); }
+    catch (err) { toast('Not reviewed', err.message, 'err'); return; }
+    sc.remove();
+    toast('Reviewed', `${r.reader}'s access to ${r.patient}'s record: ${verdict === 'justified' ? 'justified' : 'not justified'}.`);
+    renderAudit($('#view'));
+  }));
 }
 
 /* The queue holds four kinds of flagged access, all with a written reason:

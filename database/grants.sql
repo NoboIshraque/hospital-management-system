@@ -56,6 +56,8 @@ GRANT EXECUTE ON PROCEDURE uhid.list_appointments      TO 'uhid_app'@'localhost'
 GRANT EXECUTE ON PROCEDURE uhid.mark_no_show           TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.update_patient_details TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.verify_identity        TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.collect_sample         TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.access_log_page        TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.change_password        TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.create_staff_account   TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.issue_patient_login    TO 'uhid_app'@'localhost';

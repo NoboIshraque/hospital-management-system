@@ -321,8 +321,7 @@ function renderRecordBody() {
     /* Online this is the real access_log, newest first, including the read
        that just opened this page. Offline it is the prototype's sample list. */
     const rows = p.accessLog
-      ? p.accessLog.map(l => ({ when: fmtDateTime(l.when), who: l.who, where: l.where, basis: l.basis, kind: l.kind,
-                                note: l.justification ? `Reason: ${l.justification}${l.reviewed ? ' · reviewed' : ' · awaiting review'}` : '' }))
+      ? p.accessLog.map(logRow)
       : (p.encounters.length ? ACCESS_LOG : [
           { when: fmtDate(p.registeredAt) + ' · registration', who: 'Rezaul Karim (Reception)',
             where: hospital(p.registeredHospitalId).name, basis: 'Created record', kind: 'ok' }
@@ -341,7 +340,9 @@ function renderRecordBody() {
           <span style="min-width:170px;font-weight:500">${esc(r.who)}</span>
           <span style="flex:1;min-width:200px;font-size:12.5px;color:var(--ink-2)">${esc(r.where)}${r.note ? `<br><span style="color:var(--ink-3)">${esc(r.note)}</span>` : ''}</span>
           <span class="pill ${esc(r.kind)}">${esc(r.basis)}</span>
-        </div>`).join('')}</div>`;
+        </div>`).join('')}</div>
+      ${canPageLog(p) && p.accessLog.length >= 25 ? '<div style="margin-top:12px"><button class="btn sm" id="log-more">Show older entries</button></div>' : ''}`;
+    if ($('#log-more')) $('#log-more').addEventListener('click', e => busy(e.currentTarget, () => moreLog(p)));
   }
 }
 
@@ -455,7 +456,11 @@ function openReferral(p, e) {
         <label class="label" for="rf-reason">Reason</label>
         <textarea class="field" id="rf-reason" rows="3" maxlength="300" placeholder="e.g. Echocardiogram and specialist review"></textarea>
       </div></div>
-      <p class="hint">The receiving hospital can read this record for 24 hours from now, so it sees the full history before the patient arrives. That grant is written in the same transaction as the referral.</p>
+      <label class="check" style="display:flex;gap:8px;align-items:flex-start;margin-top:4px">
+        <input type="checkbox" id="rf-agree" style="margin-top:3px">
+        <span>The patient agrees that the receiving hospital may read their record</span>
+      </label>
+      <p class="hint">With the patient&rsquo;s agreement the receiving hospital can read this record for 24 hours from now, so it sees the full history before the patient arrives; the grant is written in the same transaction as the referral. Without it the referral still goes, and the receiving hospital asks the patient on arrival.</p>
     </div>
     <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Refer</button></div>`);
   $('#rf-reason', sc).focus();
@@ -465,7 +470,8 @@ function openReferral(p, e) {
     const to = Number($('#rf-to', sc).value);
     $('[data-ok]', sc).disabled = true;
     try {
-      await API.post('/referrals', { encounterId: e.id, toHospitalId: to, dept: $('#rf-dept', sc).value, reason, urgency: $('#rf-urg', sc).value });
+      await API.post('/referrals', { encounterId: e.id, toHospitalId: to, dept: $('#rf-dept', sc).value, reason,
+        urgency: $('#rf-urg', sc).value, patientAgreed: $('#rf-agree', sc).checked });
     } catch (err) { $('[data-ok]', sc).disabled = false; toast('Not referred', err.message, 'err'); return; }
     sc.remove();
     toast('Referral sent', `${p.name} referred to ${hospital(to).name}. It appears in their referral inbox now.`);
@@ -488,6 +494,34 @@ function referralCards(p) {
         <span style="font-size:12px;color:var(--ink-3)">${esc(r.urgency)} &middot; ${fmtDate(r.referredAt)} &middot; ${esc(r.referredBy)}</span>
       </div>`;
   }).join('')}</div>`;
+}
+
+/* One access-log row for the screen: what was done, and — for a flagged
+   access — the reason given and the reviewer's verdict (checklist I11, I12). */
+function logRow(l) {
+  const verdict = l.verdict === 'not_justified' ? ' · reviewed: not justified'
+    : l.verdict === 'justified' || l.reviewed ? ' · reviewed: justified' : ' · awaiting review';
+  return {
+    when: fmtDateTime(l.when), who: l.who, basis: l.basis, kind: l.kind,
+    where: l.action ? `${l.action} · ${l.where}` : l.where,
+    note: l.justification ? `Reason: ${l.justification}${verdict}` : ''
+  };
+}
+
+/* The record holds the newest 25 entries; the patient (and an admin) can
+   page back through the rest (access_log_page()). */
+const canPageLog = p => API.online && Array.isArray(p.accessLog) &&
+  (S.role === 'patient' || S.role === 'admin' || S.role === 'system_admin');
+
+async function moreLog(p) {
+  const last = p.accessLog[p.accessLog.length - 1];
+  let older;
+  try { older = await API.get(`/patients/${encodeURIComponent(p.uhid)}/access-log?before=${Number(last.id)}`); }
+  catch (e) { toast('Could not load more', e.message, 'err'); return; }
+  if (!older.length) { toast('That is all', 'There are no older entries.'); $('#log-more').remove(); return; }
+  p.accessLog = p.accessLog.concat(older);
+  renderRecordBody();
+  if (older.length < 25 && $('#log-more')) $('#log-more').remove();
 }
 
 function vitalsLine(e) {

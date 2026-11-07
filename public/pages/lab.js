@@ -47,14 +47,16 @@ function drawLab(root) {
         <div class="what">
           <b>${esc(o.patient)}</b> <span class="mono" style="font-size:12px">${esc(o.uhid)}</span><br>
           ${o.bed ? `${esc(o.bed)}` : esc(o.encounterType)} &middot; ordered by ${esc(o.orderedBy)}
-          <div class="meta">${esc(fmtDateTime(o.orderedAt))} &middot; ${waitText(o.hoursWaiting)}</div>
+          <div class="meta">${esc(fmtDateTime(o.orderedAt))} &middot; ${waitText(o.hoursWaiting)}${o.collectedAt ? ` &middot; collected ${esc(fmtDateTime(o.collectedAt))} by ${esc(o.collectedBy)}` : ''}</div>
         </div>
-        <form class="result-in" data-order="${Number(o.id)}" autocomplete="off">
+        ${o.status === 'ordered'
+          ? `<div class="acts"><span class="pill warn"><i class="dot"></i>Sample not taken</span><button class="btn sm primary" data-collect="${Number(o.id)}">Collected</button></div>`
+          : `<form class="result-in" data-order="${Number(o.id)}" autocomplete="off">
           ${o.unit
             ? `<input class="field mono" type="number" step="any" required aria-label="Result for ${esc(o.test)}" placeholder="value"><span class="unit">${esc(o.unit)}</span>`
             : `<input class="field" list="text-results" required aria-label="Result for ${esc(o.test)}" placeholder="result"><span class="unit"></span>`}
           <button class="btn sm primary">Report</button>
-        </form>
+        </form>`}
       </div>`).join('')}</div>
       <datalist id="text-results">${TEXT_RESULTS.map(t => `<option value="${t}"></option>`).join('')}</datalist>`
     : `<div class="card empty-state"><b>Nothing waiting</b>Every test ordered at ${esc(here)} has a result. New orders appear here as soon as a doctor saves an encounter that requests one.</div>`}
@@ -68,6 +70,13 @@ function drawLab(root) {
         </div>`).join('')}</div>` : ''}`;
 
   $$('.result-in', root).forEach(f => f.addEventListener('submit', e => { e.preventDefault(); report(f); }));
+  // Checklist I13: ordered → collected → reported. collect_sample() stamps who and when.
+  $$('[data-collect]', root).forEach(b => b.addEventListener('click', () => busy(b, async () => {
+    try { await API.post(`/lab-orders/${Number(b.dataset.collect)}/collect`); }
+    catch (e) { toast('Not marked', e.message, 'err'); return; }
+    toast('Sample collected', 'The result can be entered when it is ready.');
+    renderLab(root);
+  })));
 }
 
 const waitText = h => Number(h) < 1 ? 'ordered within the hour'

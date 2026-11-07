@@ -294,12 +294,16 @@ async function signIn(base, username) {
     check('The lab technician\'s worklist has the waiting orders at their hospital',
       r.status === 200 && r.body.some(o => o.id === 7) && r.body.some(o => o.test === 'Haemoglobin' && o.uhid === 'BD-2019-04821-5'));
     r = await rumana('POST', '/api/lab-results', { orderId: 7, valueNum: 1.9 });
+    check('A result before the sample is collected is refused (I13)', r.status === 409);
+    r = await rumana('POST', '/api/lab-orders/7/collect');
+    check('The lab technician collects the sample', r.status === 200);
+    r = await rumana('POST', '/api/lab-results', { orderId: 7, valueNum: 1.9 });
     check('The lab technician reports a result, and the database says it is abnormal', r.status === 201 && r.body.abnormal === true);
     r = await rumana('GET', '/api/lab-orders');
     check('…and it leaves the worklist', r.status === 200 && !r.body.some(o => o.id === 7));
     r = await rezaul('GET', '/api/lab-orders');
     check('A receptionist has no lab worklist (403)', r.status === 403);
-    r = await anisur('POST', '/api/referrals', { encounterId: 21, toHospitalId: 7, dept: 'Cardiology', reason: 'Angiography', urgency: 'urgent' });
+    r = await anisur('POST', '/api/referrals', { encounterId: 21, toHospitalId: 7, dept: 'Cardiology', reason: 'Angiography', urgency: 'urgent', patientAgreed: true });
     check('A doctor refers a patient to another hospital', r.status === 201 && r.body.referralId > 0);
     r = await tahmina('GET', '/api/referrals/inbox');
     check('The receiving hospital sees it in its inbox', r.status === 200 && r.body.some(x => x.reason === 'Angiography'));
@@ -309,9 +313,11 @@ async function signIn(base, username) {
     check('The hospital admin sees their own hospital\'s break-glass queue, and only that',
       r.status === 200 && r.body.length >= 1 && r.body.every(x => x.hospitalId === 1));
     const logId = r.body[0].id;
-    r = await nasima('POST', `/api/audit/break-glass/${logId}/review`);
+    r = await nasima('POST', `/api/audit/break-glass/${logId}/review`, { verdict: 'not_justified' });
+    check('"Not justified" without a reason is refused (I11)', r.status === 409);
+    r = await nasima('POST', `/api/audit/break-glass/${logId}/review`, { verdict: 'justified' });
     check('…and reviews one', r.status === 200);
-    r = await nasima('POST', '/api/audit/break-glass/5/review');
+    r = await nasima('POST', '/api/audit/break-glass/5/review', { verdict: 'justified' });
     check('…but not one made at another hospital (403)', r.status === 403);
     const sysadmin = await signIn(base, 'sysadmin');
     r = await sysadmin('GET', '/api/audit/break-glass');
@@ -384,6 +390,14 @@ async function signIn(base, username) {
     check('A malformed mobile is refused', r.status === 409 || r.status === 400);
     r = await anisur('POST', '/api/patients/BD-2021-11904-5/verify', { nid: '1991773310448' });
     check('A doctor cannot verify identity (403)', r.status === 403);
+
+    // ---------- the access log, page by page (I12) ----------
+    r = await rahim('GET', '/api/patients/BD-2019-04821-5/access-log');
+    check('A patient pages through their own access log', r.status === 200 && r.body.length > 0 && r.body.every(l => l.action));
+    r = await rahim('GET', `/api/patients/BD-2019-04821-5/access-log?before=${r.body[r.body.length - 1].id}`);
+    check('…older entries, before a given one', r.status === 200);
+    r = await rahim('GET', '/api/patients/BD-2021-11904-5/access-log');
+    check('…but not anyone else\u2019s (403)', r.status === 403);
 
     // ---------- appointment lists (I2) ----------
     r = await rahim('GET', '/api/appointments?days=8');

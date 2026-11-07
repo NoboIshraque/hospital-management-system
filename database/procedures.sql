@@ -56,6 +56,24 @@ END $$
 -- May this account do this? Role → role_permission → permission.
 -- "Receptionist admits, doctor discharges" is two rows of role_permission,
 -- and this function is where those rows take effect.
+-- What an access_log.action means, in words a patient understands
+-- (checklist I12: the log now says what was done, not only on what basis).
+DROP FUNCTION IF EXISTS access_action_label $$
+CREATE FUNCTION access_action_label(p_action VARCHAR(40))
+RETURNS VARCHAR(60)
+DETERMINISTIC
+RETURN CASE p_action
+  WHEN 'record.read'         THEN 'Opened the record'
+  WHEN 'record.demographics' THEN 'Opened the contact details'
+  WHEN 'search.match'        THEN 'Found in a search'
+  WHEN 'encounter.open'      THEN 'Started a visit'
+  WHEN 'encounter.attempt'   THEN 'Tried to start a visit'
+  WHEN 'admission.open'      THEN 'Admitted to a bed'
+  WHEN 'details.update'     THEN 'Changed contact details'
+  WHEN 'identity.verified'  THEN 'Verified identity'
+  WHEN 'login.issued'       THEN 'Issued a portal login'
+  ELSE p_action END $$
+
 DROP FUNCTION IF EXISTS has_permission $$
 CREATE FUNCTION has_permission(p_account_id INT UNSIGNED, p_code VARCHAR(60))
 RETURNS BOOLEAN
@@ -1186,7 +1204,8 @@ BEGIN
 
   -- active_slot becomes NULL with this UPDATE, which frees the slot in
   -- uq_doctor_slot for the next patient.
-  UPDATE appointment SET status = 'cancelled' WHERE appointment_id = p_appointment_id;
+  UPDATE appointment SET status = 'cancelled', cancelled_by = p_account_id, cancelled_at = NOW()
+   WHERE appointment_id = p_appointment_id;
 END $$
 
 -- The appointment lists (checklist I2, 7 November 2026). Who sees what is
@@ -1228,6 +1247,8 @@ BEGIN
          a.posting_id     AS postingId,
          a.encounter_id   AS encounterId,
          a.booked_at      AS bookedAt,
+         account_name(a.cancelled_by) AS cancelledBy,
+         a.cancelled_at   AS cancelledAt,
          -- the same rules as cancel_appointment()
          (a.status = 'booked' AND a.slot_start > NOW()
            AND (v_role = 'patient' OR dp.hospital_id <=> v_hosp OR a.booked_by = p_account_id)
@@ -1535,13 +1556,67 @@ BEGIN
                       WHEN 'demographics_only' THEN 'info'
                       ELSE 'ok' END AS kind,
          l.justification,
-         l.reviewed_by IS NOT NULL AS reviewed
+         l.reviewed_by IS NOT NULL AS reviewed,
+         l.log_id AS id,
+         access_action_label(l.action) AS action,
+         l.review_verdict AS verdict
     FROM access_log l
     JOIN user_account ua ON ua.account_id = l.account_id
     JOIN role r          ON r.role_id = ua.role_id
     LEFT JOIN hospital h ON h.hospital_id = l.hospital_id
    WHERE l.patient_id = v_patient
    ORDER BY l.at DESC, l.log_id DESC
+   LIMIT 25;
+END $$
+
+-- Checklist I12: the record shows the latest 25 entries; this pages back
+-- through the rest, 25 at a time, older than p_before (a log_id). The
+-- patient reads their own; an admin with audit.review reads any (the log
+-- is about access, not clinical content). Reading the log is not itself
+-- logged — that would make the log grow every time someone checks it.
+DROP PROCEDURE IF EXISTS access_log_page $$
+CREATE PROCEDURE access_log_page(IN p_account_id INT UNSIGNED, IN p_uhid VARCHAR(20), IN p_before BIGINT UNSIGNED)
+BEGIN
+  DECLARE v_patient INT UNSIGNED DEFAULT resolve_patient(p_uhid);
+  DECLARE v_own     INT UNSIGNED;
+
+  IF v_patient IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No patient holds that UHID.', MYSQL_ERRNO = 5404;
+  END IF;
+  SELECT patient_id INTO v_own FROM user_account WHERE account_id = p_account_id;
+  IF NOT (v_own <=> v_patient OR has_permission(p_account_id, 'audit.review')) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only the patient, or an administrator, pages through this log.', MYSQL_ERRNO = 5403;
+  END IF;
+
+  SELECT l.at AS `when`,
+         CONCAT(account_name(l.account_id),
+                CASE r.code WHEN 'receptionist'   THEN ' (Reception)'
+                            WHEN 'hospital_admin' THEN ' (Hospital admin)'
+                            WHEN 'lab_technician' THEN ' (Laboratory)'
+                            WHEN 'system_admin'   THEN ' (System admin)'
+                            WHEN 'patient'        THEN ' (the patient)'
+                            ELSE '' END) AS who,
+         COALESCE(h.name, 'Patient portal') AS `where`,
+         CASE l.basis WHEN 'own_record'        THEN 'Own record'
+                      WHEN 'treating'          THEN 'Treating clinician'
+                      WHEN 'consent'           THEN 'Consent'
+                      WHEN 'break_glass'       THEN 'Break-glass — emergency'
+                      WHEN 'demographics_only' THEN 'Demographics only' END AS basis,
+         CASE l.basis WHEN 'break_glass' THEN 'crit'
+                      WHEN 'demographics_only' THEN 'info'
+                      ELSE 'ok' END AS kind,
+         l.justification,
+         l.reviewed_by IS NOT NULL AS reviewed,
+         l.log_id AS id,
+         access_action_label(l.action) AS action,
+         l.review_verdict AS verdict
+    FROM access_log l
+    JOIN user_account ua ON ua.account_id = l.account_id
+    JOIN role r          ON r.role_id = ua.role_id
+    LEFT JOIN hospital h ON h.hospital_id = l.hospital_id
+   WHERE l.patient_id = v_patient
+     AND (p_before IS NULL OR l.log_id < p_before)
+   ORDER BY l.log_id DESC
    LIMIT 25;
 END $$
 
@@ -1841,6 +1916,11 @@ BEGIN
        p_value_num)) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That value is not plausible for this test. Check the number and the units.';
   END IF;
+  -- Checklist I13: a result comes from a sample, so the sample must have
+  -- been collected (collect_sample()) first.
+  IF (SELECT status FROM lab_order WHERE order_id = p_order_id) <> 'collected' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Collect the sample before reporting a result.';
+  END IF;
   INSERT INTO lab_result (order_id, value_num, value_text, reported_by)
   VALUES (p_order_id, p_value_num, NULLIF(TRIM(p_value_text), ''), p_account_id);
   -- Hand back what the trigger decided, so the screen can say "abnormal"
@@ -1855,6 +1935,27 @@ END $$
 -- the caller's own hospital, in the database. It returns only what is needed
 -- to collect and run the sample — who, which test, which bed — and no
 -- diagnosis or history, so it is not a record read and writes no access_log.
+-- Checklist I13: the sample is taken. Only at the order's own hospital,
+-- only once, only for an order still waiting.
+DROP PROCEDURE IF EXISTS collect_sample $$
+CREATE PROCEDURE collect_sample(IN p_account_id INT UNSIGNED, IN p_order_id INT UNSIGNED)
+BEGIN
+  DECLARE v_status VARCHAR(20);
+  CALL require_permission(p_account_id, 'lab.report');
+  SELECT o.status INTO v_status
+    FROM lab_order o JOIN encounter e ON e.encounter_id = o.encounter_id
+    JOIN user_account ua ON ua.hospital_id = e.hospital_id
+   WHERE o.order_id = p_order_id AND ua.account_id = p_account_id;
+  IF v_status IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That lab order does not exist at your hospital.', MYSQL_ERRNO = 5404;
+  END IF;
+  IF v_status <> 'ordered' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That sample has already been collected, or the order is closed.';
+  END IF;
+  UPDATE lab_order SET status = 'collected', collected_by = p_account_id, collected_at = NOW()
+   WHERE order_id = p_order_id AND status = 'ordered';
+END $$
+
 DROP PROCEDURE IF EXISTS lab_worklist $$
 CREATE PROCEDURE lab_worklist(IN p_account_id INT UNSIGNED)
 BEGIN
@@ -1874,7 +1975,9 @@ BEGIN
          et.code      AS encounterType,
          account_name(o.ordered_by) AS orderedBy,
          CONCAT(w.name, ' · ', bo.bed_no) AS bed,
-         TIMESTAMPDIFF(HOUR, o.ordered_at, NOW()) AS hoursWaiting
+         TIMESTAMPDIFF(HOUR, o.ordered_at, NOW()) AS hoursWaiting,
+         o.collected_at AS collectedAt,
+         account_name(o.collected_by) AS collectedBy
     FROM user_account ua
     JOIN encounter e       ON e.hospital_id = ua.hospital_id
     JOIN lab_order o       ON o.encounter_id = e.encounter_id
@@ -2136,7 +2239,8 @@ CREATE PROCEDURE refer_patient(
   IN p_to_hospital  SMALLINT UNSIGNED,
   IN p_to_dept      VARCHAR(60),
   IN p_reason       VARCHAR(300),
-  IN p_urgency      VARCHAR(10)
+  IN p_urgency      VARCHAR(10),
+  IN p_agreed       BOOLEAN          -- checklist I11: the patient agreed to share
 )
 BEGIN
   DECLARE v_patient INT UNSIGNED;
@@ -2169,13 +2273,18 @@ BEGIN
   START TRANSACTION;
   -- from_hospital_id is filled in by trg_referral_bi from the encounter.
   INSERT INTO referral (patient_id, from_hospital_id, to_hospital_id, to_department_id,
-                        from_encounter_id, reason, urgency, referred_by)
+                        from_encounter_id, reason, urgency, referred_by, patient_agreed)
   VALUES (v_patient, 0, p_to_hospital, v_dept, p_encounter_id, TRIM(p_reason),
-          COALESCE(NULLIF(p_urgency, ''), 'routine'), p_account_id);
+          COALESCE(NULLIF(p_urgency, ''), 'routine'), p_account_id, COALESCE(p_agreed, FALSE));
   SET v_ref = LAST_INSERT_ID();
 
-  INSERT INTO consent_grant (patient_id, to_hospital_id, scope, granted_via, referral_id)
-  VALUES (v_patient, p_to_hospital, 'clinical', 'referral', v_ref);
+  -- The record travels only with the patient's agreement. Without it the
+  -- receiving hospital still gets the referral (who, why, how urgent) and
+  -- asks the patient for consent on arrival.
+  IF COALESCE(p_agreed, FALSE) THEN
+    INSERT INTO consent_grant (patient_id, to_hospital_id, scope, granted_via, referral_id)
+    VALUES (v_patient, p_to_hospital, 'clinical', 'referral', v_ref);
+  END IF;
   COMMIT;
 
   SELECT v_ref AS referral_id;
@@ -2458,11 +2567,19 @@ END $$
 -- =====================================================================
 
 DROP PROCEDURE IF EXISTS review_break_glass $$
-CREATE PROCEDURE review_break_glass(IN p_account_id INT UNSIGNED, IN p_log_id BIGINT UNSIGNED)
+CREATE PROCEDURE review_break_glass(IN p_account_id INT UNSIGNED, IN p_log_id BIGINT UNSIGNED,
+                                    IN p_verdict VARCHAR(16), IN p_note VARCHAR(300))
 BEGIN
   DECLARE v_mine BOOLEAN;
 
   CALL require_permission(p_account_id, 'audit.review');
+  -- Checklist I11: a verdict, and a reason when the access was not justified.
+  IF p_verdict IS NULL OR p_verdict NOT IN ('justified', 'not_justified') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Say whether the access was justified.';
+  END IF;
+  IF p_verdict = 'not_justified' AND CHAR_LENGTH(TRIM(COALESCE(p_note, ''))) < 10 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Say why the access was not justified (at least 10 characters).';
+  END IF;
 
   -- A hospital admin answers for reads made at their own hospital; the
   -- system admin (no hospital) answers for the whole country. Without this,
@@ -2480,7 +2597,10 @@ BEGIN
   END IF;
 
   -- trg_access_log_bu allows exactly this change, once, on a break-glass row.
-  UPDATE access_log SET reviewed_by = p_account_id, reviewed_at = NOW() WHERE log_id = p_log_id;
+  UPDATE access_log
+     SET reviewed_by = p_account_id, reviewed_at = NOW(),
+         review_verdict = p_verdict, review_note = NULLIF(TRIM(p_note), '')
+   WHERE log_id = p_log_id;
 END $$
 
 DELIMITER ;

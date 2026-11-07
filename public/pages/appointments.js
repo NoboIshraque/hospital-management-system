@@ -122,7 +122,7 @@ function rowHtml(a) {
     <div class="qrow">
       <span class="mono appt-time">${esc(String(a.slotStart).slice(11, 16))}&ndash;${esc(String(a.slotEnd).slice(11, 16))}</span>
       <div class="who">${who}</div>
-      <div class="what">${what}<div class="meta">Booked ${esc(fmtDateTime(a.bookedAt))}</div></div>
+      <div class="what">${what}<div class="meta">Booked ${esc(fmtDateTime(a.bookedAt))}${a.cancelledBy ? ` &middot; cancelled by ${esc(a.cancelledBy)}, ${esc(fmtDateTime(a.cancelledAt))}` : ''}</div></div>
       <span class="pill ${kind}"><i class="dot"></i>${esc(label)}</span>
       <div class="acts">${acts.join('')}</div>
     </div>`;

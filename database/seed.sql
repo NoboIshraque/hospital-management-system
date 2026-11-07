@@ -537,7 +537,7 @@ INSERT INTO appointment (posting_id, doctor_id, patient_id, slot_start, slot_end
   (1, 1, 5, TIMESTAMP(@sun, '10:00'), TIMESTAMP(@sun, '10:20'), 'booked', 1, @now, NULL),
   (1, 1, 4, TIMESTAMP(@sun, '10:40'), TIMESTAMP(@sun, '11:00'), 'booked', 1, @now, NULL),
   -- Cancelled: active_slot is NULL, so 09:40 is free to book again.
-  (1, 1, 3, TIMESTAMP(@sun, '09:40'), TIMESTAMP(@sun, '10:00'), 'cancelled', 1, @now, NULL),
+  (1, 1, 3, TIMESTAMP(@sun, '09:40'), TIMESTAMP(@sun, '10:00'), 'booked', 1, @now, NULL),
   (1, 1, 2, TIMESTAMP(@sun + INTERVAL 2 DAY, '09:00'), TIMESTAMP(@sun + INTERVAL 2 DAY, '09:20'), 'booked', 1, @now, NULL),
   (1, 1, 3, TIMESTAMP(@sun + INTERVAL 2 DAY, '11:00'), TIMESTAMP(@sun + INTERVAL 2 DAY, '11:20'), 'booked', 1, @now, NULL),
   -- The same doctor's private chamber: uq_doctor_slot is on doctor_id, so
@@ -546,6 +546,10 @@ INSERT INTO appointment (posting_id, doctor_id, patient_id, slot_start, slot_end
   (6, 6, 4, TIMESTAMP(@sun + INTERVAL 1 DAY, '16:20'), TIMESTAMP(@sun + INTERVAL 1 DAY, '16:40'), 'booked', 1, @now, NULL),
   (15, 11, 7, TIMESTAMP(@sun, '09:00'), TIMESTAMP(@sun, '09:20'), 'booked', 1, @now, NULL),
   (4, 4, 17, TIMESTAMP(@sun, '09:15'), TIMESTAMP(@sun, '09:30'), 'booked', 1, @now, NULL);
+-- The cancelled one: by the patient's own desk, an hour after booking
+-- (ck_appointment_cancelled needs who and when).
+UPDATE appointment SET status = 'cancelled', cancelled_by = 1, cancelled_at = @now
+ WHERE doctor_id = 1 AND patient_id = 3 AND slot_start = TIMESTAMP(@sun, '09:40');
 
 
 -- =====================================================================
@@ -677,6 +681,8 @@ INSERT INTO referral (referral_id, patient_id, from_hospital_id, to_hospital_id,
 -- Grants. The one that matters for the demo is the first: the referral gave
 -- Dhaka Medical 24 hours to read Rahim's record (expires_at defaults to
 -- granted_at + 24 hours), which is the basis Dr. Anisur reads it under.
+-- Both patients agreed to the receiving hospital reading their record.
+UPDATE referral SET patient_agreed = TRUE WHERE referral_id IN (1, 2);
 INSERT INTO consent_grant (patient_id, to_hospital_id, scope, granted_at, granted_via, referral_id) VALUES
   (1, 1, 'clinical', @now - INTERVAL 150 MINUTE, 'referral', 2),
   (4, 5, 'clinical', '2023-03-18 01:45', 'referral', 1);
@@ -701,4 +707,5 @@ INSERT INTO access_log (log_id, patient_id, account_id, hospital_id, action, bas
 -- inserted already reviewed (trg_access_log_bi); this one UPDATE is the
 -- only change trg_access_log_bu permits. Row 5 is left unreviewed: it is
 -- the item waiting in the break-glass review queue.
-UPDATE access_log SET reviewed_by = 2, reviewed_at = '2024-11-03 10:15' WHERE log_id = 1;
+UPDATE access_log SET reviewed_by = 2, reviewed_at = '2024-11-03 10:15', review_verdict = 'justified',
+       review_note = 'Unconscious on arrival; the record was needed for treatment.' WHERE log_id = 1;

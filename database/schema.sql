@@ -593,6 +593,8 @@ CREATE TABLE appointment (
   booked_by      INT UNSIGNED       NOT NULL,
   booked_at      DATETIME           NOT NULL DEFAULT CURRENT_TIMESTAMP,
   encounter_id   INT UNSIGNED       NULL,   -- NULL until the patient attends
+  cancelled_by   INT UNSIGNED       NULL,   -- checklist I11: who, and when
+  cancelled_at   DATETIME           NULL,
 
   -- slot_start for a live booking, NULL for a cancelled one. Computed by
   -- MySQL from the two columns above; nothing ever writes it.
@@ -617,6 +619,7 @@ CREATE TABLE appointment (
   KEY ix_appointment_patient (patient_id, slot_start DESC),
   KEY ix_appointment_posting (posting_id, slot_start),
   KEY ix_appointment_booked_by (booked_by),
+  KEY ix_appointment_cancelled_by (cancelled_by),
   CONSTRAINT fk_appointment_posting FOREIGN KEY (posting_id, doctor_id)
     REFERENCES doctor_posting (posting_id, doctor_id) ON DELETE RESTRICT,
   CONSTRAINT fk_appointment_patient FOREIGN KEY (patient_id)
@@ -625,7 +628,14 @@ CREATE TABLE appointment (
     REFERENCES user_account (account_id) ON DELETE RESTRICT,
   CONSTRAINT fk_appointment_encounter FOREIGN KEY (encounter_id)
     REFERENCES encounter (encounter_id) ON DELETE SET NULL,
-  CONSTRAINT ck_appointment_slot CHECK (slot_end > slot_start)
+  CONSTRAINT fk_appointment_cancelled_by FOREIGN KEY (cancelled_by)
+    REFERENCES user_account (account_id) ON DELETE RESTRICT,
+  CONSTRAINT ck_appointment_slot CHECK (slot_end > slot_start),
+  -- The status and the two columns tell one story.
+  CONSTRAINT ck_appointment_cancelled CHECK (
+    (status = 'cancelled' AND cancelled_by IS NOT NULL AND cancelled_at IS NOT NULL)
+    OR (status <> 'cancelled' AND cancelled_by IS NULL AND cancelled_at IS NULL)
+  )
 ) ENGINE = InnoDB;
 
 
@@ -776,6 +786,10 @@ CREATE TABLE access_log (
   ip_address    VARCHAR(45)       NULL,   -- 45 = longest IPv6 text form
   reviewed_by   INT UNSIGNED      NULL,
   reviewed_at   DATETIME          NULL,
+  -- Checklist I11: a review is a judgement, not a tick. 'not_justified'
+  -- must say why — that note is what a disciplinary process would read.
+  review_verdict ENUM('justified','not_justified') NULL,
+  review_note   VARCHAR(300)      NULL,
   PRIMARY KEY (log_id),
 
   -- The access log on the patient record screen, newest first.
@@ -802,6 +816,11 @@ CREATE TABLE access_log (
   -- with extra steps.
   CONSTRAINT ck_log_break_glass CHECK (
     (is_break_glass = FALSE) OR (justification IS NOT NULL)
+  ),
+  CONSTRAINT ck_log_verdict CHECK (
+    (reviewed_by IS NULL AND review_verdict IS NULL AND review_note IS NULL)
+    OR (reviewed_by IS NOT NULL AND review_verdict IS NOT NULL
+        AND (review_verdict = 'justified' OR review_note IS NOT NULL))
   ),
   CONSTRAINT ck_log_basis_flag CHECK (
     (basis = 'break_glass') = (is_break_glass = TRUE)
@@ -892,7 +911,11 @@ CREATE TABLE lab_order (
   ordered_at   DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
   status       ENUM('ordered','collected','reported','cancelled')
                                  NOT NULL DEFAULT 'ordered',
+  -- Checklist I13: ordered → collected (a sample was taken) → reported.
+  collected_by INT UNSIGNED      NULL,
+  collected_at DATETIME          NULL,
   PRIMARY KEY (order_id),
+  KEY ix_lab_order_collected_by (collected_by),
   KEY ix_lab_order_encounter (encounter_id),
   KEY ix_lab_order_test (test_id),
   KEY ix_lab_order_status (status),
@@ -902,7 +925,10 @@ CREATE TABLE lab_order (
   CONSTRAINT fk_lab_order_test FOREIGN KEY (test_id)
     REFERENCES lab_test (test_id) ON DELETE RESTRICT,
   CONSTRAINT fk_lab_order_by FOREIGN KEY (ordered_by)
-    REFERENCES user_account (account_id) ON DELETE RESTRICT
+    REFERENCES user_account (account_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_lab_order_collected_by FOREIGN KEY (collected_by)
+    REFERENCES user_account (account_id) ON DELETE RESTRICT,
+  CONSTRAINT ck_lab_order_collected CHECK ((collected_by IS NULL) = (collected_at IS NULL))
 ) ENGINE = InnoDB;
 
 -- 1 : 1 optional with lab_order. order_id is both the primary key and the
@@ -941,6 +967,10 @@ CREATE TABLE referral (
   referred_at       DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
   status            ENUM('issued','arrived','completed','expired')
                                       NOT NULL DEFAULT 'issued',
+  -- Checklist I11: did the patient agree to the receiving hospital reading
+  -- their record? Only then does refer_patient() write the 24-hour consent
+  -- grant; without it the referral still travels, the record does not.
+  patient_agreed    BOOLEAN           NOT NULL DEFAULT FALSE,
   PRIMARY KEY (referral_id),
   UNIQUE KEY uq_referral_to_encounter (to_encounter_id),
   KEY ix_referral_patient (patient_id, referred_at DESC),
