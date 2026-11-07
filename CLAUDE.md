@@ -117,6 +117,9 @@ docs/         er-design.md (the ER model), er-diagram-guide.md (how to draw it),
               guides/nobo.md, abir.md, noria.md — the team's learning guides (see Team below)
               api.md (every endpoint → its procedure), demo-script.md (the viva, click by click)
               operations.md (a real installation: install, secrets, backups, health, start-up, hosting)
+              report/ — the course report (8 Nov 2026): UHID-Project-Report.docx (the file to submit),
+              report.md (its text), diagrams/ (use case, DFD level 0 + 1, sequence: .drawio sources
+              and rendered PNGs), screenshots/ (every page, taken from the running system 7 Nov 2026)
 database/     schema.sql (41 tables) → triggers.sql → procedures.sql → views.sql → reference.sql
               → seed.sql, loaded in that order. reference.sql = what every installation needs
               (geography, roles, permissions, catalogues); seed.sql = the DEMO only
@@ -375,6 +378,7 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Print stylesheet, 404 page | Done 1 Nov 2026 |
 | Shipment-ready, checklist I3–I13 | Done 7 Nov 2026 — discharge form; edit details and verify identity; *Hospital setup*; sessions in MySQL; `db:install` (no demo), `db:backup`/`db:restore`; health, request log, clean shutdown, start-up tasks; root's password out of the site's reach; review verdicts, who cancelled, referral agreement, access-log paging, lab collection. Only I14, hosting, is left (`docs/operations.md` §5) |
 | Appointment lists (checklist I2) | Done 7 Nov 2026 — one screen, three lists decided by `list_appointments()`; cancel before the slot, *Did not come* after it (`mark_no_show()`) |
+| Project report | Done 7 Nov 2026 — `docs/report/UHID-Project-Report.docx` (33 pages, 30 figures: abstract → references, IEEE citations) and the same report as a Claude Doc (https://claude.ai/artifact/T1kftv6sQ1ymZKdHQCC2h1). Use case, DFD and sequence diagrams are new draw.io files in `docs/report/diagrams/`. If a screen or a count changes, update `report.md`, the Doc and the .docx together |
 | Real accounts (checklist I1) | Done 7 Nov 2026 — own passwords, admin account screens, patient portal logins, one-time passwords with a forced change, demo list only with `DEMO_MODE=1` |
 
 ## Open items — do not lose these
