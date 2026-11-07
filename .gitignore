@@ -28,3 +28,6 @@ database/*.bak
 
 # Claude Code's local tool settings (preview server config) — per laptop
 .claude/
+
+# Database backups (npm run db:backup) hold patient data — never commit them
+backups/

@@ -13,7 +13,11 @@
     "db:test": "node db/reset.js && node db/run-sql.js ../database/tests.sql && node db/reset.js",
     "api:test": "node scripts/api-test.js",
     "race": "node scripts/race-booking.js",
-    "restart:test": "node scripts/restart-test.js"
+    "restart:test": "node scripts/restart-test.js",
+    "db:install": "node db/install.js",
+    "db:backup": "node db/backup.js",
+    "db:restore": "node db/restore.js",
+    "first-day:test": "node scripts/first-day-test.js"
   },
   "engines": {
     "node": ">=20"
