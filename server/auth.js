@@ -21,6 +21,7 @@
 
 const session = require('express-session');
 const { pool } = require('./db/pool');
+const { MySQLSessionStore } = require('./db/session-store');
 const { ah } = require('./db/errors');
 
 if (!process.env.SESSION_SECRET) {
@@ -34,6 +35,7 @@ const SHIFT_MS = 8 * 60 * 60 * 1000;      // 8 hours from sign-in, at most
 const sessionMiddleware = session({
   name: 'uhid.sid',
   secret: process.env.SESSION_SECRET,   // signs the cookie so it cannot be forged
+  store: new MySQLSessionStore(),       // I6: in MySQL, so a restart signs nobody out
   resave: false,
   saveUninitialized: false,             // no cookie until someone signs in
   rolling: true,                        // each request restarts the idle clock

@@ -469,6 +469,8 @@ BEGIN
   CALL require_hash(p_hash);
   UPDATE user_account SET password_hash = p_hash, must_change_password = TRUE, password_changed_at = NOW()
    WHERE account_id = p_account_id;
+  -- Whoever is signed in with the old password is signed out (I6).
+  DELETE FROM web_session WHERE account_id = p_account_id;
 END $$
 
 DROP PROCEDURE IF EXISTS set_account_active $$
@@ -479,6 +481,10 @@ BEGIN
   END IF;
   CALL require_managed_account(p_admin, p_account_id);
   UPDATE user_account SET is_active = COALESCE(p_active, FALSE) WHERE account_id = p_account_id;
+  -- A switched-off account is signed out everywhere, now (I6).
+  IF NOT COALESCE(p_active, FALSE) THEN
+    DELETE FROM web_session WHERE account_id = p_account_id;
+  END IF;
 END $$
 
 -- The staff accounts an administrator manages. No hashes leave the database.
@@ -2387,6 +2393,8 @@ BEGIN
     UPDATE user_account SET patient_id = v_keep WHERE patient_id = v_lose;
   ELSE
     UPDATE user_account SET is_active = FALSE WHERE patient_id = v_lose;
+    DELETE ws FROM web_session ws JOIN user_account ua ON ua.account_id = ws.account_id
+     WHERE ua.patient_id = v_lose;   -- signed out now, not at the next timeout (I6)
   END IF;
 
   -- The NID moves to the survivor if only the losing record had one.
@@ -3123,6 +3131,53 @@ BEGIN
    WHERE (SELECT hospital_id FROM user_account WHERE account_id = p_account_id) IS NULL
       OR h.hospital_id = (SELECT hospital_id FROM user_account WHERE account_id = p_account_id)
    ORDER BY h.name;
+END $$
+
+
+-- =====================================================================
+-- 14. WEB SESSIONS — checklist I6 (the store in server/db/session-store.js)
+-- =====================================================================
+
+-- An expired row is as good as absent; session_purge() removes them.
+DROP PROCEDURE IF EXISTS session_get $$
+CREATE PROCEDURE session_get(IN p_sid_hash CHAR(64))
+BEGIN
+  SELECT data FROM web_session WHERE sid_hash = p_sid_hash AND expires_at > NOW();
+END $$
+
+-- A session is saved only for an account that exists and is switched on:
+-- a request already in flight cannot re-create the session of an account
+-- that was just switched off.
+DROP PROCEDURE IF EXISTS session_set $$
+CREATE PROCEDURE session_set(IN p_sid_hash CHAR(64), IN p_account_id INT UNSIGNED,
+                             IN p_data JSON, IN p_expires DATETIME)
+BEGIN
+  IF p_account_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM user_account
+                                               WHERE account_id = p_account_id AND is_active) THEN
+    DELETE FROM web_session WHERE sid_hash = p_sid_hash;
+  ELSE
+    INSERT INTO web_session (sid_hash, account_id, data, expires_at)
+    VALUES (p_sid_hash, p_account_id, p_data, p_expires)
+    ON DUPLICATE KEY UPDATE account_id = VALUES(account_id), data = VALUES(data), expires_at = VALUES(expires_at);
+  END IF;
+END $$
+
+DROP PROCEDURE IF EXISTS session_touch $$
+CREATE PROCEDURE session_touch(IN p_sid_hash CHAR(64), IN p_expires DATETIME)
+BEGIN
+  UPDATE web_session SET expires_at = p_expires WHERE sid_hash = p_sid_hash AND expires_at > NOW();
+END $$
+
+DROP PROCEDURE IF EXISTS session_destroy $$
+CREATE PROCEDURE session_destroy(IN p_sid_hash CHAR(64))
+BEGIN
+  DELETE FROM web_session WHERE sid_hash = p_sid_hash;
+END $$
+
+DROP PROCEDURE IF EXISTS session_purge $$
+CREATE PROCEDURE session_purge()
+BEGIN
+  DELETE FROM web_session WHERE expires_at <= NOW();
 END $$
 
 DELIMITER ;

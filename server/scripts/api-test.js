@@ -376,6 +376,8 @@ async function signIn(base, username) {
     check('…switches it off', r.status === 200);
     r = await client(base)('POST', '/api/login', { username: 'desk.two', password: 'a long new passphrase' });
     check('…and it can no longer sign in', r.status === 401);
+    r = await fresh('GET', '/api/me');
+    check('…and the session it already had is ended at once (I6)', r.status === 401);
     r = await rezaul('POST', '/api/accounts', { username: 'sneaky', role: 'receptionist', hospitalId: 1, staffName: 'S' });
     check('A receptionist cannot create accounts (403)', r.status === 403);
     r = await rezaul('POST', '/api/patients/BD-2020-27615-1/login', { username: 'shirin' });

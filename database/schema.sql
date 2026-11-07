@@ -1065,6 +1065,33 @@ CREATE TABLE patient_merge (
 
 
 -- =====================================================================
+-- 10. WEB SESSIONS — checklist I6, 7 November 2026
+--
+-- A signed-in session used to live in the web server's memory, so a
+-- restart signed everybody out. It lives here now, read and written only
+-- through the session_* procedures.
+--
+-- sid_hash is the SHA-256 of the cookie's session id, never the id itself:
+-- someone who can read this table still cannot sign in as anyone. The
+-- account_id is copied out of the data so that switching an account off,
+-- or resetting its password, can end its sessions at once.
+-- =====================================================================
+
+CREATE TABLE web_session (
+  sid_hash   CHAR(64)     CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  account_id INT UNSIGNED NULL,
+  data       JSON         NOT NULL,
+  expires_at DATETIME     NOT NULL,
+  PRIMARY KEY (sid_hash),
+  KEY ix_session_account (account_id),
+  KEY ix_session_expires (expires_at),
+  CONSTRAINT fk_session_account FOREIGN KEY (account_id)
+    REFERENCES user_account (account_id) ON DELETE CASCADE,
+  CONSTRAINT ck_session_hash CHECK (REGEXP_LIKE(sid_hash, '^[0-9a-f]{64}$', 'c'))
+) ENGINE = InnoDB;
+
+
+-- =====================================================================
 -- WHAT A CHECK COULD NOT SAY, AND WHERE IT IS ENFORCED INSTEAD
 --
 -- These are real constraints in the design that MySQL cannot express as a

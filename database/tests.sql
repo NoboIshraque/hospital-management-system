@@ -982,6 +982,28 @@ CALL t_expect('I5: a hospital with inpatients cannot be closed',
 CALL t_expect('I5: an empty one can',
   "CALL set_hospital_active(5, (SELECT MAX(hospital_id) FROM hospital), FALSE)", 0);
 
+-- =====================================================================
+-- 16. WEB SESSIONS (checklist I6, 7 November 2026)
+-- =====================================================================
+
+SET @sh = SHA2('a-test-session-id', 256);
+CALL t_expect('I6: a session is stored under the hash of its id',
+  CONCAT("CALL session_set('", @sh, "', 1, '{\"account\":{\"id\":1}}', NOW() + INTERVAL 30 MINUTE)"), 0);
+CALL t_value('I6: …and read back',
+  CONCAT("SELECT COUNT(*) FROM web_session WHERE sid_hash = '", @sh, "'"), '1');
+CALL t_expect('I6: a raw session id (not a hash) is refused by the CHECK',
+  "INSERT INTO web_session (sid_hash, data, expires_at) VALUES ('a-test-session-id', '{}', NOW())", 3819);
+CALL t_expect('I6: resetting the password…',
+  "CALL reset_password(2, 1, '$2a$10$Ri1jUMV5vb3X5UiO7bjaGuEeMkc6q58NH8Qe/YQIz6W3Pv73Ivboy')", 0);
+CALL t_value('I6: …ends that account''s sessions at once',
+  CONCAT("SELECT COUNT(*) FROM web_session WHERE sid_hash = '", @sh, "'"), '0');
+UPDATE user_account SET is_active = FALSE WHERE account_id = 9;
+CALL t_expect('I6: a switched-off account''s session is not saved again',
+  CONCAT("CALL session_set('", @sh, "', 9, '{}', NOW() + INTERVAL 30 MINUTE)"), 0);
+CALL t_value('I6: …nothing stored',
+  CONCAT("SELECT COUNT(*) FROM web_session WHERE sid_hash = '", @sh, "'"), '0');
+UPDATE user_account SET is_active = TRUE WHERE account_id = 9;
+
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message
   FROM t_result ORDER BY test_no;
 

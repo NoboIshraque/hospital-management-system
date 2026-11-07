@@ -72,6 +72,11 @@ GRANT EXECUTE ON PROCEDURE uhid.set_bed_service        TO 'uhid_app'@'localhost'
 GRANT EXECUTE ON PROCEDURE uhid.add_hospital           TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.set_hospital_active    TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.list_hospitals         TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.session_get            TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.session_set            TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.session_touch          TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.session_destroy        TO 'uhid_app'@'localhost';
+GRANT EXECUTE ON PROCEDURE uhid.session_purge          TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.change_password        TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.create_staff_account   TO 'uhid_app'@'localhost';
 GRANT EXECUTE ON PROCEDURE uhid.issue_patient_login    TO 'uhid_app'@'localhost';
