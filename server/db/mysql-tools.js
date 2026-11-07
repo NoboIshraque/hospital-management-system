@@ -16,6 +16,9 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+// Root's login may live in .env.admin, away from the running site (I10).
+// Loaded first: dotenv never overwrites a value already set.
+require('dotenv').config({ path: path.join(__dirname, '..', '.env.admin') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const CANDIDATES = [
@@ -38,7 +41,7 @@ function tool(name) {
 /* Run fn(optionFilePath), with the root credentials in a temporary file. */
 async function withCredentials(fn) {
   if (!process.env.DB_USER || process.env.DB_PASSWORD === undefined) {
-    throw new Error('DB_USER / DB_PASSWORD (the MySQL root login) are missing from server/.env.');
+    throw new Error('DB_USER / DB_PASSWORD (the MySQL root login) are missing from server/.env.admin and server/.env.');
   }
   const q = v => '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
   const file = path.join(os.tmpdir(), `uhid-${crypto.randomBytes(8).toString('hex')}.cnf`);

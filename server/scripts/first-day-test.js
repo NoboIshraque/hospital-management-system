@@ -12,6 +12,7 @@
      3. restores the database that was there before.
    ============================================================ */
 
+process.env.REQUEST_LOG = process.env.REQUEST_LOG || 'file';   // keep the test output readable
 const path = require('path');
 const fs = require('fs');
 const { spawnSync } = require('child_process');

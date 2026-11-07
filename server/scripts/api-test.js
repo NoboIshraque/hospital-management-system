@@ -10,6 +10,7 @@
    Exits with code 1 if any check fails.
    ============================================================ */
 
+process.env.REQUEST_LOG = process.env.REQUEST_LOG || 'file';   // keep the test output readable
 const { execSync } = require('child_process');
 const path = require('path');
 
@@ -346,6 +347,10 @@ async function signIn(base, username) {
     check('The patient revokes it', r.status === 200);
     r = await rahim('GET', '/api/consents');
     check('…and it now shows as revoked', r.body.find(g => g.id === live.id).status === 'revoked');
+
+    // ---------- operations (I9) ----------
+    r = await anon('GET', '/api/health');
+    check('GET /api/health says the site and its database are up', r.status === 200 && r.body.status === 'ok' && r.body.database === 'up');
 
     // ---------- accounts and passwords (I1) ----------
     r = await anon('GET', '/api/config');

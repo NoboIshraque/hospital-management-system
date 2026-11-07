@@ -8,6 +8,9 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+// Root's login may live in .env.admin, away from the running site (I10).
+// Loaded first: dotenv never overwrites a value already set.
+require('dotenv').config({ path: path.join(__dirname, '..', '.env.admin') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const ENV_FILE = path.join(__dirname, '..', '.env');

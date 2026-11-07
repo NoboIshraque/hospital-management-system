@@ -17,7 +17,8 @@
     "db:install": "node db/install.js",
     "db:backup": "node db/backup.js",
     "db:restore": "node db/restore.js",
-    "first-day:test": "node scripts/first-day-test.js"
+    "first-day:test": "node scripts/first-day-test.js",
+    "shutdown:test": "node scripts/shutdown-test.js"
   },
   "engines": {
     "node": ">=20"

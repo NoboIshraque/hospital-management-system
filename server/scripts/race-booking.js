@@ -24,6 +24,7 @@
    so run npm run db:reset before a demo.
    ============================================================ */
 
+process.env.REQUEST_LOG = process.env.REQUEST_LOG || 'file';   // keep the test output readable
 const ROUNDS = 5;
 
 async function main() {
