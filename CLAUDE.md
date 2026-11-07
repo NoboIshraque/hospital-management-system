@@ -410,7 +410,9 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
   locking, recursive CTEs, derived-state triggers, the logged read, the backend core), Abir the
   middle (constraints, triggers, a procedure, harder queries, an API that maps errors), Noria the
   foundations (inserts, CHECKs, queries, a view, a read-only API). Every code block in the guides
-  was run against the real database on 31 Oct 2026 and its output copied in. **If you change a
+  was run against the real database on 31 Oct 2026 and its output copied in. All 53 SQL blocks were
+  re-run on 7 Nov 2026 after checklist section I: every one runs, and every error the guides
+  expect comes back with the same number and message; the `db:reset` output was updated. **If you change a
   procedure, view or seed row the guides use, re-check the guide's expected output.** Practice
   objects are prefixed `nb_` / `ab_` / `nr_` and live in `server/practice/<name>/`; `db:reset`
   wipes them, which is intended. **The guides are for learning, not delivery:** the author put

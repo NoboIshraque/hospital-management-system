@@ -7,7 +7,7 @@ through a normalization exercise, and build an API that sends user input to a pr
 the database's refusals into proper HTTP errors.
 
 **This is a practice version of the real work.** The real project's triggers and procedures
-cover 40 tables. You will build the same patterns on one small feature, a **vaccination
+cover 41 tables. You will build the same patterns on one small feature, a **vaccination
 record**, that the real project does not have. Every pattern you use is one the real project
 uses, and each task tells you exactly where to compare.
 
@@ -146,14 +146,15 @@ You should see:
 
 ```
   (no APP_DB_PASSWORD in .env — generated one and added it)
-  schema.sql — 44 statements
+  schema.sql — 45 statements
   triggers.sql — 28 statements
-  procedures.sql — 57 statements
-  views.sql — 9 statements
-  seed.sql — 54 statements
-  grants.sql — 26 statements
+  procedures.sql — 163 statements
+  views.sql — 10 statements
+  reference.sql — 15 statements
+  seed.sql — 42 statements
+  grants.sql — 85 statements
 
-Database rebuilt: 40 tables, 9 views, 21 triggers, 47 procedures/functions, 18 patients, 24 encounters.
+Database rebuilt: 41 tables, 9 views, 21 triggers, 84 procedures/functions, 18 patients, 24 encounters.
 ```
 
 The first line appears only the first time. `grants.sql` creates a second MySQL user,
@@ -161,7 +162,8 @@ The first line appears only the first time. `grants.sql` creates a second MySQL 
 generated once and saved at the bottom of your `.env`. The exact numbers may grow as the
 project grows. What matters is the last line starting with
 `Database rebuilt`. That one command dropped the `uhid` database, created all the tables,
-triggers, procedures and views, and loaded the sample data.
+triggers, procedures and views, and loaded the reference data (districts, roles, catalogues) and the
+demo data.
 
 **`npm run db:reset` is your undo button.** Whatever you break while practising, running it puts
 the database back exactly as it started. It also **deletes everything you made yourself**, which
