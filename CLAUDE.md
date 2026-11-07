@@ -51,11 +51,12 @@ looked only on `PATH`, missed XAMPP, and logged "no database" for two weeks.
   security setting: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Until then `npm.cmd`
   works regardless. Give full paths in instructions (`cd E:\hospital-management-system\server`):
   an administrator PowerShell starts in `C:\Windows\system32`.
-- **Two checkouts of this repo exist (found 6 Nov 2026):** `E:\hospital-management-system` (the
-  original, with `server\.env` and `node_modules`) and `D:\hospital-management-system` (a later
-  clone; the 6 Nov session worked there after copying `.env` across and running `npm.cmd ci`).
-  Both share one MySQL database. Before working in either, `git pull` in it — the other may be
-  behind.
+- **The one checkout is `E:\hospital-management-system`** (with `server\.env` and `node_modules`).
+  A second clone at `D:\hospital-management-system`, used by the 6–7 Nov sessions, was retired
+  on 7 Nov 2026 after both were confirmed identical. If a `D:` copy still exists, ignore it and
+  work in `E:`. `git pull` before starting: GitHub is the reference copy. `server\.env` is not on
+  GitHub; if it is ever lost, copy `.env.example`, fill in root's password and a session secret,
+  and `npm run db:reset` generates a new `uhid_app` password.
 
 ## Architecture — the decision that shapes everything
 
