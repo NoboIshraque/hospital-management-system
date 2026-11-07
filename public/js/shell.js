@@ -30,6 +30,7 @@ const CRUMBS = {
   audit:    'Break-glass review',
   merge:    'Merge records',
   appointments: 'Appointment list',
+  setup:    'Hospital setup',
   account:  'My account',
   accounts: 'Staff accounts'
 };

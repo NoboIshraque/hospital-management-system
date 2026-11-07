@@ -97,3 +97,6 @@ textarea.field { resize: vertical; min-height: 64px; font-family: var(--f-ui); }
 .appt-bar-acts { display: flex; gap: 7px; justify-content: flex-end; }
 .appt-day h3 { font-size: 13.5px; }
 .appt-time { min-width: 92px; font-size: 13px; color: var(--ink-2); }
+
+/* Hospital setup (checklist I5): a bed taken out of service. */
+.bed-out { border-style: dashed; color: var(--crit); }

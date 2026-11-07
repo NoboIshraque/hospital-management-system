@@ -391,6 +391,30 @@ async function signIn(base, username) {
     r = await anisur('POST', '/api/patients/BD-2021-11904-5/verify', { nid: '1991773310448' });
     check('A doctor cannot verify identity (403)', r.status === 403);
 
+    // ---------- hospital setup (I5) ----------
+    const nasimaS = await signIn(base, 'nasima');
+    r = await nasimaS('GET', '/api/setup/1');
+    check('A hospital admin opens their hospital’s setup', r.status === 200 && r.body.postings.length > 0 && r.body.wards.length > 0);
+    r = await nasimaS('GET', '/api/setup/3');
+    check('…but not another hospital’s (403)', r.status === 403);
+    r = await rezaul('GET', '/api/setup/1');
+    check('A receptionist has no setup screen (403)', r.status === 403);
+    r = await nasimaS('POST', '/api/setup/1/postings', { bmdc: 'A-99011', name: 'Dr. Nilufar Yasmin', qual: 'MBBS, FCPS (Medicine)', dept: 'Medicine', fee: 600 });
+    check('An admin posts a new doctor', r.status === 201 && r.body.postingId > 0);
+    const newPosting = r.body.postingId;
+    const tomorrow = (new Date().getDay() + 1) % 7;
+    r = await nasimaS('POST', `/api/setup/postings/${newPosting}/schedules`, { weekday: tomorrow, start: '14:00', end: '16:00', slot: 20 });
+    check('…gives them a weekly session', r.status === 201);
+    r = await anon('GET', `/api/doctors/${newPosting}/availability?days=8`);
+    check('…and their slots appear for booking at once (decision 3: computed, never stored)',
+      r.status === 200 && r.body.some(d => d.slots.length === 6));
+    r = await anon('GET', '/api/doctors');
+    check('…and they are in the public directory', r.body.some(d => d.id === newPosting && d.fee === 600));
+    r = await nasimaS('POST', '/api/setup/postings/1/end', { lastDay: new Date().toISOString().slice(0, 10) });
+    check('A posting with patients booked ahead cannot end (409)', r.status === 409);
+    r = await (await signIn(base, 'sysadmin'))('GET', '/api/setup/hospitals');
+    check('The system admin lists every hospital', r.status === 200 && r.body.length >= 7);
+
     // ---------- the access log, page by page (I12) ----------
     r = await rahim('GET', '/api/patients/BD-2019-04821-5/access-log');
     check('A patient pages through their own access log', r.status === 200 && r.body.length > 0 && r.body.every(l => l.action));

@@ -908,6 +908,80 @@ CALL t_expect('I13: …only once',
 CALL t_expect('I13: then the result is accepted',
   CONCAT("CALL report_lab_result(4, ", @lo, ", 12.5, NULL)"), 0);
 
+-- =====================================================================
+-- 15. HOSPITAL SETUP (checklist I5, 7 November 2026)
+-- =====================================================================
+
+CALL t_expect('I5: a hospital admin opens their hospital''s setup',
+  "CALL org_setup(2, 1)", 0);
+CALL t_expect('I5: …not another hospital''s',
+  "CALL org_setup(2, 3)", 5403);
+CALL t_expect('I5: a receptionist has no setup screen',
+  "CALL org_setup(1, 1)", 5403);
+CALL t_expect('I5: an admin posts a doctor new to the registry',
+  "CALL post_doctor(2, 1, 'a-99001', 'Dr. Nilufar Yasmin', 'MBBS, FCPS (Medicine)', 'Medicine', 600, NULL)", 0);
+SET @np = (SELECT dp.posting_id FROM doctor_posting dp JOIN doctor d ON d.doctor_id = dp.doctor_id
+            WHERE d.bmdc_reg = 'A-99001' AND dp.hospital_id = 1);
+CALL t_value('I5: …stored once in the national registry, BMDC in capitals',
+  "SELECT COUNT(*) FROM doctor WHERE bmdc_reg = 'A-99001'", '1');
+CALL t_expect('I5: the same posting twice is refused',
+  "CALL post_doctor(2, 1, 'A-99001', NULL, NULL, 'Medicine', 600, NULL)", 1644);
+CALL t_expect('I5: an unknown BMDC with no name is refused',
+  "CALL post_doctor(2, 1, 'A-99002', NULL, NULL, 'Medicine', 600, NULL)", 1644);
+CALL t_expect('I5: a malformed BMDC number is refused',
+  "CALL post_doctor(2, 1, '99002', 'Dr. X', 'MBBS', 'Medicine', 600, NULL)", 1644);
+CALL t_expect('I5: an admin cannot post a doctor at another hospital',
+  "CALL post_doctor(2, 3, 'A-99001', NULL, NULL, 'Medicine', 600, NULL)", 5403);
+CALL t_expect('I5: a weekly session is added',
+  CONCAT("CALL add_schedule(2, ", @np, ", 1, '09:00', '12:00', 15, NULL)"), 0);
+CALL t_expect('I5: an overlapping session on the same day is refused',
+  CONCAT("CALL add_schedule(2, ", @np, ", 1, '11:00', '13:00', 15, NULL)"), 1644);
+CALL t_expect('I5: the system admin posts the same doctor at a second hospital',
+  "CALL post_doctor(5, 2, 'A-99001', NULL, NULL, 'Medicine', 400, NULL)", 0);
+CALL t_expect('I5: …where a session clashing with the first hospital''s is refused',
+  CONCAT("CALL add_schedule(5, (SELECT MAX(posting_id) FROM doctor_posting), 1, '10:00', '11:00', 15, NULL)"), 1644);
+CALL t_expect('I5: the fee changes',
+  CONCAT("CALL set_posting_fee(2, ", @np, ", 750)"), 0);
+CALL t_value('I5: …to the new amount',
+  CONCAT("SELECT consultation_fee FROM doctor_posting WHERE posting_id = ", @np), '750');
+CALL t_expect('I5: a posting with patients booked ahead cannot end',
+  "CALL end_posting(2, 1, CURDATE())", 1644);
+CALL t_expect('I5: a session with patients booked ahead cannot end',
+  "CALL end_schedule(2, (SELECT MIN(schedule_id) FROM doctor_schedule WHERE posting_id = 1 AND weekday = 0), CURDATE())", 1644);
+CALL t_expect('I5: a posting with no bookings ends',
+  CONCAT("CALL end_posting(2, ", @np, ", CURDATE())"), 0);
+CALL t_value('I5: …and its sessions end with it',
+  CONCAT("SELECT COUNT(*) FROM doctor_schedule WHERE posting_id = ", @np, " AND (valid_to IS NULL OR valid_to > CURDATE())"), '0');
+CALL t_expect('I5: leave is recorded for a doctor posted here',
+  CONCAT("CALL add_leave(2, 1, '", TIMESTAMP(@sun + INTERVAL 7 DAY, '08:00'), "', '", TIMESTAMP(@sun + INTERVAL 7 DAY, '18:00'), "', 'Conference')"), 0);
+CALL t_expect('I5: …and removed before it starts',
+  "CALL remove_leave(2, (SELECT MAX(leave_id) FROM doctor_leave))", 0);
+CALL t_expect('I5: leave for a doctor posted elsewhere is refused',
+  CONCAT("CALL add_leave(2, 6, '", TIMESTAMP(@sun + INTERVAL 7 DAY, '08:00'), "', '", TIMESTAMP(@sun + INTERVAL 7 DAY, '18:00'), "', NULL)"), 5403);
+CALL t_expect('I5: a ward is added',
+  "CALL add_ward(2, 1, 'Surgery — Female', 'General', 'Female')", 0);
+SET @nw = (SELECT ward_id FROM ward WHERE hospital_id = 1 AND name = 'Surgery — Female');
+CALL t_expect('I5: …with four beds',
+  CONCAT("CALL add_beds(2, ", @nw, ", 'SF', 4)"), 0);
+CALL t_expect('I5: …and two more, numbered on',
+  CONCAT("CALL add_beds(2, ", @nw, ", NULL, 2)"), 0);
+CALL t_value('I5: …SF-01 to SF-06, all free',
+  CONCAT("SELECT CONCAT(COUNT(*), ' ', MAX(bed_no)) FROM bed WHERE status_id = 1 AND ward_id = ", @nw), '6 SF-06');
+SELECT b.ward_id, b.bed_no INTO @ow, @ob FROM bed b JOIN bed_status s ON s.status_id = b.status_id
+ JOIN ward w ON w.ward_id = b.ward_id WHERE s.code = 'occupied' AND w.hospital_id = 1 LIMIT 1;
+CALL t_expect('I5: an occupied bed cannot be taken out of service',
+  CONCAT("CALL set_bed_service(2, ", @ow, ", '", @ob, "', TRUE)"), 1644);
+CALL t_expect('I5: a free bed can',
+  CONCAT("CALL set_bed_service(2, ", @nw, ", 'SF-06', TRUE)"), 0);
+CALL t_expect('I5: a hospital admin cannot add a hospital',
+  "CALL add_hospital(2, 'Kaliakair Upazila Health Complex', 'Gazipur', 'Upazila', NULL, NULL)", 5403);
+CALL t_expect('I5: the system admin adds one',
+  "CALL add_hospital(5, 'Kaliakair Upazila Health Complex', 'Gazipur', 'Upazila', NULL, NULL)", 0);
+CALL t_expect('I5: a hospital with inpatients cannot be closed',
+  "CALL set_hospital_active(5, 1, FALSE)", 1644);
+CALL t_expect('I5: an empty one can',
+  "CALL set_hospital_active(5, (SELECT MAX(hospital_id) FROM hospital), FALSE)", 0);
+
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message
   FROM t_result ORDER BY test_no;
 

@@ -82,4 +82,8 @@ function todayYmd() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/* Hospital setup changes postings, fees and schedules: the next request
+   should see them, not a 30-second-old list. */
+router.clearDoctorsCache = () => { doctorsCache = { at: 0, body: null }; };
+
 module.exports = router;

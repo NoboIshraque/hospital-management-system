@@ -2603,4 +2603,526 @@ BEGIN
    WHERE log_id = p_log_id;
 END $$
 
+
+-- =====================================================================
+-- 13. HOSPITAL SETUP — checklist I5, 7 November 2026
+--
+-- Until now hospitals, doctors, postings, fees, schedules, leave, wards and
+-- beds existed only in seed.sql: running a hospital meant editing SQL. These
+-- procedures are what the administration screen calls.
+--
+-- Who: permission org.manage. A hospital admin sets up their own hospital
+-- (require_org_scope); the system admin, who has no hospital, any — and
+-- only the system admin adds or closes a hospital.
+--
+-- What they protect: decision 3 (availability is computed) still holds —
+-- these write the INPUTS to doctor_availability(), a schedule and a leave,
+-- never a slot. And nothing here may strand a booked patient: ending a
+-- posting or a schedule that still has bookings after the last day is
+-- refused, with the count, so the bookings are moved or cancelled first.
+-- =====================================================================
+
+DROP PROCEDURE IF EXISTS require_org_scope $$
+CREATE PROCEDURE require_org_scope(IN p_account_id INT UNSIGNED, IN p_hospital_id SMALLINT UNSIGNED)
+BEGIN
+  DECLARE v_mine SMALLINT UNSIGNED;
+  CALL require_permission(p_account_id, 'org.manage');
+  SELECT hospital_id INTO v_mine FROM user_account WHERE account_id = p_account_id;
+  IF p_hospital_id IS NULL OR NOT EXISTS (SELECT 1 FROM hospital WHERE hospital_id = p_hospital_id) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such hospital.', MYSQL_ERRNO = 5404;
+  END IF;
+  IF v_mine IS NOT NULL AND v_mine <> p_hospital_id THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'You can set up only your own hospital.', MYSQL_ERRNO = 5403;
+  END IF;
+END $$
+
+-- Everything the setup screen shows for one hospital, in seven result sets.
+DROP PROCEDURE IF EXISTS org_setup $$
+CREATE PROCEDURE org_setup(IN p_account_id INT UNSIGNED, IN p_hospital_id SMALLINT UNSIGNED)
+BEGIN
+  CALL require_org_scope(p_account_id, p_hospital_id);
+
+  -- 1. postings: current and future, with the bookings still ahead of each
+  SELECT dp.posting_id AS id, d.doctor_id AS doctorId, d.name AS doctor, d.bmdc_reg AS bmdc,
+         d.qualifications AS qual, dept.name AS dept, dp.consultation_fee AS fee,
+         dp.valid_from AS validFrom, dp.valid_to AS validTo,
+         (SELECT COUNT(*) FROM appointment a
+           WHERE a.posting_id = dp.posting_id AND a.status = 'booked' AND a.slot_start > NOW()) AS bookedAhead
+    FROM doctor_posting dp
+    JOIN doctor d        ON d.doctor_id = dp.doctor_id
+    JOIN department dept ON dept.department_id = dp.department_id
+   WHERE dp.hospital_id = p_hospital_id
+     AND (dp.valid_to IS NULL OR dp.valid_to >= CURDATE())
+   ORDER BY d.name, dept.name;
+
+  -- 2. weekly schedules of those postings that have not ended
+  SELECT s.schedule_id AS id, s.posting_id AS postingId, s.weekday,
+         TIME_FORMAT(s.start_time, '%H:%i') AS startTime, TIME_FORMAT(s.end_time, '%H:%i') AS endTime,
+         s.slot_minutes AS slotMinutes, s.valid_from AS validFrom, s.valid_to AS validTo
+    FROM doctor_schedule s JOIN doctor_posting dp ON dp.posting_id = s.posting_id
+   WHERE dp.hospital_id = p_hospital_id
+     AND (s.valid_to IS NULL OR s.valid_to >= CURDATE())
+   ORDER BY s.posting_id, s.weekday, s.start_time;
+
+  -- 3. leave not yet over, for doctors posted here
+  SELECT l.leave_id AS id, l.doctor_id AS doctorId, d.name AS doctor,
+         l.from_at AS fromAt, l.to_at AS toAt, l.reason
+    FROM doctor_leave l JOIN doctor d ON d.doctor_id = l.doctor_id
+   WHERE l.to_at >= NOW()
+     AND EXISTS (SELECT 1 FROM doctor_posting dp WHERE dp.doctor_id = l.doctor_id
+                    AND dp.hospital_id = p_hospital_id
+                    AND (dp.valid_to IS NULL OR dp.valid_to >= CURDATE()))
+   ORDER BY l.from_at;
+
+  -- 4. wards, with how many beds each has and how many are in use
+  SELECT w.ward_id AS id, w.name, wt.code AS type, w.sex_restriction AS sex,
+         COUNT(b.bed_no) AS beds,
+         SUM(b.is_out_of_service) AS outOfService
+    FROM ward w JOIN ward_type wt ON wt.ward_type_id = w.ward_type_id
+    LEFT JOIN bed b ON b.ward_id = w.ward_id
+   WHERE w.hospital_id = p_hospital_id
+   GROUP BY w.ward_id, w.name, wt.code, w.sex_restriction
+   ORDER BY w.name;
+
+  -- 5. beds (no patient names: this screen is about the building)
+  SELECT b.ward_id AS wardId, b.bed_no AS bedNo, s.code AS status, b.is_out_of_service AS outOfService
+    FROM bed b JOIN ward w ON w.ward_id = b.ward_id JOIN bed_status s ON s.status_id = b.status_id
+   WHERE w.hospital_id = p_hospital_id
+   ORDER BY b.ward_id, b.bed_no;
+
+  -- 6, 7. the choices the forms offer
+  SELECT code, label FROM ward_type ORDER BY ward_type_id;
+  SELECT name FROM hospital_tier ORDER BY tier_id;
+END $$
+
+-- Post a doctor at a hospital. The doctor is found by BMDC registration
+-- number — the national registry's key, so one doctor is one row however
+-- many hospitals they work at. A doctor not yet in the registry is added
+-- in the same transaction when a name and qualifications are given.
+DROP PROCEDURE IF EXISTS post_doctor $$
+CREATE PROCEDURE post_doctor(
+  IN p_account_id INT UNSIGNED,
+  IN p_hospital_id SMALLINT UNSIGNED,
+  IN p_bmdc       VARCHAR(20),
+  IN p_name       VARCHAR(100),
+  IN p_qual       VARCHAR(200),
+  IN p_dept       VARCHAR(60),
+  IN p_fee        DECIMAL(8,2),
+  IN p_from       DATE
+)
+BEGIN
+  DECLARE v_doctor SMALLINT UNSIGNED;
+  DECLARE v_dept   SMALLINT UNSIGNED;
+  DECLARE v_bmdc   VARCHAR(20) DEFAULT UPPER(TRIM(COALESCE(p_bmdc, '')));
+  DECLARE v_from   DATE DEFAULT COALESCE(p_from, CURDATE());
+  DECLARE v_msg    VARCHAR(255);
+
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    ROLLBACK;
+    RESIGNAL;
+  END;
+
+  CALL require_org_scope(p_account_id, p_hospital_id);
+  IF NOT REGEXP_LIKE(v_bmdc, '^[A-Z]-[0-9]{3,6}$', 'c') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A BMDC registration number looks like A-47755.';
+  END IF;
+  SELECT department_id INTO v_dept FROM department WHERE name = TRIM(p_dept);
+  IF v_dept IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Choose a department from the list.';
+  END IF;
+  IF p_fee IS NULL OR p_fee < 0 OR p_fee > 100000 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Give a consultation fee between 0 and 100,000 taka.';
+  END IF;
+  IF v_from < CURDATE() THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A posting starts today or later.';
+  END IF;
+
+  START TRANSACTION;
+  SELECT doctor_id INTO v_doctor FROM doctor WHERE bmdc_reg = v_bmdc FOR UPDATE;
+  IF v_doctor IS NULL THEN
+    IF NULLIF(TRIM(p_name), '') IS NULL OR NULLIF(TRIM(p_qual), '') IS NULL THEN
+      SET v_msg = CONCAT('No doctor is registered as ', v_bmdc, '. Give their name and qualifications to add them.');
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+    END IF;
+    INSERT INTO doctor (name, bmdc_reg, qualifications) VALUES (TRIM(p_name), v_bmdc, TRIM(p_qual));
+    SET v_doctor = LAST_INSERT_ID();
+  END IF;
+  IF EXISTS (SELECT 1 FROM doctor_posting
+              WHERE doctor_id = v_doctor AND hospital_id = p_hospital_id AND department_id = v_dept
+                AND (valid_to IS NULL OR valid_to >= v_from)) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That doctor already holds this posting. Change its fee instead.';
+  END IF;
+  INSERT INTO doctor_posting (doctor_id, hospital_id, department_id, consultation_fee, valid_from)
+  VALUES (v_doctor, p_hospital_id, v_dept, p_fee, v_from);
+  COMMIT;
+  SELECT LAST_INSERT_ID() AS posting_id, v_doctor AS doctor_id;
+END $$
+
+-- A posting's own hospital, for the scope check.
+DROP FUNCTION IF EXISTS posting_hospital $$
+CREATE FUNCTION posting_hospital(p_posting_id MEDIUMINT UNSIGNED)
+RETURNS SMALLINT UNSIGNED
+READS SQL DATA
+RETURN (SELECT hospital_id FROM doctor_posting WHERE posting_id = p_posting_id) $$
+
+DROP PROCEDURE IF EXISTS set_posting_fee $$
+CREATE PROCEDURE set_posting_fee(IN p_account_id INT UNSIGNED, IN p_posting_id MEDIUMINT UNSIGNED, IN p_fee DECIMAL(8,2))
+BEGIN
+  CALL require_org_scope(p_account_id, posting_hospital(p_posting_id));
+  IF p_fee IS NULL OR p_fee < 0 OR p_fee > 100000 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Give a consultation fee between 0 and 100,000 taka.';
+  END IF;
+  UPDATE doctor_posting SET consultation_fee = p_fee WHERE posting_id = p_posting_id;
+END $$
+
+-- The doctor leaves this hospital (or department) after p_last_day. Their
+-- schedules there end the same day. Refused while patients are booked
+-- after it.
+DROP PROCEDURE IF EXISTS end_posting $$
+CREATE PROCEDURE end_posting(IN p_account_id INT UNSIGNED, IN p_posting_id MEDIUMINT UNSIGNED, IN p_last_day DATE)
+BEGIN
+  DECLARE v_from    DATE;
+  DECLARE v_booked  INT;
+  DECLARE v_msg     VARCHAR(255);
+
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    ROLLBACK;
+    RESIGNAL;
+  END;
+
+  CALL require_org_scope(p_account_id, posting_hospital(p_posting_id));
+  SELECT valid_from INTO v_from FROM doctor_posting WHERE posting_id = p_posting_id;
+  IF p_last_day IS NULL OR p_last_day < CURDATE() - INTERVAL 1 DAY OR p_last_day < v_from THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'The last day must be today or later, and not before the posting began.';
+  END IF;
+
+  START TRANSACTION;
+  SELECT COUNT(*) INTO v_booked FROM appointment
+   WHERE posting_id = p_posting_id AND status = 'booked' AND slot_start >= p_last_day + INTERVAL 1 DAY;
+  IF v_booked > 0 THEN
+    SET v_msg = CONCAT(v_booked, ' patient(s) are booked after that day. Cancel or rebook them first.');
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+  END IF;
+  UPDATE doctor_posting SET valid_to = p_last_day WHERE posting_id = p_posting_id;
+  UPDATE doctor_schedule SET valid_to = GREATEST(valid_from, p_last_day)
+   WHERE posting_id = p_posting_id AND (valid_to IS NULL OR valid_to > p_last_day);
+  COMMIT;
+END $$
+
+-- A weekly session: weekday (0 = Sunday), start and end, slot length.
+-- A doctor cannot be in two places at once, so it may not overlap any
+-- other running session of the same doctor at ANY hospital.
+DROP PROCEDURE IF EXISTS add_schedule $$
+CREATE PROCEDURE add_schedule(
+  IN p_account_id INT UNSIGNED,
+  IN p_posting_id MEDIUMINT UNSIGNED,
+  IN p_weekday    TINYINT UNSIGNED,
+  IN p_start      TIME,
+  IN p_end        TIME,
+  IN p_slot       TINYINT UNSIGNED,
+  IN p_from       DATE
+)
+BEGIN
+  DECLARE v_doctor SMALLINT UNSIGNED;
+  DECLARE v_pfrom  DATE;
+  DECLARE v_pto    DATE;
+  DECLARE v_from   DATE DEFAULT COALESCE(p_from, CURDATE());
+  DECLARE v_clash  VARCHAR(160);
+  DECLARE v_msg    VARCHAR(255);
+
+  CALL require_org_scope(p_account_id, posting_hospital(p_posting_id));
+  SELECT doctor_id, valid_from, valid_to INTO v_doctor, v_pfrom, v_pto
+    FROM doctor_posting WHERE posting_id = p_posting_id;
+  IF p_weekday IS NULL OR p_weekday > 6 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Choose a day of the week.';
+  END IF;
+  IF p_start IS NULL OR p_end IS NULL OR p_end <= p_start THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A session ends after it starts.';
+  END IF;
+  IF p_slot IS NULL OR p_slot < 5 OR p_slot > 120 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A slot is between 5 and 120 minutes.';
+  END IF;
+  IF v_from < CURDATE() OR v_from < v_pfrom OR (v_pto IS NOT NULL AND v_from > v_pto) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A session starts today or later, inside the posting''s dates.';
+  END IF;
+
+  SELECT CONCAT(h.name, ', ', TIME_FORMAT(s.start_time, '%H:%i'), '–', TIME_FORMAT(s.end_time, '%H:%i')) INTO v_clash
+    FROM doctor_schedule s
+    JOIN doctor_posting dp ON dp.posting_id = s.posting_id
+    JOIN hospital h        ON h.hospital_id = dp.hospital_id
+   WHERE dp.doctor_id = v_doctor AND s.weekday = p_weekday
+     AND s.start_time < p_end AND s.end_time > p_start
+     AND (s.valid_to IS NULL OR s.valid_to >= v_from)
+   LIMIT 1;
+  IF v_clash IS NOT NULL THEN
+    SET v_msg = CONCAT('That overlaps the doctor''s session at ', v_clash, ' on the same day.');
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+  END IF;
+
+  INSERT INTO doctor_schedule (posting_id, weekday, start_time, end_time, slot_minutes, valid_from, valid_to)
+  VALUES (p_posting_id, p_weekday, p_start, p_end, p_slot, v_from, v_pto);
+  SELECT LAST_INSERT_ID() AS schedule_id;
+END $$
+
+-- The session runs for the last time on p_last_day. Refused while patients
+-- are booked into it after that.
+DROP PROCEDURE IF EXISTS end_schedule $$
+CREATE PROCEDURE end_schedule(IN p_account_id INT UNSIGNED, IN p_schedule_id MEDIUMINT UNSIGNED, IN p_last_day DATE)
+BEGIN
+  DECLARE v_posting MEDIUMINT UNSIGNED;
+  DECLARE v_wd      TINYINT UNSIGNED;
+  DECLARE v_start   TIME;
+  DECLARE v_end     TIME;
+  DECLARE v_from    DATE;
+  DECLARE v_booked  INT;
+  DECLARE v_msg     VARCHAR(255);
+
+  SELECT posting_id, weekday, start_time, end_time, valid_from INTO v_posting, v_wd, v_start, v_end, v_from
+    FROM doctor_schedule WHERE schedule_id = p_schedule_id;
+  IF v_posting IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such session.', MYSQL_ERRNO = 5404;
+  END IF;
+  CALL require_org_scope(p_account_id, posting_hospital(v_posting));
+  IF p_last_day IS NULL OR p_last_day < CURDATE() - INTERVAL 1 DAY THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'The last day must be today or later.';
+  END IF;
+
+  SELECT COUNT(*) INTO v_booked FROM appointment
+   WHERE posting_id = v_posting AND status = 'booked'
+     AND slot_start >= p_last_day + INTERVAL 1 DAY
+     AND DAYOFWEEK(slot_start) - 1 = v_wd
+     AND TIME(slot_start) >= v_start AND TIME(slot_start) < v_end;
+  IF v_booked > 0 THEN
+    SET v_msg = CONCAT(v_booked, ' patient(s) are booked into this session after that day. Cancel or rebook them first.');
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+  END IF;
+  -- A session that never ran is simply removed; one that ran keeps its history.
+  IF v_from > p_last_day THEN
+    DELETE FROM doctor_schedule WHERE schedule_id = p_schedule_id;
+  ELSE
+    UPDATE doctor_schedule SET valid_to = p_last_day WHERE schedule_id = p_schedule_id;
+  END IF;
+END $$
+
+-- Leave. The doctor's slots in that window simply stop being offered
+-- (doctor_availability() subtracts leave). Bookings already in the window
+-- are NOT cancelled silently: the answer says how many there are, so the
+-- desk can call those patients.
+DROP PROCEDURE IF EXISTS add_leave $$
+CREATE PROCEDURE add_leave(
+  IN p_account_id INT UNSIGNED,
+  IN p_doctor_id  SMALLINT UNSIGNED,
+  IN p_from       DATETIME,
+  IN p_to         DATETIME,
+  IN p_reason     VARCHAR(120)
+)
+BEGIN
+  DECLARE v_mine SMALLINT UNSIGNED;
+  CALL require_permission(p_account_id, 'org.manage');
+  SELECT hospital_id INTO v_mine FROM user_account WHERE account_id = p_account_id;
+  IF NOT EXISTS (SELECT 1 FROM doctor_posting dp
+                  WHERE dp.doctor_id = p_doctor_id
+                    AND (v_mine IS NULL OR dp.hospital_id = v_mine)
+                    AND (dp.valid_to IS NULL OR dp.valid_to >= CURDATE())) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That doctor is not posted at your hospital.', MYSQL_ERRNO = 5403;
+  END IF;
+  IF p_from IS NULL OR p_to IS NULL OR p_to <= p_from THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Leave ends after it starts.';
+  END IF;
+  IF p_to < NOW() THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That leave is already over.';
+  END IF;
+  INSERT INTO doctor_leave (doctor_id, from_at, to_at, reason) VALUES (p_doctor_id, p_from, p_to, NULLIF(TRIM(p_reason), ''));
+  SELECT LAST_INSERT_ID() AS leave_id,
+         (SELECT COUNT(*) FROM appointment
+           WHERE doctor_id = p_doctor_id AND status = 'booked'
+             AND slot_start < p_to AND slot_end > p_from) AS bookedInside;
+END $$
+
+DROP PROCEDURE IF EXISTS remove_leave $$
+CREATE PROCEDURE remove_leave(IN p_account_id INT UNSIGNED, IN p_leave_id MEDIUMINT UNSIGNED)
+BEGIN
+  DECLARE v_doctor SMALLINT UNSIGNED;
+  DECLARE v_from   DATETIME;
+  DECLARE v_mine   SMALLINT UNSIGNED;
+  CALL require_permission(p_account_id, 'org.manage');
+  SELECT doctor_id, from_at INTO v_doctor, v_from FROM doctor_leave WHERE leave_id = p_leave_id;
+  IF v_doctor IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such leave.', MYSQL_ERRNO = 5404;
+  END IF;
+  SELECT hospital_id INTO v_mine FROM user_account WHERE account_id = p_account_id;
+  IF NOT EXISTS (SELECT 1 FROM doctor_posting dp WHERE dp.doctor_id = v_doctor
+                    AND (v_mine IS NULL OR dp.hospital_id = v_mine)
+                    AND (dp.valid_to IS NULL OR dp.valid_to >= CURDATE())) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That doctor is not posted at your hospital.', MYSQL_ERRNO = 5403;
+  END IF;
+  IF v_from <= NOW() THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Leave that has started is part of the record; it cannot be removed.';
+  END IF;
+  DELETE FROM doctor_leave WHERE leave_id = p_leave_id;
+END $$
+
+DROP PROCEDURE IF EXISTS add_ward $$
+CREATE PROCEDURE add_ward(
+  IN p_account_id  INT UNSIGNED,
+  IN p_hospital_id SMALLINT UNSIGNED,
+  IN p_name        VARCHAR(80),
+  IN p_type        VARCHAR(20),
+  IN p_sex         VARCHAR(10)
+)
+BEGIN
+  DECLARE v_type TINYINT UNSIGNED;
+  CALL require_org_scope(p_account_id, p_hospital_id);
+  IF NULLIF(TRIM(p_name), '') IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Give the ward a name.';
+  END IF;
+  SELECT ward_type_id INTO v_type FROM ward_type WHERE code = p_type;
+  IF v_type IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Choose a ward type from the list.';
+  END IF;
+  IF NULLIF(p_sex, '') IS NOT NULL AND p_sex NOT IN ('Male', 'Female') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A ward is for men, for women, or mixed.';
+  END IF;
+  INSERT INTO ward (hospital_id, name, ward_type_id, sex_restriction)
+  VALUES (p_hospital_id, TRIM(p_name), v_type, NULLIF(p_sex, ''));
+  SELECT LAST_INSERT_ID() AS ward_id;
+END $$
+
+-- p_count new free beds, numbered on from the highest bed number already in
+-- the ward: 'GM-12' is followed by 'GM-13'. A new ward's beds take the
+-- prefix given.
+DROP PROCEDURE IF EXISTS add_beds $$
+CREATE PROCEDURE add_beds(IN p_account_id INT UNSIGNED, IN p_ward_id SMALLINT UNSIGNED,
+                          IN p_prefix VARCHAR(8), IN p_count TINYINT UNSIGNED)
+BEGIN
+  DECLARE v_prefix VARCHAR(8);
+  DECLARE v_next   INT;
+  DECLARE v_i      INT DEFAULT 0;
+  DECLARE v_free   TINYINT UNSIGNED;
+  DECLARE v_hosp   SMALLINT UNSIGNED;
+
+  SELECT hospital_id INTO v_hosp FROM ward WHERE ward_id = p_ward_id;
+  IF v_hosp IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such ward.', MYSQL_ERRNO = 5404;
+  END IF;
+  CALL require_org_scope(p_account_id, v_hosp);
+  IF p_count IS NULL OR p_count < 1 OR p_count > 50 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Add between 1 and 50 beds at a time.';
+  END IF;
+
+  -- The prefix of the ward's existing beds, or the one given.
+  SELECT SUBSTRING_INDEX(bed_no, '-', 1) INTO v_prefix FROM bed WHERE ward_id = p_ward_id LIMIT 1;
+  SET v_prefix = COALESCE(v_prefix, UPPER(TRIM(p_prefix)));
+  IF v_prefix IS NULL OR NOT REGEXP_LIKE(v_prefix, '^[A-Z]{1,6}$', 'c') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Give a bed prefix of 1 to 6 capital letters, e.g. GM.';
+  END IF;
+  SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(bed_no, '-', -1) AS UNSIGNED)), 0) + 1 INTO v_next
+    FROM bed WHERE ward_id = p_ward_id;
+  SELECT status_id INTO v_free FROM bed_status WHERE code = 'free';
+
+  WHILE v_i < p_count DO
+    INSERT INTO bed (ward_id, bed_no, status_id) VALUES (p_ward_id, CONCAT(v_prefix, '-', LPAD(v_next + v_i, 2, '0')), v_free);
+    SET v_i = v_i + 1;
+  END WHILE;
+  SELECT CONCAT(v_prefix, '-', LPAD(v_next, 2, '0')) AS firstBed, CONCAT(v_prefix, '-', LPAD(v_next + p_count - 1, 2, '0')) AS lastBed;
+END $$
+
+-- Out of service (broken, being repaired) and back. Not a bed STATUS: those
+-- the triggers keep (decision 7). An occupied bed cannot be taken out.
+DROP PROCEDURE IF EXISTS set_bed_service $$
+CREATE PROCEDURE set_bed_service(IN p_account_id INT UNSIGNED, IN p_ward_id SMALLINT UNSIGNED,
+                                 IN p_bed_no VARCHAR(12), IN p_out BOOLEAN)
+BEGIN
+  DECLARE v_status VARCHAR(20);
+  DECLARE v_hosp   SMALLINT UNSIGNED;
+  SELECT s.code, w.hospital_id INTO v_status, v_hosp
+    FROM bed b JOIN bed_status s ON s.status_id = b.status_id JOIN ward w ON w.ward_id = b.ward_id
+   WHERE b.ward_id = p_ward_id AND b.bed_no = p_bed_no;
+  IF v_status IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such bed.', MYSQL_ERRNO = 5404;
+  END IF;
+  CALL require_org_scope(p_account_id, v_hosp);
+  IF p_out AND v_status = 'occupied' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A patient is in that bed. Transfer them first.';
+  END IF;
+  UPDATE bed SET is_out_of_service = COALESCE(p_out, FALSE) WHERE ward_id = p_ward_id AND bed_no = p_bed_no;
+END $$
+
+-- A new hospital joins the network. System admin only.
+DROP PROCEDURE IF EXISTS add_hospital $$
+CREATE PROCEDURE add_hospital(
+  IN p_account_id INT UNSIGNED,
+  IN p_name       VARCHAR(120),
+  IN p_district   VARCHAR(60),
+  IN p_tier       VARCHAR(30),
+  IN p_address    VARCHAR(200),
+  IN p_phone      VARCHAR(20)
+)
+BEGIN
+  DECLARE v_district SMALLINT UNSIGNED;
+  DECLARE v_tier     TINYINT UNSIGNED;
+  CALL require_permission(p_account_id, 'org.manage');
+  IF (SELECT hospital_id FROM user_account WHERE account_id = p_account_id) IS NOT NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only the system administrator adds a hospital.', MYSQL_ERRNO = 5403;
+  END IF;
+  IF CHAR_LENGTH(TRIM(COALESCE(p_name, ''))) < 3 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Give the hospital''s full name.';
+  END IF;
+  SELECT district_id INTO v_district FROM district WHERE name = TRIM(p_district);
+  IF v_district IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Choose one of the 64 districts.';
+  END IF;
+  SELECT tier_id INTO v_tier FROM hospital_tier WHERE name = p_tier;
+  IF v_tier IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Choose the kind of hospital from the list.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM hospital WHERE name = TRIM(p_name) AND district_id = v_district) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A hospital of that name is already in that district.';
+  END IF;
+  INSERT INTO hospital (name, district_id, tier_id, address, phone)
+  VALUES (TRIM(p_name), v_district, v_tier, NULLIF(TRIM(p_address), ''), NULLIF(TRIM(p_phone), ''));
+  SELECT LAST_INSERT_ID() AS hospital_id;
+END $$
+
+-- Closing a hospital takes it out of the directory and the booking screen;
+-- its history stays. Refused while it has patients in beds or bookings ahead.
+DROP PROCEDURE IF EXISTS set_hospital_active $$
+CREATE PROCEDURE set_hospital_active(IN p_account_id INT UNSIGNED, IN p_hospital_id SMALLINT UNSIGNED, IN p_active BOOLEAN)
+BEGIN
+  CALL require_permission(p_account_id, 'org.manage');
+  IF (SELECT hospital_id FROM user_account WHERE account_id = p_account_id) IS NOT NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only the system administrator opens or closes a hospital.', MYSQL_ERRNO = 5403;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM hospital WHERE hospital_id = p_hospital_id) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No such hospital.', MYSQL_ERRNO = 5404;
+  END IF;
+  IF NOT p_active AND (
+       EXISTS (SELECT 1 FROM admission a JOIN encounter e ON e.encounter_id = a.encounter_id
+                WHERE e.hospital_id = p_hospital_id AND a.discharged_at IS NULL)
+    OR EXISTS (SELECT 1 FROM appointment a JOIN doctor_posting dp ON dp.posting_id = a.posting_id
+                WHERE dp.hospital_id = p_hospital_id AND a.status = 'booked' AND a.slot_start > NOW())) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That hospital still has inpatients or booked appointments.';
+  END IF;
+  UPDATE hospital SET is_active = COALESCE(p_active, TRUE) WHERE hospital_id = p_hospital_id;
+END $$
+
+-- Every hospital, open and closed, for the system admin's list.
+DROP PROCEDURE IF EXISTS list_hospitals $$
+CREATE PROCEDURE list_hospitals(IN p_account_id INT UNSIGNED)
+BEGIN
+  CALL require_permission(p_account_id, 'org.manage');
+  SELECT h.hospital_id AS id, h.name, d.name AS dist, dv.name AS `div`, t.name AS tier, h.is_active AS active,
+         (SELECT COUNT(*) FROM doctor_posting dp WHERE dp.hospital_id = h.hospital_id
+             AND (dp.valid_to IS NULL OR dp.valid_to >= CURDATE())) AS postings
+    FROM hospital h
+    JOIN district d  ON d.district_id = h.district_id
+    JOIN division dv ON dv.division_id = d.division_id
+    JOIN hospital_tier t ON t.tier_id = h.tier_id
+   WHERE (SELECT hospital_id FROM user_account WHERE account_id = p_account_id) IS NULL
+      OR h.hospital_id = (SELECT hospital_id FROM user_account WHERE account_id = p_account_id)
+   ORDER BY h.name;
+END $$
+
 DELIMITER ;
