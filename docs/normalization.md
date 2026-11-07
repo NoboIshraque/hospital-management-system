@@ -272,3 +272,12 @@ Two other things look like redundancy and are not:
 The API joins these back into the prototype's nested shape on the way out
 (`get_patient_record()` and the views). That's why the screens in `public/` don't change when they
 switch from the built-in sample data to the database.
+
+## `web_session.data` is JSON — a deliberate exception (7 November 2026)
+
+`web_session.data` holds the whole session object as one JSON value, which is not atomic and so
+not 1NF in the strict sense. It is allowed because the database never queries inside it: it is
+express-session's private state, read and written whole by the session store, like a file. The one
+fact SQL does need — whose session it is — is stored separately in `account_id`, so ending an
+account's sessions is a plain `DELETE … WHERE account_id = ?`. Splitting the JSON into columns would
+tie the schema to the internals of a library.

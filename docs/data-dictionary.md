@@ -1,7 +1,7 @@
 # Data dictionary — UHID National Hospital Management System
 
-Every table and column in `database/schema.sql`: 40 tables, 251 columns, 36 CHECK constraints
-and 75 foreign keys.
+Every table and column in `database/schema.sql`: 41 tables, 261 columns, 43 CHECK constraints
+and 78 foreign keys.
 
 **`schema.sql` is the authority.** This file was generated from it on 31 October 2026, so the
 types, nullability, defaults, keys and constraints below are copied from it rather than retyped.
@@ -833,3 +833,29 @@ Records that two UHIDs were found to be one person, and which record survived.
 | `patient` | `ck_patient_phone` | `phone` is NULL or digits with optional spaces, dashes and a leading + |
 | `patient` | `ck_patient_dob` | `dob` is 1 January 1900 or later |
 | `encounter_vitals` | `ck_vitals_bp` (tightened) | both blood-pressure readings or neither |
+
+---
+
+## Columns and table added 7 November 2026 (checklist I3–I13)
+
+| Table | Column | Type | Null | Notes |
+|---|---|---|---|---|
+| `access_log` | `review_verdict` | ENUM('justified','not_justified') | yes | Set with `reviewed_by`. `ck_log_verdict`: all three review columns null, or reviewer and verdict set — and a note when not justified. |
+| `access_log` | `review_note` | VARCHAR(300) | yes | Why the access was (not) justified. |
+| `appointment` | `cancelled_by` | INT UNSIGNED, FK → user_account | yes | `ck_appointment_cancelled`: set exactly when status = 'cancelled'. |
+| `appointment` | `cancelled_at` | DATETIME | yes | |
+| `referral` | `patient_agreed` | BOOLEAN | no, default FALSE | Only an agreed referral writes the consent grant. |
+| `lab_order` | `collected_by` | INT UNSIGNED, FK → user_account | yes | `ck_lab_order_collected`: with `collected_at`, or neither. |
+| `lab_order` | `collected_at` | DATETIME | yes | |
+
+### `web_session`
+
+Signed-in sessions (checklist I6), so a server restart signs nobody out. Read and written only by
+the `session_*` procedures.
+
+| Column | Type | Null | Default | Key | Notes |
+|---|---|---|---|---|---|
+| `sid_hash` | CHAR(64) ascii_bin | no | | PK | SHA-256 of the cookie's session id — never the id. `ck_session_hash`: 64 hex digits. |
+| `account_id` | INT UNSIGNED | yes | | FK → user_account (cascade) | Lets a switch-off or a password reset end the account's sessions. |
+| `data` | JSON | no | | | The session object express-session keeps. Opaque to SQL on purpose (see normalization.md). |
+| `expires_at` | DATETIME | no | | Index | 30 minutes after the last request; `session_purge()` removes expired rows. |

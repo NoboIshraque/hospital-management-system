@@ -40,6 +40,7 @@ database refused (see `server/db/errors.js`):
 | `POST /api/login` | anyone | `{ username, password }` | `get_login()`, bcrypt in Node, `record_login()` |
 | `POST /api/logout` | signed in | — | — |
 | `GET /api/me` | signed in | — | the session, including `mustChange` |
+| `GET /api/health` | public | — | `SELECT 1` — `200 {status:'ok'}` or `503` (I9) |
 | `GET /api/config` | public | — | `{ demo }` — whether the sign-in page lists the demo accounts (`DEMO_MODE=1` in `server/.env`) |
 | `POST /api/me/password` | signed in | `{ current, next }` | the current password is checked with bcrypt, the new one against `lib/passwords.js` (10+ characters, not common, not the username), then `change_password()` |
 | `GET /api/accounts` | hospital admin (own hospital's staff), system admin (all) | — | `list_accounts()` — no hashes |
@@ -68,16 +69,17 @@ database refused (see `server/db/errors.js`):
 | `GET /api/wards` | reception, doctors, hospital admin (`bed.view`) | — | `bed_board()` — the signed-in hospital only; a procedure because the board shows diagnoses |
 | `POST /api/admissions` | reception | `{ uhid, postingId, wardId, bedNo, complaint }` | `admit_patient()` |
 | `POST /api/admissions/:id/transfer` | reception, doctor | `{ wardId, bedNo }` | `transfer_patient()` |
-| `POST /api/admissions/:id/discharge` | doctor | `{ summary, outcome }` | `discharge_patient()` |
+| `POST /api/admissions/:id/discharge` | doctor | `{ summary, outcome }` — both required (I3) | `discharge_patient()` |
 | `POST /api/beds/clean` | reception, admin | `{ wardId, bedNo }` | `mark_bed_clean()` |
 | `POST /api/encounters` | doctor | `{ uhid, type, complaint, notes, reason, diagnoses[], vitals, prescriptions[], labTests[], end }` — `reason` only when there is no appointment today, referral, consent or admission | `start_encounter()` … `end_encounter()` in **one transaction** |
 | `GET /api/lab-orders` | lab technician | — | `lab_worklist()` — the caller's hospital only; a procedure, not a view, because test names are clinical content |
+| `POST /api/lab-orders/:id/collect` | lab technician | — | `collect_sample()` (I13) |
 | `POST /api/lab-results` | lab technician | `{ orderId, valueNum, valueText }` → `{ reported, abnormal }` | `report_lab_result()`; `abnormal` is what `trg_lab_result_bi` decided |
-| `POST /api/referrals` | doctor | `{ encounterId, toHospitalId, dept, reason, urgency }` | `refer_patient()` |
+| `POST /api/referrals` | doctor | `{ encounterId, toHospitalId, dept, reason, urgency, patientAgreed }` | `refer_patient()` — the consent grant only when `patientAgreed` (I11) |
 | `GET /api/referrals/inbox` | doctors | — | `referral_inbox()` — the signed-in hospital only |
 | `POST /api/allergies` | doctor with an open visit for the patient | `{ uhid, allergen, severity, note }` | `record_allergy()` — linked to that visit |
 | `GET /api/audit/break-glass` | hospital admin (own hospital), system admin (all) | — | `break_glass_queue()` — break-glass reads, and visits or admissions opened with no basis (`action` says which) |
-| `POST /api/audit/break-glass/:id/review` | hospital admin (own hospital), system admin (all) | — | `review_break_glass()` — refuses another hospital's read with 403 |
+| `POST /api/audit/break-glass/:id/review` | hospital admin (own hospital), system admin (all) | `{ verdict: 'justified'\|'not_justified', note }` (I11) | `review_break_glass()` — refuses another hospital's read with 403 |
 
 "Who" is what the seed data's role permissions allow. The permission check itself is in the
 database (`require_permission()` inside each procedure, or `has_permission()` in front of a view),
@@ -111,3 +113,28 @@ render it without change:
 - `POST /api/patients/:uhid/read` → the `js/seed.js` patient object (`uhid, name, dob, … allergies[], encounters[]` with each encounter's `rx[]`), plus `encounters[].labs[]`, `encounters[].vitals[]`, `referrals[]`, `accessLog[]` and `access: { basis, consentExpires, breakGlass }`
 - `GET /api/wards` → `[{ id, name, type, beds: [{ no, status, patient, uhid, dx, days, admissionId }] }]`
 - `GET /api/doctors/:id/availability` → `[{ date, label, slots: [{ time, start, taken }] }]`
+
+## Added 7 November 2026 (checklist I3–I13)
+
+| Endpoint | Who | Body | Procedure |
+|---|---|---|---|
+| `POST /api/patients/:uhid/details` | reception, the patient (own) | `{ phone, district, address, kinName, kinRelation, kinPhone }` — empty keeps | `update_patient_details()` |
+| `POST /api/patients/:uhid/verify` | reception | `{ nid }` | `verify_identity()` |
+| `GET /api/patients/:uhid/access-log` | the patient (own), admins | `?before=<log id>` | `access_log_page()` — 25 older entries |
+| `GET /api/setup/hospitals` | hospital admin (own), system admin (all) | — | `list_hospitals()` |
+| `POST /api/setup/hospitals` | system admin | `{ name, district, tier, address, phone }` | `add_hospital()` |
+| `POST /api/setup/hospitals/:id/active` | system admin | `{ active }` | `set_hospital_active()` |
+| `GET /api/setup/:hospitalId` | hospital admin (own), system admin | — | `org_setup()` — postings, sessions, leave, wards, beds, choices |
+| `POST /api/setup/:hospitalId/postings` | admins | `{ bmdc, name, qual, dept, fee, from }` | `post_doctor()` |
+| `POST /api/setup/postings/:id/fee` | admins | `{ fee }` | `set_posting_fee()` |
+| `POST /api/setup/postings/:id/end` | admins | `{ lastDay }` | `end_posting()` |
+| `POST /api/setup/postings/:id/schedules` | admins | `{ weekday, start, end, slot, from }` | `add_schedule()` |
+| `POST /api/setup/schedules/:id/end` | admins | `{ lastDay }` | `end_schedule()` |
+| `POST /api/setup/leave` | admins | `{ doctorId, from, to, reason }` → `{ bookedInside }` | `add_leave()` |
+| `DELETE /api/setup/leave/:id` | admins | — | `remove_leave()` |
+| `POST /api/setup/:hospitalId/wards` | admins | `{ name, type, sex }` | `add_ward()` |
+| `POST /api/setup/wards/:id/beds` | admins | `{ prefix, count }` | `add_beds()` |
+| `POST /api/setup/beds/service` | admins | `{ wardId, bedNo, out }` | `set_bed_service()` |
+
+Sessions are stored through `session_get/set/touch/destroy/purge()` by `server/db/session-store.js`;
+no endpoint calls them directly.

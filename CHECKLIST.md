@@ -258,27 +258,39 @@ first items block shipping outright. Hosting (I14) is the only part that needs a
       visit), a hospital's for reception and the admin (cancel, *Did not come* via
       `mark_no_show()`). A slot that has started can no longer be cancelled. 12 database tests,
       6 API checks; browser-tested as receptionist, doctor and patient, and at phone width.
-- [ ] **I3. Discharge form.** Discharge always records "recovered" with no summary.
-- [ ] **I4. Update a patient's details** (phone, address, next of kin) and verify their identity
-      after registration.
+- [x] **I3. Discharge form.** Built 7 Nov 2026: how the stay ended and a summary, both required
+      by `discharge_patient()` (an absconded patient needs no summary); the record shows them.
+- [x] **I4. Update a patient's details and verify identity.** Built 7 Nov 2026:
+      `update_patient_details()` (reception, or the patient; name, birth date and sex are not
+      editable) and `verify_identity()` (refuses an NID another UHID holds); both logged.
 
 **Running it without editing SQL — blocks shipping**
-- [ ] **I5. Administration screens** for hospitals, doctors and their postings and fees, weekly
-      schedules, leave, wards and beds (out of service). Today these exist only in `seed.sql`.
+- [x] **I5. Administration screens.** Built 7 Nov 2026: *Hospital setup* — post doctors by BMDC
+      number, fees, weekly sessions, leave, wards, beds, out of service; hospitals for the system
+      admin. Fourteen procedures (§13); no doctor in two places at once, no booked patient stranded.
 
 **Operations**
-- [ ] **I6. Sessions survive a restart** (stored in MySQL, not server memory).
-- [ ] **I7. A production install**: build the database with the reference data but no demo
-      patients, and create the first system administrator.
-- [ ] **I8. Backups**: `npm run db:backup` and a tested restore.
-- [ ] **I9. Health check, request log, clean shutdown**, and running as a Windows service.
-- [ ] **I10. Runtime secrets split**: the running site needs only `uhid_app`'s password, not root's.
+- [x] **I6. Sessions survive a restart.** Built 7 Nov 2026: `web_session` (keyed by a SHA-256 of
+      the id); switching an account off or resetting it ends its sessions at once. `npm run restart:test`.
+- [x] **I7. A production install.** Built 7 Nov 2026: `npm run db:install` — reference data
+      (`reference.sql`) without the demo, and a first system administrator with a one-time password.
+      `npm run first-day:test` runs a hospital's first day from an empty install.
+- [x] **I8. Backups.** Built 7 Nov 2026: `npm run db:backup`, `npm run db:restore` (saves the
+      current database first, re-applies grants); restore tested by `first-day:test`.
+- [x] **I9. Health check, request log, clean shutdown, Windows start-up.** Built 7 Nov 2026:
+      `/api/health`, `logs/requests-*.log` (UHIDs masked), `npm run shutdown:test`,
+      `server/scripts/windows-tasks.ps1` (the author runs it as administrator; not run here).
+- [x] **I10. Runtime secrets split.** Built 7 Nov 2026: root's login in `server/.env.admin` for
+      the scripts; with `NODE_ENV=production` the site refuses to start if root's password is in `.env`.
 
 **Record-keeping the earlier reviews left for later (schema changes)**
-- [ ] **I11.** A verdict and note on each break-glass review; who cancelled an appointment; the
-      patient's agreement recorded on a referral.
-- [ ] **I12.** The patient pages through their whole access log, not the latest 25.
-- [ ] **I13.** Lab sample collection as its own step (ordered → collected → reported).
+- [x] **I11.** Built 7 Nov 2026: a verdict and note on each break-glass review
+      (`ck_log_verdict`); `cancelled_by`/`cancelled_at` (`ck_appointment_cancelled`);
+      `referral.patient_agreed` — the consent grant is written only with it.
+- [x] **I12.** Built 7 Nov 2026: `access_log_page()` pages back 25 at a time; each line says
+      what was done (`access_action_label()`) and the review verdict.
+- [x] **I13.** Built 7 Nov 2026: `collect_sample()` (who and when); `report_lab_result()`
+      needs a collected sample.
 
 **Needs a real server — last**
 - [ ] **I14. Hosting**: a domain, HTTPS (`COOKIE_SECURE=1`), email or SMS for password resets and

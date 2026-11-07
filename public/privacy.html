@@ -103,6 +103,17 @@
     advertising.
   </p>
 
+  <h2>Sessions and server logs</h2>
+  <p>
+    When you sign in, your browser keeps one cookie holding a random session id. The server keeps
+    the session in its database, under a one-way hash of that id, so that a restart does not sign
+    you out; it ends after 30 minutes without use, or 8 hours after sign-in. Switching an account
+    off or resetting its password ends its sessions at once. The server also writes one line per
+    request to its own log file &mdash; the time, the address asked for, the answer, how long it
+    took and an account number &mdash; with patient UHIDs masked and no form contents. Who opened
+    which record is kept separately, in the access log every patient can read.
+  </p>
+
   <h2>Passwords</h2>
   <p>
     With the server, accounts live in a <span class="mono">user_account</span> table, each

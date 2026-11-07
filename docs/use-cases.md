@@ -46,6 +46,11 @@ Every demo password is `demo1234`. What each actor may do is decided by `role_pe
 | UC21 | Give a patient a portal login | Receptionist | `issue_patient_login()` | 2 |
 | UC22 | Change your own password | Everyone | `change_password()` | 2 |
 | UC23 | See an appointment list, and mark a missed appointment | Patient, Doctor, Receptionist, Hospital Admin | `list_appointments()`, `mark_no_show()` | 4 |
+| UC24 | Update a patient's contact details | Receptionist, Patient | `update_patient_details()` | 1 |
+| UC25 | Verify a patient's identity | Receptionist | `verify_identity()` | 1 |
+| UC26 | Set up a hospital: doctors, fees, sessions, leave, wards, beds | Hospital Admin, System Admin | `org_setup()`, `post_doctor()`, `add_schedule()`, `add_leave()`, `add_ward()`, `add_beds()`, … | 3 |
+| UC27 | Add a hospital to the network | System Admin | `add_hospital()`, `set_hospital_active()` | 1 |
+| UC28 | Collect a lab sample | Lab Technician | `collect_sample()` | 5 |
 
 ---
 
@@ -385,3 +390,51 @@ that concern them, and a patient who did not come is on the record.
 
 **Alternatives:** a lab technician or the system admin → no list (5403); a period over 62 days →
 refused; marking before the slot starts, at another hospital, or by a patient → refused.
+
+## Changes of 7 November 2026 to the use cases above
+
+- **UC13 Discharge:** the doctor states how the stay ended (recovered, improved, referred,
+  absconded, died) and writes a summary; `discharge_patient()` refuses either missing (the summary
+  only for an absconded patient). The record shows both.
+- **UC15 Refer:** the doctor records whether the patient agreed to share the record. Only then does
+  `refer_patient()` write the 24-hour consent grant; without it the receiving hospital gets the
+  referral and asks the patient on arrival.
+- **UC16 Review break-glass:** a verdict, *justified* or *not justified*; the second needs a note
+  (`ck_log_verdict`). The patient sees the verdict in their access log.
+- **UC8 Cancel:** the row records who cancelled and when (`ck_appointment_cancelled`).
+- **UC18 See who read my record:** the log says what was done, and pages back past the latest 25.
+
+## UC24 — Update a patient's contact details
+
+**Actors:** Receptionist (at any hospital — patients move), the patient themselves. Mobile,
+district, address and next of kin; an empty box keeps what is on file. Name, date of birth and sex
+identify the person and are not edited here. Logged as `details.update`.
+
+## UC25 — Verify a patient's identity
+
+**Actor:** Receptionist, with the national ID card in front of them. `verify_identity()` records
+the NID if there was none, refuses one that differs from the NID on file, and refuses one another
+UHID already holds — naming that UHID, because the two may be one person (decision 1). Logged as
+`identity.verified`.
+
+## UC26 — Set up a hospital
+
+**Actors:** Hospital Admin (own hospital), System Admin (any). On *Hospital setup*: post a doctor
+by BMDC number (a doctor new to the national registry is added in the same transaction), set the
+fee, add weekly sessions, record leave, add wards and beds, take a bed out of service.
+
+**Rules the procedures keep:** a session may not overlap another session of the same doctor at any
+hospital; ending a posting or a session is refused while patients are booked after the last day;
+leave reports how many patients are already booked inside it rather than cancelling them; an
+occupied bed cannot be taken out of service. Availability is still computed from these, never
+stored (decision 3).
+
+## UC27 — Add a hospital to the network
+
+**Actor:** System Admin. `add_hospital()`; then a hospital admin account on *Staff accounts*.
+Closing a hospital (`set_hospital_active()`) is refused while it has inpatients or bookings ahead.
+
+## UC28 — Collect a lab sample
+
+**Actor:** Lab Technician. Ordered → **collected** → reported. `collect_sample()` stamps who and
+when; `report_lab_result()` refuses a result for a sample not yet collected.

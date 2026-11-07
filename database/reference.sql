@@ -8,7 +8,7 @@
 -- catalogues (ICD-10 diagnoses, medicines, allergens, lab tests). None of it
 -- is about a particular hospital or person.
 --
--- Everything else — the seven demo hospitals, their doctors, wards and
+-- Everything else — the eight demo hospitals, their doctors, wards and
 -- patients, the demo accounts — is in seed.sql, which a real installation
 -- (npm run db:install) never loads.
 -- =====================================================================

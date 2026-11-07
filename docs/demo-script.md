@@ -21,8 +21,8 @@ hours from the moment the seed data is loaded.
 ```powershell
 cd E:\hospital-management-system\server
 npm run db:reset          # fresh sample data — ends "Database rebuilt: 40 tables, …"
-npm run db:test           # 232 database tests — every line PASS
-npm run api:test          # 123 API checks — "123 passed, 0 failed"
+npm run db:test           # 309 database tests — every line PASS
+npm run api:test          # 145 API checks — "145 passed, 0 failed"
 npm start                 # "UHID running at http://localhost:3000"
 ```
 
@@ -136,8 +136,9 @@ Every demo password is `demo1234`.
    "Opening an encounter here is what marks the referral arrived — the null in to_encounter_id
    is the difference between referred and arrived."
 8. On the new encounter, **Refer…** → **Square Hospital**, Cardiology, *urgent*, reason
-   `Echocardiogram` → **Refer**. **Say:** "The referral and a 24-hour consent grant for Square
-   are written in one transaction. Square's doctors see the patient in their referral inbox now, with
+   `Echocardiogram`, tick *The patient agrees…* → **Refer**. **Say:** "With the patient's agreement,
+   the referral and a 24-hour consent grant for Square are written in one transaction — without it,
+   the referral goes but the record does not. Square's doctors see the patient in their referral inbox now, with
    access to everything before the patient arrives."
 9. **Find patient** → open **Fatema Begum, BD-2021-11904-5**. Refused: *no consent grant or open
    encounter*, with **Use break-glass**.
@@ -145,15 +146,18 @@ Every demo password is `demo1234`.
    *Opened under break-glass.* In **Who has viewed this**, the line shows the reason and
    *awaiting review*. **Say:** "Emergency access is allowed, never silent: a reason is
    compulsory, and the read joins the administrator's review queue."
-11. **Wards & beds** → click **GM-08** → **Discharge**. It turns grey: *cleaning*. **Say:** "A
-   doctor may discharge; closing the bed stay fired the trigger that sets cleaning."
+11. **Wards & beds** → click **GM-08** → **Discharge**. Choose *Improved*, write a short summary
+   → **Discharge**. It turns grey: *cleaning*. **Say:** "A doctor may discharge, and must say how
+   the stay ended and write a summary — the database refuses a discharge without them. Closing the
+   bed stay fired the trigger that sets cleaning."
 12. **Sign out.**
 
 ## 7. The lab — decision 5 — 1 minute
 
 1. Sign in as `rumana` (lab technician). **Lab worklist** lists the tests waiting at Dhaka
    Medical, including Rahim's **Haemoglobin** from step 6.
-2. Type `10.2` → **Report**. It moves to *Reported just now* marked **Abnormal**. **Say:** "I
+2. Click **Collected** (the sample is taken: ordered → collected → reported), then type `10.2`
+   → **Report**. It moves to *Reported just now* marked **Abnormal**. **Say:** "I
    did not decide that, and nor did the page. A trigger compared the value with the test's
    reference range, 12 to 15.5, and another marked the order reported. The worklist is a stored
    procedure, not a view, because which tests a patient is having is clinical information — the
@@ -169,8 +173,9 @@ Every demo password is `demo1234`.
    admission opened without a reason already in the database, waits here. A hospital admin sees reads made at their own hospital only — Chattogram has one
    waiting too, and the procedure would refuse an attempt to clear it from here. The system admin sees the
    country."
-2. **Mark reviewed** → **Mark reviewed**. **Say:** "That is the one change the access log's
-   triggers allow: stamping who reviewed it, once. The entry itself can never be edited."
+2. **Review…** → *Justified* → **Record verdict**. **Say:** "That is the one change the access
+   log's triggers allow: stamping who reviewed it, once, with a verdict — and 'not justified' must
+   say why. The entry itself can never be edited, and the patient sees the verdict."
 3. **Merge records**. Under *Possible duplicates*: the two **Md. Rahim Uddin** records, *same
    name and date of birth*. **Say:** "The database found these with a self-join on the patient
    table — the same pair the registration panel warned about in step 2."
@@ -235,7 +240,7 @@ Then open `database/queries.sql` and run two or three: **1** (one patient, every
 **5** (possible duplicate patients — a self-join), **7** (busiest departments — a window
 function), **11** (a calendar from a recursive CTE).
 
-Finally, in the second PowerShell window: `npm run db:test` — **232 tests, every one PASS**, each
+Finally, in the second PowerShell window: `npm run db:test` — **309 tests, every one PASS**, each
 proving a rule refuses what it must with the exact error number. (It resets the database when it
 finishes, so do it last, or restart `npm start` afterwards.)
 
@@ -262,3 +267,11 @@ finishes, so do it last, or restart `npm start` afterwards.)
 | Which normal form, and where is it broken on purpose? | `docs/normalization.md` |
 | What does each user do, and which procedure does it? | `docs/use-cases.md` |
 | Which URL calls which procedure? | `docs/api.md` |
+
+## Running it for real (if the teacher asks "could a hospital actually use this?")
+
+Show `npm run first-day:test`: it installs an empty network (`db:install`, no demo data),
+signs in as the first administrator with a one-time password, adds a hospital, its admin, a
+doctor, a weekly session, a ward with beds and a receptionist, registers a patient and books
+them — all through the app, no SQL — then restores the demo. Then **Hospital setup** and
+**Staff accounts** as `nasima`. `docs/operations.md` covers backups, health checks and secrets.

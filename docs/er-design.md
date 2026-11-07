@@ -963,8 +963,25 @@ Until now every account shared one demo password. A real installation cannot wor
   plaintext password by mistake.
 - The demo accounts are listed on the sign-in page only when the server runs with `DEMO_MODE=1`.
 
+### 8.8 A shipment-ready system (7 November 2026, checklist I2–I13)
+
+| Change | Why | Where |
+|---|---|---|
+| `appointment.cancelled_by`, `cancelled_at`; a booking that has started cannot be cancelled, and is marked `no_show` instead | Who cancelled is a fact worth keeping; cancelling a past slot would erase a missed visit | `cancel_appointment()`, `mark_no_show()` |
+| A discharge needs an outcome and a summary | The summary is what the next hospital reads | `discharge_patient()` |
+| `access_log.review_verdict`, `review_note` | A review is a judgement, not a tick | `review_break_glass()`, `ck_log_verdict` |
+| `referral.patient_agreed` | The record travels with the patient's agreement only | `refer_patient()` |
+| `lab_order.collected_by`, `collected_at` | ordered → collected → reported | `collect_sample()`, `report_lab_result()` |
+| New entity **web_session** (N sessions : 1 user_account) | Sessions survive a restart; switching an account off ends them | schema §10, `session_*()` |
+| Fourteen setup procedures and permission `org.manage` | Hospitals, postings, sessions, leave, wards and beds without editing SQL | procedures §13 |
+| `reference.sql` split from `seed.sql` | A real installation loads the reference data and not the demo | `db:install` |
+
+**For the ER diagrams:** the Chen files do not yet show `web_session` (1 user_account : N
+web_session, partial on both sides) or the new attributes above — pages 2–6 to be updated by hand;
+page 1 is the author's.
+
 Nothing in §8 is open. Both phases are built and verified on MySQL 8.4: `npm run db:test` runs
-232 tests that check every constraint, trigger and procedure rejects what §4 says it must.
+309 tests that check every constraint, trigger and procedure rejects what §4 says it must.
 
 ---
 

@@ -48,8 +48,8 @@ constraint, a trigger or a stored procedure — not by application code that cou
 | Frontend | HTML, CSS, JavaScript — no framework, no build step |
 | Architecture | Static pages calling a JSON API with `fetch`, both served by Express |
 
-In numbers: 40 tables, 21 triggers, 41 stored procedures and 6 functions, 9 views,
-20 demonstration queries, 232 database tests, 41 API endpoints with 123 end-to-end checks.
+In numbers: 41 tables, 21 triggers, 41 stored procedures and 6 functions, 9 views,
+20 demonstration queries, 309 database tests, 60 API endpoints with 145 end-to-end checks.
 
 ---
 
@@ -74,10 +74,14 @@ and adds its password to `.env`.
 | Command (in `server/`) | What it does |
 |---|---|
 | `npm start` | Runs the site and API at http://localhost:3000 |
-| `npm run db:reset` | Rebuilds the database from `database/*.sql` |
-| `npm run db:test` | Runs the 64 database tests, then resets |
-| `npm run api:test` | Runs the 59 API checks, then resets |
-| `npm run race` | Two receptionists booking one slot at once, five times |
+| `npm run db:reset` | Rebuilds the DEMO database from `database/*.sql` |
+| `npm run db:install` | A real installation: no demo data, one first system administrator (`docs/operations.md`) |
+| `npm run db:backup` / `db:restore` | A complete copy of the database to `backups/`, and putting one back |
+| `npm run db:test` | Runs the 309 database tests, then resets |
+| `npm run api:test` | Runs the 145 API checks, then resets |
+| `npm run race` | Two receptionists booking one slot (and admitting to one bed) at once, five times |
+| `npm run first-day:test` | An empty install to a booked patient through the app alone, then restores |
+| `npm run restart:test` / `shutdown:test` | Sessions survive a restart; the server stops cleanly |
 | `npm run db:run -- <file.sql>` | Runs any SQL file, e.g. `../database/queries.sql` |
 
 **Demo accounts** (listed on the sign-in page only while `server/.env` has `DEMO_MODE=1`) — password `demo1234` for every one:
@@ -101,23 +105,25 @@ For the viva, follow **`docs/demo-script.md`**.
 ## Repository layout
 
 ```
-database/   schema.sql      40 tables, CHECKs and foreign keys
+database/   schema.sql      41 tables, CHECKs and foreign keys
             triggers.sql    the rules a CHECK cannot express
             procedures.sql  every write, and the logged read
             views.sql       the read models the screens use
-            seed.sql        sample data: 8 hospitals, 11 doctors, 18 patients
+            reference.sql   what every installation needs: geography, roles, catalogues
+            seed.sql        the demo: 8 hospitals, their doctors and wards, 18 patients
             grants.sql      the least-privilege uhid_app user
             queries.sql     20 demonstration queries
-            tests.sql       232 tests
+            tests.sql       309 tests
 server/     app.js, auth.js, routes/, db/, lib/, scripts/   the Express API
 public/     the website: landing page, sign-in, privacy, 404, and the clinical console
 docs/       er-design.md        the ER model and the reasoning behind it
             er-diagrams/        Chen and crow's-foot diagrams (draw.io)
             data-dictionary.md  every table and column
             normalization.md    1NF to BCNF, and every deliberate redundancy
-            use-cases.md        23 use cases, each mapped to its procedure
+            use-cases.md        28 use cases, each mapped to its procedure
             api.md              every endpoint and the procedure behind it
             demo-script.md      the viva demonstration, click by click
+            operations.md       running it for real: install, secrets, backups, health, hosting
             guides/             learning guides for each team member
 prototype/  the original single-file prototype
 ```
