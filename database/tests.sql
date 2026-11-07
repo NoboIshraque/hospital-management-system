@@ -373,6 +373,10 @@ CALL t_expect('A receptionist cannot discharge',
   CONCAT("CALL discharge_patient(1, ", @adm, ", 'x', 'recovered')"), 5403);
 CALL t_expect('A doctor discharges',
   CONCAT("CALL discharge_patient(16, ", @adm, ", 'Recovered well', 'recovered')"), 0);
+CALL t_expect('I3: a discharge must say how the stay ended',
+  "CALL discharge_patient(16, (SELECT MIN(admission_id) FROM admission WHERE discharged_at IS NULL), 'Recovered well', NULL)", 1644);
+CALL t_expect('I3: …and carry a summary',
+  "CALL discharge_patient(16, (SELECT MIN(admission_id) FROM admission WHERE discharged_at IS NULL), ' ', 'improved')", 1644);
 CALL t_value('…and the trigger sends the bed for cleaning',
   "SELECT status FROM v_bed_board WHERE ward_id = 1 AND no = 'GM-08'", 'cleaning');
 CALL t_expect('Housekeeping marks it clean',
@@ -798,6 +802,43 @@ CALL t_expect('I2: …only once',
   CONCAT("CALL mark_no_show(1, ", @past1, ")"), 1644);
 CALL t_expect('I2: an appointment that has started cannot be cancelled',
   CONCAT("CALL cancel_appointment(1, ", @past2, ")"), 1644);
+
+-- =====================================================================
+-- 13. DISCHARGE, PATIENT DETAILS AND IDENTITY (checklist I3, I4, 7 November 2026)
+-- =====================================================================
+
+CALL t_expect('I4: reception updates a patient''s mobile and address',
+  "CALL update_patient_details(1, 'BD-2021-11904-5', '01819-000111', NULL, 'Flat 5A, Nasirabad, Chattogram', NULL, NULL, NULL, NULL)", 0);
+CALL t_value('I4: …the new mobile is stored, the rest kept',
+  "SELECT CONCAT(phone, ' | ', kin_name) FROM patient WHERE uhid = 'BD-2021-11904-5'", '01819-000111 | Nurul Islam');
+CALL t_value('I4: …and the change is in her access log',
+  "SELECT COUNT(*) FROM access_log WHERE action = 'details.update' AND patient_id = 2", '1');
+CALL t_expect('I4: a patient updates their own details',
+  "CALL update_patient_details(17, 'BD-2019-04821-5', NULL, NULL, 'House 9, Road 2, Mirpur-2, Dhaka', NULL, NULL, NULL, NULL)", 0);
+CALL t_expect('I4: …but not someone else''s',
+  "CALL update_patient_details(17, 'BD-2021-11904-5', NULL, NULL, 'Somewhere', NULL, NULL, NULL, NULL)", 5403);
+CALL t_expect('I4: a doctor does not edit contact details',
+  "CALL update_patient_details(6, 'BD-2021-11904-5', NULL, NULL, 'Somewhere', NULL, NULL, NULL, NULL)", 5403);
+CALL t_expect('I4: a badly formed mobile is refused',
+  "CALL update_patient_details(1, 'BD-2021-11904-5', 'call me', NULL, NULL, NULL, NULL, NULL, NULL)", 1644);
+CALL t_expect('I4: an unknown district is refused',
+  "CALL update_patient_details(1, 'BD-2021-11904-5', NULL, 'Atlantis', NULL, NULL, NULL, NULL, NULL)", 1644);
+-- A fresh patient registered without an NID (an earlier test merged the
+-- seed's unverified Rahim into the verified one).
+CALL register_patient(1, 'Ishrat Jahan Verify', '1994-03-08', 'Female', 'Unknown', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+SET @iv = (SELECT uhid FROM patient WHERE name = 'Ishrat Jahan Verify');
+CALL t_expect('I4: verifying with an NID another UHID holds is refused (decision 1)',
+  CONCAT("CALL verify_identity(1, '", @iv, "', '1991773310448', NULL)"), 1644);
+CALL t_expect('I4: verifying with a malformed NID is refused',
+  CONCAT("CALL verify_identity(1, '", @iv, "', '12345', NULL)"), 1644);
+CALL t_expect('I4: reception verifies a patient with a new NID',
+  CONCAT("CALL verify_identity(1, '", @iv, "', '1978-555-1234-56', NULL)"), 0);
+CALL t_value('I4: …who is now verified, by that receptionist',
+  CONCAT("SELECT CONCAT(identity_verified, ' ', verified_by, ' ', nid) FROM patient WHERE uhid = '", @iv, "'"), '1 1 1978555123456');
+CALL t_expect('I4: a different NID than the one on file is refused',
+  CONCAT("CALL verify_identity(1, '", @iv, "', '1978555999999', NULL)"), 1644);
+CALL t_expect('I4: a doctor does not verify identity',
+  "CALL verify_identity(6, 'BD-2021-11904-5', '1991773310448', NULL)", 5403);
 
 SELECT test_no, IF(passed, 'PASS', 'FAIL') AS result, name, expected, got, message
   FROM t_result ORDER BY test_no;

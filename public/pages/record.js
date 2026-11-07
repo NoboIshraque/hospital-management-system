@@ -10,6 +10,10 @@
    break-glass instead.
    ============================================================ */
 
+/* How an inpatient stay ended (admission.outcome, checklist I3). */
+const OUTCOME_LABEL = { recovered: 'recovered', improved: 'improved', referred: 'referred elsewhere',
+  absconded: 'left without being discharged', died: 'died' };
+
 const BASIS_LABEL = {
   own_record: 'Your own record',
   treating: 'Treating clinician',
@@ -118,6 +122,8 @@ function drawRecord(root, p) {
       <div class="pt-actions">
         ${S.role === 'doctor' && API.online ? `<a class="btn primary" href="encounter.html?uhid=${encodeURIComponent(p.uhid)}">Record encounter</a>` : ''}
         ${S.role === 'receptionist' && API.online ? '<button class="btn" id="portal-btn">Portal login&hellip;</button>' : ''}
+        ${(S.role === 'receptionist' || isSelf) && API.online ? '<button class="btn" id="edit-btn">Edit details&hellip;</button>' : ''}
+        ${S.role === 'receptionist' && API.online && !p.identityVerified ? '<button class="btn" id="verify-btn">Verify identity&hellip;</button>' : ''}
         ${isSelf ? '' : `<button class="btn" id="consent-btn">Access basis: ${esc((BASIS_LABEL[access.basis] || access.basis).toLowerCase())}</button>`}
         <button class="btn ghost" id="print-btn">Print record</button>
       </div>
@@ -151,9 +157,68 @@ function drawRecord(root, p) {
   if (consentBtn) consentBtn.addEventListener('click', () => showConsent(p, access));
   $('#print-btn').addEventListener('click', () => window.print());
   if ($('#portal-btn')) $('#portal-btn').addEventListener('click', () => issuePortalLogin(p.uhid, p.name));
+  if ($('#edit-btn')) $('#edit-btn').addEventListener('click', () => openEditDetails(root, p));
+  if ($('#verify-btn')) $('#verify-btn').addEventListener('click', () => openVerify(root, p));
 
   S.tab = 'timeline';
   renderRecordBody();
+}
+
+/* Checklist I4. Contact details change; the name, date of birth and sex do
+   not — those identify the person (update_patient_details()). An empty box
+   keeps what is on file. */
+function openEditDetails(root, p) {
+  const sc = modal(`
+    <div class="modal-h"><h3>Update contact details</h3><p>${esc(p.name)} &middot; <span class="mono">${esc(p.uhid)}</span>. Leave a box empty to keep what is on file. The change is written to the patient&rsquo;s access log.</p></div>
+    <div class="modal-b">
+      <div class="row c2">
+        <div><label class="label" for="ed-phone">Mobile</label><input class="field mono" id="ed-phone" maxlength="20" placeholder="${esc(p.phone || '01XXX-XXXXXX')}"></div>
+        <div><label class="label" for="ed-dist">District</label><input class="field" id="ed-dist" list="ed-dist-list" maxlength="60" placeholder="${esc(p.district || 'District')}"><datalist id="ed-dist-list"></datalist></div>
+      </div>
+      <div class="row"><div><label class="label" for="ed-addr">Address</label><input class="field" id="ed-addr" maxlength="200" placeholder="${esc(p.address || '')}"></div></div>
+      <div class="row c3">
+        <div><label class="label" for="ed-kin">Next of kin</label><input class="field" id="ed-kin" maxlength="100"></div>
+        <div><label class="label" for="ed-rel">Relation</label><input class="field" id="ed-rel" maxlength="30"></div>
+        <div><label class="label" for="ed-kph">Their mobile</label><input class="field mono" id="ed-kph" maxlength="20"></div>
+      </div>
+      <p class="hint">Now on file: next of kin ${esc(p.kin || 'none')}. The name, date of birth and sex cannot be edited here; a wrong one is corrected by merging or by an administrator.</p>
+    </div>
+    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Save</button></div>`);
+  API.get('/districts')
+    .then(list => { $('#ed-dist-list', sc).innerHTML = list.map(d => `<option value="${esc(d.district)}">${esc(d.div)}</option>`).join(''); })
+    .catch(() => { /* suggestions only */ });
+  $('[data-ok]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
+    const v = id => $('#' + id, sc).value.trim();
+    const body = { phone: v('ed-phone'), district: v('ed-dist'), address: v('ed-addr'),
+                   kinName: v('ed-kin'), kinRelation: v('ed-rel'), kinPhone: v('ed-kph') };
+    if (!Object.values(body).some(Boolean)) { toast('Nothing to save', 'Fill in at least one box.', 'err'); return; }
+    try { await API.post(`/patients/${encodeURIComponent(p.uhid)}/details`, body); }
+    catch (err) { toast('Not saved', err.message, 'err'); return; }
+    sc.remove();
+    toast('Details updated', 'The new details are on the national record.');
+    loadRecord(root, p.uhid, null);
+  }));
+}
+
+/* Reception has seen the national ID card. verify_identity() records the
+   NID if there was none, refuses one another UHID already holds (decision 1),
+   and stamps who verified it. */
+function openVerify(root, p) {
+  const sc = modal(`
+    <div class="modal-h"><h3>Verify identity</h3><p>${esc(p.name)} &middot; <span class="mono">${esc(p.uhid)}</span>. Type the number from the national ID card in front of you.</p></div>
+    <div class="modal-b">
+      <label class="label" for="vf-nid">National ID number</label>
+      <input class="field mono" id="vf-nid" maxlength="21" inputmode="numeric" autocomplete="off">
+      <p class="hint">10, 13 or 17 digits. If another UHID already holds this NID, the two records may be one person &mdash; the database refuses, and an admin can merge them.</p>
+    </div>
+    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Mark verified</button></div>`);
+  $('[data-ok]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
+    try { await API.post(`/patients/${encodeURIComponent(p.uhid)}/verify`, { nid: $('#vf-nid', sc).value.trim() }); }
+    catch (err) { toast('Not verified', err.message, 'err'); return; }
+    sc.remove();
+    toast('Identity verified', 'The record now shows a verified national ID.');
+    loadRecord(root, p.uhid, null);
+  }));
 }
 
 function showConsent(p, access) {
@@ -224,6 +289,8 @@ function renderRecordBody() {
             ${e.rx.length ? `<div class="enc-rx"><span class="k">Prescribed</span><ul>${
               e.rx.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>` : ''}
             ${labsBlock(e)}
+            ${e.outcome ? `<div class="enc-rx"><span class="k">Discharged &middot; ${esc(OUTCOME_LABEL[e.outcome] || e.outcome)}</span>${
+              e.dischargeSummary ? `<p style="margin:4px 0 0;white-space:pre-line">${esc(e.dischargeSummary)}</p>` : ''}</div>` : ''}
           </div>
         </div>`;
       }).join('')}</div>`;

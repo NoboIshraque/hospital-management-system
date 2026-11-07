@@ -222,9 +222,11 @@ async function signIn(base, username) {
     check('A lab technician has no bed board (403, H2.3)', r.status === 403);
     r = await rezaul('POST', `/api/admissions/${admissionId}/transfer`, { wardId: 1, bedNo: 'GM-08' });
     check('A transfer moves the patient', r.status === 200 && await bedStatus('GM-04') === 'cleaning' && await bedStatus('GM-08') === 'occupied');
+    r = await mahbub('POST', `/api/admissions/${admissionId}/discharge`, { summary: 'Recovered' });
+    check('A discharge without an outcome is refused', r.status === 409 || r.status === 400);
     r = await rezaul('POST', `/api/admissions/${admissionId}/discharge`, { summary: 'x' });
     check('A receptionist discharging is 403', r.status === 403);
-    r = await mahbub('POST', `/api/admissions/${admissionId}/discharge`, { summary: 'Recovered', outcome: 'recovered' });
+    r = await mahbub('POST', `/api/admissions/${admissionId}/discharge`, { summary: 'Recovered, home on oral medicines', outcome: 'recovered' });
     check('A doctor discharges, and the bed goes for cleaning', r.status === 200 && await bedStatus('GM-08') === 'cleaning');
     const tahmina = await signIn(base, 'tahmina');
     r = await tahmina('POST', '/api/admissions/1/discharge', { summary: 'x' });
@@ -372,6 +374,16 @@ async function signIn(base, username) {
     check('A receptionist cannot create accounts (403)', r.status === 403);
     r = await rezaul('POST', '/api/patients/BD-2020-27615-1/login', { username: 'shirin' });
     check('Reception issues a patient her portal login', r.status === 201 && r.body.username === 'shirin' && r.body.oneTimePassword.length === 12);
+
+    // ---------- patient details and identity (I4) ----------
+    r = await rezaul('POST', '/api/patients/BD-2021-11904-5/details', { phone: '01819-000222', address: 'Flat 7C, Nasirabad, Chattogram' });
+    check('Reception updates a patient’s contact details', r.status === 200);
+    r = await rahim('POST', '/api/patients/BD-2021-11904-5/details', { address: 'Not mine' });
+    check('A patient cannot change someone else’s (403)', r.status === 403);
+    r = await rezaul('POST', '/api/patients/BD-2021-11904-5/details', { phone: 'not a number' });
+    check('A malformed mobile is refused', r.status === 409 || r.status === 400);
+    r = await anisur('POST', '/api/patients/BD-2021-11904-5/verify', { nid: '1991773310448' });
+    check('A doctor cannot verify identity (403)', r.status === 403);
 
     // ---------- appointment lists (I2) ----------
     r = await rahim('GET', '/api/appointments?days=8');

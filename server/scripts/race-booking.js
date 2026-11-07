@@ -102,7 +102,7 @@ async function main() {
     console.log(`  refused:  ${losers.length ? losers[0].body.error : 'nobody'}`);
     console.log(`  ${ok ? '✓ exactly one patient in the bed' : '✗ WRONG: ' + JSON.stringify([a, b])}\n`);
     for (const w of winners) {
-      await mahbub('POST', `/api/admissions/${w.body.admissionId}/discharge`, { summary: 'Race test', outcome: 'recovered' });
+      await mahbub('POST', `/api/admissions/${w.body.admissionId}/discharge`, { summary: 'Race test discharge', outcome: 'recovered' });
       await rezaul('POST', '/api/beds/clean', { wardId: 1, bedNo: bed.no });
     }
   }

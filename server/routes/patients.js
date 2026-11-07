@@ -8,6 +8,9 @@
    POST /api/patients            register a patient and issue a UHID
    POST /api/patients/:uhid/read the clinical record — a logged read
         { breakGlass: true, reason }   emergency access, flagged for review
+   POST /api/patients/:uhid/details { phone, district, address, kinName, kinRelation, kinPhone }
+                                  reception, or the patient, updates contact details (I4)
+   POST /api/patients/:uhid/verify  { nid }  reception has seen the ID card (I4)
    POST /api/allergies           { uhid, allergen, severity, note } a doctor records an allergy
    GET  /api/consents            a patient's own consent grants (A9)
    POST /api/consents/:id/revoke the patient takes one back
@@ -47,6 +50,20 @@ router.post('/patients/matches', requireLogin, ah(async (req, res) => {
 /* register_patient() does everything that matters — the NID check, the
    locked UHID serial, the allergy lookup — in one transaction. The route
    only passes the form through. */
+const str = v => (v === undefined || v === null ? null : String(v));
+
+router.post('/patients/:uhid/details', requireLogin, ah(async (req, res) => {
+  const b = req.body;
+  await call('update_patient_details', [req.session.account.id, req.params.uhid, str(b.phone), str(b.district),
+    str(b.address), str(b.kinName), str(b.kinRelation), str(b.kinPhone), clientIp(req)]);
+  res.json({ updated: true });
+}));
+
+router.post('/patients/:uhid/verify', requireLogin, ah(async (req, res) => {
+  await call('verify_identity', [req.session.account.id, req.params.uhid, str(req.body.nid), clientIp(req)]);
+  res.json({ verified: true });
+}));
+
 router.post('/patients', requireLogin, ah(async (req, res) => {
   const b = req.body;
   const allergies = Array.isArray(b.allergies) ? b.allergies.join(',') : (b.allergies || null);
@@ -97,6 +114,7 @@ router.post('/patients/:uhid/read', requireLogin, ah(async (req, res) => {
     encounters: encounters.map(e => ({
       id: e.id, date: e.date, hospitalId: e.hospitalId, type: e.type, doctor: e.doctor,
       dept: e.dept, dx: e.dx, notes: e.notes, isOpen: bool(e.isOpen),
+      outcome: e.outcome || null, dischargeSummary: e.dischargeSummary || null,
       rx: rx.get(e.id) || [], labs: lab.get(e.id) || [], vitals: vit.get(e.id) || []
     })),
     referrals,

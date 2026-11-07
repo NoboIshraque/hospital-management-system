@@ -103,6 +103,40 @@ function afterChange(title, msg) {
   renderWards($('#view'));
 }
 
+/* The discharge form (checklist I3). How the stay ended and a summary are
+   both required by discharge_patient(); the summary is part of the
+   patient's national record, read at the next hospital they visit. */
+const OUTCOMES = [['recovered', 'Recovered'], ['improved', 'Improved'], ['referred', 'Referred elsewhere'],
+  ['absconded', 'Left without being discharged'], ['died', 'Died']];
+
+function openDischarge(w, b) {
+  const sc = modal(`
+    <div class="modal-h"><h3>Discharge ${esc(b.patient)}</h3><p>${esc(b.no)}, ${esc(w.name)} &middot; day ${Number(b.days)} of the stay</p></div>
+    <div class="modal-b">
+      <div class="row"><div><label class="label" for="dc-out">How the stay ended</label>
+        <select class="field" id="dc-out">${OUTCOMES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div></div>
+      <div class="row"><div><label class="label" for="dc-sum">Discharge summary</label>
+        <textarea class="field" id="dc-sum" rows="5" maxlength="4000" placeholder="Course in hospital, condition at discharge, medicines to continue, follow-up"></textarea>
+        <p class="hint" id="dc-hint">Goes into the national record: the next hospital reads it.</p></div></div>
+    </div>
+    <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" data-ok>Discharge</button></div>`);
+  const out = $('#dc-out', sc);
+  out.addEventListener('change', () => {
+    $('#dc-hint', sc).textContent = out.value === 'died'
+      ? 'Recording a death closes the record: no booking, visit or admission is accepted after it.'
+      : out.value === 'absconded' ? 'A summary is optional when the patient left without telling anyone.'
+      : 'Goes into the national record: the next hospital reads it.';
+  });
+  $('[data-ok]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
+    const summary = $('#dc-sum', sc).value.trim();
+    if (out.value !== 'absconded' && summary.length < 10) { toast('No summary', 'Write a discharge summary of at least 10 characters.', 'err'); return; }
+    try { await API.post(`/admissions/${b.admissionId}/discharge`, { outcome: out.value, summary }); }
+    catch (err) { toast('Not discharged', err.message, 'err'); return; }
+    sc.remove();
+    afterChange('Patient discharged', `${b.no} released and sent for cleaning.`);
+  }));
+}
+
 function openBed(wi, bi) {
   const w = WARDS[wi];
   const b = w.beds[bi];
@@ -126,8 +160,9 @@ function openBed(wi, bi) {
     $('[data-transfer]', sc).addEventListener('click', () => { sc.remove(); openTransfer(wi, bi); });
     $('[data-discharge]', sc).addEventListener('click', e => busy(e.currentTarget, async () => {
       if (API.online) {
-        try { await API.post(`/admissions/${b.admissionId}/discharge`, { outcome: 'recovered' }); }
-        catch (e) { toast('Not discharged', e.message, 'err'); return; }
+        sc.remove();
+        openDischarge(w, b);
+        return;
       } else {
         b.status = 'cleaning'; b.patient = null; b.uhid = null; b.dx = null; b.days = null;
       }

@@ -675,6 +675,129 @@ END $$
 
 
 -- =====================================================================
+-- 4a. KEEPING A PATIENT'S DETAILS CURRENT (checklist I4, 7 November 2026)
+--
+-- update_patient_details(): reception at any hospital (a patient may move
+-- across the country) or the patient themselves. An empty value keeps
+-- what is there; nothing here can change the name, date of birth or sex —
+-- those identify the person, and a wrong one is a merge or a correction
+-- with a reason, not an edit. Each change is written to access_log, so the
+-- patient sees who changed their details.
+--
+-- verify_identity(): reception has seen the national ID card. It records
+-- the NID if the patient had none (decision 1's duplicate check applies),
+-- or confirms the one on file, and who verified it and when.
+-- =====================================================================
+
+DROP PROCEDURE IF EXISTS update_patient_details $$
+CREATE PROCEDURE update_patient_details(
+  IN p_account_id   INT UNSIGNED,
+  IN p_uhid         VARCHAR(20),
+  IN p_phone        VARCHAR(20),
+  IN p_district     VARCHAR(60),
+  IN p_address      VARCHAR(200),
+  IN p_kin_name     VARCHAR(100),
+  IN p_kin_relation VARCHAR(30),
+  IN p_kin_phone    VARCHAR(20),
+  IN p_ip           VARCHAR(45)
+)
+BEGIN
+  DECLARE v_patient  INT UNSIGNED DEFAULT resolve_patient(p_uhid);
+  DECLARE v_role     VARCHAR(30);
+  DECLARE v_own      INT UNSIGNED;
+  DECLARE v_hosp     SMALLINT UNSIGNED;
+  DECLARE v_district SMALLINT UNSIGNED;
+  DECLARE v_msg      VARCHAR(255);
+
+  IF v_patient IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No patient holds that UHID.', MYSQL_ERRNO = 5404;
+  END IF;
+  SELECT r.code, ua.patient_id, ua.hospital_id INTO v_role, v_own, v_hosp
+    FROM user_account ua JOIN role r ON r.role_id = ua.role_id
+   WHERE ua.account_id = p_account_id AND ua.is_active;
+  IF NOT ((v_role = 'patient' AND v_own = v_patient) OR has_permission(p_account_id, 'patient.register')) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Only reception, or the patient themselves, can change these details.', MYSQL_ERRNO = 5403;
+  END IF;
+
+  IF NULLIF(TRIM(p_phone), '') IS NOT NULL AND NOT REGEXP_LIKE(TRIM(p_phone), '^[+]?[0-9][0-9 -]{6,18}[0-9]$') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Enter the mobile number as digits, e.g. 01711-482031.';
+  END IF;
+  IF NULLIF(TRIM(p_kin_phone), '') IS NOT NULL AND NOT REGEXP_LIKE(TRIM(p_kin_phone), '^[+]?[0-9][0-9 -]{6,18}[0-9]$') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Enter the next of kin''s number as digits, e.g. 01711-482031.';
+  END IF;
+  IF NULLIF(TRIM(p_district), '') IS NOT NULL THEN
+    SELECT district_id INTO v_district FROM district WHERE name = TRIM(p_district);
+    IF v_district IS NULL THEN
+      SET v_msg = CONCAT('Unknown district "', p_district, '". Choose one of the 64 districts.');
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+    END IF;
+  END IF;
+
+  UPDATE patient
+     SET phone        = COALESCE(NULLIF(TRIM(p_phone), ''), phone),
+         district_id  = COALESCE(v_district, district_id),
+         address      = COALESCE(NULLIF(TRIM(p_address), ''), address),
+         kin_name     = COALESCE(NULLIF(TRIM(p_kin_name), ''), kin_name),
+         kin_relation = COALESCE(NULLIF(TRIM(p_kin_relation), ''), kin_relation),
+         kin_phone    = COALESCE(NULLIF(TRIM(p_kin_phone), ''), kin_phone)
+   WHERE patient_id = v_patient;
+
+  INSERT INTO access_log (patient_id, account_id, hospital_id, action, basis, ip_address)
+  VALUES (v_patient, p_account_id, v_hosp, 'details.update',
+          IF(v_role = 'patient', 'own_record', 'demographics_only'), p_ip);
+END $$
+
+DROP PROCEDURE IF EXISTS verify_identity $$
+CREATE PROCEDURE verify_identity(
+  IN p_account_id INT UNSIGNED,
+  IN p_uhid       VARCHAR(20),
+  IN p_nid        VARCHAR(17),
+  IN p_ip         VARCHAR(45)
+)
+BEGIN
+  DECLARE v_patient  INT UNSIGNED DEFAULT resolve_patient(p_uhid);
+  DECLARE v_nid      VARCHAR(17) DEFAULT NULLIF(REGEXP_REPLACE(COALESCE(p_nid, ''), '[ -]', ''), '');
+  DECLARE v_on_file  VARCHAR(17);
+  DECLARE v_other    CHAR(15);
+  DECLARE v_msg      VARCHAR(255);
+
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    ROLLBACK;
+    RESIGNAL;
+  END;
+
+  CALL require_permission(p_account_id, 'patient.register');
+  IF v_patient IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No patient holds that UHID.', MYSQL_ERRNO = 5404;
+  END IF;
+  IF v_nid IS NULL OR NOT REGEXP_LIKE(v_nid, '^([0-9]{10}|[0-9]{13}|[0-9]{17})$') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Type the number on the national ID card: 10, 13 or 17 digits.';
+  END IF;
+
+  START TRANSACTION;
+  SELECT nid INTO v_on_file FROM patient WHERE patient_id = v_patient FOR UPDATE;
+  IF v_on_file IS NOT NULL AND v_on_file <> v_nid THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'That is not the NID on file for this patient. Check the card, or the person.';
+  END IF;
+  -- Decision 1: one NID, one UHID. Name the record that already holds it.
+  SELECT uhid INTO v_other FROM patient WHERE nid = v_nid AND patient_id <> v_patient;
+  IF v_other IS NOT NULL THEN
+    SET v_msg = CONCAT('This NID already belongs to UHID ', v_other, '. These may be one person: ask an admin to merge them.');
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+  END IF;
+
+  UPDATE patient
+     SET nid = v_nid, identity_verified = TRUE, verified_by = p_account_id, verified_at = NOW()
+   WHERE patient_id = v_patient;
+  INSERT INTO access_log (patient_id, account_id, hospital_id, action, basis, ip_address)
+  SELECT v_patient, p_account_id, ua.hospital_id, 'identity.verified', 'demographics_only', p_ip
+    FROM user_account ua WHERE ua.account_id = p_account_id;
+  COMMIT;
+END $$
+
+
+-- =====================================================================
 -- 4b. FINDING A PATIENT — security review L1
 --
 -- There is no national patient list. Before 6 November 2026 the API read
@@ -1333,8 +1456,11 @@ BEGIN
              ORDER BY ed.is_primary DESC, dg.term LIMIT 1),
            e.chief_complaint, 'No diagnosis recorded') AS dx,
          COALESCE(e.notes, '') AS notes,
-         e.ended_at IS NULL AS isOpen
+         e.ended_at IS NULL AS isOpen,
+         adm.outcome AS outcome,                       -- inpatient stays only (I3)
+         adm.discharge_summary AS dischargeSummary
     FROM encounter e
+    LEFT JOIN admission adm ON adm.encounter_id = e.encounter_id
     JOIN encounter_type t   ON t.type_id = e.type_id
     JOIN doctor_posting dp  ON dp.posting_id = e.posting_id
     JOIN doctor doc         ON doc.doctor_id = dp.doctor_id
@@ -1934,6 +2060,15 @@ BEGIN
 
   CALL require_permission(p_account_id, 'bed.discharge');
   CALL require_own_admission(p_account_id, p_admission_id);
+  -- Checklist I3: a discharge says how the stay ended and, unless the
+  -- patient left without telling anyone, what happened. Before this it
+  -- defaulted to 'recovered' with no summary.
+  IF p_outcome IS NULL OR p_outcome NOT IN ('recovered','improved','referred','absconded','died') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Choose how the stay ended: recovered, improved, referred, absconded or died.';
+  END IF;
+  IF p_outcome <> 'absconded' AND CHAR_LENGTH(TRIM(COALESCE(p_summary, ''))) < 10 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Write a discharge summary of at least 10 characters.';
+  END IF;
 
   START TRANSACTION;
 
@@ -1952,7 +2087,7 @@ BEGIN
   UPDATE admission
      SET discharged_at = v_at, discharged_by = p_account_id,
          discharge_summary = NULLIF(TRIM(p_summary), ''),
-         outcome = COALESCE(NULLIF(p_outcome, ''), 'recovered')
+         outcome = p_outcome
    WHERE admission_id = p_admission_id;
 
   UPDATE encounter SET ended_at = v_at WHERE encounter_id = v_enc;
