@@ -32,11 +32,11 @@ short of memory — close heavy programs before the demo. Details below.
 | Print stylesheet, 404 page | `public/css/responsive.css`, `public/404.html` | rendered in headless Edge |
 | Documentation | `docs/use-cases.md`, `data-dictionary.md`, `normalization.md`, `api.md`, `demo-script.md` | — |
 | Learning guides | `docs/guides/nobo.md`, `abir.md`, `noria.md` | every code block run against the real database and its output copied in |
-| Project explainer (plain-language guide to everything) | Claude Docs: https://claude.ai/artifact/DUBUDir3h1ACyH4YPTRQjD | written 1 Nov 2026 from the code; each claim checked against it |
-| Complete demo guide (11 parts, about 25 minutes) | Claude Docs: https://claude.ai/artifact/B6G2q8WTQVwoLaUAkrpSdU | the new screens' steps browser-tested 1 Nov 2026; the fuller version of `docs/demo-script.md`, for rehearsing |
-| Frontend report for submission | Claude Docs: https://claude.ai/artifact/C8xcUhqZniSFzf6ipK8XFh | updated 6 Nov 2026: all ten screens and the consent tab, live screenshots; export via the doc's name → Export → PDF or Word |
-| How to change anything (front end or back end, recipe by recipe), and a second tab, **How it works** (every mechanism explained, plus viva answers) | Claude Docs: https://claude.ai/artifact/RrWcskUfCgCeTV7CevrbWe | written 6–7 Nov 2026 from the code; its example procedure was run against the database |
-| 2-minute project video: shot list and voiceover script | Claude Docs: https://claude.ai/artifact/KKUNayCUGqdnQp2gwviC45 | written 6 Nov 2026; follows the same flows as `docs/demo-script.md` |
+| Project explainer (plain-language guide to everything) | Claude Docs: https://claude.ai/artifact/DUBUDir3h1ACyH4YPTRQjD | written 1 Nov 2026 from the code; refreshed 7 Nov 2026 for checklist section I (counts, screens, *Running it for real*, new viva answers) |
+| Complete demo guide (11 parts, about 25 minutes, plus an optional Part 12 on running it for real) | Claude Docs: https://claude.ai/artifact/B6G2q8WTQVwoLaUAkrpSdU | the new screens' steps browser-tested 1 Nov 2026; updated 7 Nov 2026 for the discharge form, sample collection, review verdicts and referral agreement; the fuller version of `docs/demo-script.md`, for rehearsing |
+| Frontend report for submission | Claude Docs: https://claude.ai/artifact/C8xcUhqZniSFzf6ipK8XFh | updated 7 Nov 2026: all fifteen screens and the consent tab, live screenshots (13 new); export via the doc's name → Export → PDF or Word |
+| How to change anything (front end or back end, recipe by recipe), and a second tab, **How it works** (every mechanism explained, plus viva answers) | Claude Docs: https://claude.ai/artifact/RrWcskUfCgCeTV7CevrbWe | written 6–7 Nov 2026 from the code; its example procedure was run against the database; refreshed 7 Nov 2026 with the changes the app now makes itself and section 9, *Running it for real* |
+| 2-minute project video: shot list and voiceover script | Claude Docs: https://claude.ai/artifact/KKUNayCUGqdnQp2gwviC45 | written 6 Nov 2026; follows the same flows as `docs/demo-script.md`; checked 7 Nov 2026 — still matches the app |
 
 The browser test and screenshot scripts lived in a temporary folder and are **not** in the repo.
 `npm run api:test` and `npm run db:test` are the committed checks.

@@ -401,9 +401,13 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 - **The Chen ER diagrams lag the schema by one entity:** they do not show `web_session`
   (user_account 1 : N web_session) or the columns added 7 Nov 2026 (`er-design.md` §8.8 lists
   them). Pages 2–6 need them drawn; page 1 is the author's — ask before touching it.
-- **The Claude Docs (explainer, demo guide, frontend report, how-to-change, video script) were
-  written before checklist section I.** They do not describe the account, appointment, setup
-  screens or the operations scripts. Refresh them if they are to be submitted.
+- **The Claude Docs were refreshed for checklist section I on 7 Nov 2026** (links in
+  `handover.md`): the explainer, demo guide (new Part 12) and how-to-change guide describe the
+  new screens and scripts; the frontend report has 13 new live screenshots (§4.12–4.14 and the
+  discharge, lab, review and edit-details additions) and current line counts. The report's §6
+  shows each file's opening comment block, not the whole file, so it needs refreshing only when
+  a header comment changes or a file is added. The video script needed no change. When a screen
+  changes, update these docs in the same piece of work.
 - **Team: Nobo, Abir and Noria.** Each has a learning guide in `docs/guides/` that rebuilds a
   small version of one slice of the database and backend: Nobo the hardest (transactions,
   locking, recursive CTEs, derived-state triggers, the logged read, the backend core), Abir the
