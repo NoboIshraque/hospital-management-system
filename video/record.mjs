@@ -9,15 +9,18 @@
 // into the video.
 import { session, probe, HERE, W, H } from './demo.mjs';
 import { fitViewport } from './cdp.mjs';
-import { scenes } from './scenes.mjs';
+import { scenes as fullScenes } from './scenes.mjs';
+import { scenes as shortScenes } from './scenes-short.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 const args = process.argv.slice(2);
 const dry = args.includes('--dry');
 const want = args.filter((a) => !a.startsWith('--'));
+const short = args.includes('--short');            // the 2-minute cut (scenes-short.mjs)
+const scenes = short ? shortScenes : fullScenes;
 const chosen = want.length ? scenes.filter((s) => want.some((w) => s.id.startsWith(w))) : scenes;
-const clipDir = path.join(HERE, 'out', 'clips'), shotDir = path.join(HERE, 'out', 'shots');
+const clipDir = path.join(HERE, 'out', short ? 'clips-short' : 'clips'), shotDir = path.join(HERE, 'out', 'shots');
 mkdirSync(clipDir, { recursive: true }); mkdirSync(shotDir, { recursive: true });
 
 const { conn, tab, d, close, recorder } = await session({ headless: !args.includes('--headed') });
@@ -34,11 +37,12 @@ try {
       writeFileSync(path.join(shotDir, `${s.id}-${name}.png`), Buffer.from(data, 'base64'));
     };
     process.stdout.write(`${s.id} … `);
+    if (s.pace) d.setPace(s.pace);
     if (s.setup) await s.setup(d);
     const t0 = Date.now();
     if (rec) await rec.start();
     try {
-      if (s.caption) await d.caption(s.caption[0], s.caption[1], 5500);
+      if (s.caption) await d.caption(s.caption[0], s.caption[1], s.captionMs || 5500);
       await s.run(d, shot);
     } catch (e) {
       console.log('FAILED: ' + e.message);

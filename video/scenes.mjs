@@ -4,10 +4,10 @@ import { pathToFileURL } from 'node:url';
 import { HERE } from './demo.mjs';
 
 // The console scenes play back real output saved by capture-terminal.mjs.
-const CARD_URL = pathToFileURL(path.join(HERE, 'card.html')).href;
-const TERM_URL = pathToFileURL(path.join(HERE, 'terminal.html')).href;
-const termFile = (f) => readFileSync(path.join(HERE, 'out', 'term', f), 'utf8').replace(/\r/g, '');
-const PS = 'PS E:\\hospital-management-system\\server> ';
+export const CARD_URL = pathToFileURL(path.join(HERE, 'card.html')).href;
+export const TERM_URL = pathToFileURL(path.join(HERE, 'terminal.html')).href;
+export const termFile = (f) => readFileSync(path.join(HERE, 'out', 'term', f), 'utf8').replace(/\r/g, '');
+export const PS = 'PS E:\\hospital-management-system\\server> ';
 
 function raceSteps() {
   const lines = termFile('race.txt').trimEnd().split('\n');

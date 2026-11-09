@@ -152,7 +152,9 @@ export function driver(tab) {
     }
     throw new Error('not found on page: ' + J(spec) + ' at ' + (await ev('location.pathname').catch(() => '?')));
   }
-  async function moveTo(x, y, ms = 550) {
+  // How fast the pointer and typing go; the 2-minute cut speeds them up (setPace).
+  const pace = { move: 550, dwell: 250, cps: 14, keys: 9, inner: 150 };
+  async function moveTo(x, y, ms = pace.move) {
     const from = { ...pos };
     const steps = Math.max(8, Math.round(ms / 22));
     for (let i = 1; i <= steps; i++) {
@@ -181,7 +183,8 @@ export function driver(tab) {
     tab, sleep, waitFor, moveTo,
     pause: (ms) => sleep(ms),
     async goto(url) { await tab.goto(url.startsWith('http') || url.startsWith('file') ? url : ORIGIN + url); await sleep(400); await ev(`__demo.make(); __demo.place(${pos.x}, ${pos.y}); true`); },
-    async click(spec, { dwell = 250, after = 600 } = {}) {
+    setPace(p) { Object.assign(pace, p); },
+    async click(spec, { dwell = pace.dwell, after = 600 } = {}) {
       if (typeof spec === 'string') spec = { text: spec };
       const r = await target(spec);
       await moveTo(r.x, r.y);
@@ -190,7 +193,7 @@ export function driver(tab) {
       await sleep(after);
     },
     async hover(spec, ms = 800) { if (typeof spec === 'string') spec = { text: spec }; const r = await target(spec); await moveTo(r.x, r.y); await sleep(ms); },
-    async type(spec, text, { cps = 14, clear = true, after = 300 } = {}) {
+    async type(spec, text, { cps = pace.cps, clear = true, after = 300 } = {}) {
       if (typeof spec === 'string') spec = { label: spec };
       const r = await target(spec);
       await moveTo(r.x, r.y);
@@ -206,7 +209,7 @@ export function driver(tab) {
       await sleep(after);
     },
     // key-by-key typing, for date fields (which ignore inserted text)
-    async keys(spec, text, { cps = 9, after = 300 } = {}) {
+    async keys(spec, text, { cps = pace.keys, after = 300 } = {}) {
       if (typeof spec === 'string') spec = { label: spec };
       const r = await target(spec);
       await moveTo(r.x, r.y); await sleep(150);
