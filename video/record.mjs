@@ -7,7 +7,8 @@
 //
 // Chrome runs headless, so nothing appears on the desktop and nothing else on the screen can get
 // into the video.
-import { session, probe, HERE } from './demo.mjs';
+import { session, probe, HERE, W, H } from './demo.mjs';
+import { fitViewport } from './cdp.mjs';
 import { scenes } from './scenes.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -19,8 +20,11 @@ const chosen = want.length ? scenes.filter((s) => want.some((w) => s.id.startsWi
 const clipDir = path.join(HERE, 'out', 'clips'), shotDir = path.join(HERE, 'out', 'shots');
 mkdirSync(clipDir, { recursive: true }); mkdirSync(shotDir, { recursive: true });
 
-const { tab, d, close, recorder } = await session({ headless: !args.includes('--headed') });
+const { conn, tab, d, close, recorder } = await session({ headless: !args.includes('--headed') });
 const rec = dry ? null : await recorder();
+// Capturing a tab makes Chrome show its "sharing this tab" bar, which takes height from the page;
+// fit the window again so the page is 1536 x 864 (1920 x 1080 in the video) while it is filmed.
+if (rec) { await fitViewport(conn, tab, W, H); console.log('viewport', await tab.eval('[innerWidth, innerHeight]')); }
 const log = [];
 try {
   for (const s of chosen) {

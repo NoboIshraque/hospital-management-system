@@ -39,7 +39,14 @@ class Conn {
 }
 
 export async function launch({ profileDir, headless = true, width = 1920, height = 1080, scale = 1 }) {
-  mkdirSync(profileDir, { recursive: true });
+  mkdirSync(path.join(profileDir, 'Default'), { recursive: true });
+  // No password manager: its save / breach prompts ("demo1234 was found in a data breach") are
+  // browser windows that, in headless Chrome, silently swallow every mouse event sent to the page.
+  writeFileSync(path.join(profileDir, 'Default', 'Preferences'), JSON.stringify({
+    credentials_enable_service: false, credentials_enable_autosignin: false,
+    profile: { password_manager_enabled: false, password_manager_leak_detection: false },
+    autofill: { profile_enabled: false, credit_card_enabled: false },
+  }));
   const args = [
     `--remote-debugging-port=${PORT}`,
     `--user-data-dir=${profileDir}`,
@@ -49,7 +56,8 @@ export async function launch({ profileDir, headless = true, width = 1920, height
     '--lang=en-GB', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
     '--disable-backgrounding-occluded-windows', '--hide-scrollbars', '--mute-audio',
-    '--disable-features=Translate,MediaRouter,OptimizationHints',
+    '--disable-features=Translate,MediaRouter,OptimizationHints,PasswordLeakDetection,PasswordManagerOnboarding,AutofillServerCommunication',
+    '--password-store=basic', '--disable-save-password-bubble',
     'about:blank',
   ];
   if (headless) args.unshift('--headless=new');

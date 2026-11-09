@@ -322,7 +322,8 @@ export const scenes = [
     title: 'The patient sees who read their record',
     async run(d, shot) {
       await d.login('rahim');
-      await d.pause(1200);
+      await d.waitFor({ sel: '.card.doc' });   // the landing page re-renders its nav once the doctors load
+      await d.pause(2500);
       await d.click({ sel: '#nav a', text: 'My health record' }, { after: 2500 });
       await shot('record');
       await d.scrollBy(450, 1400);
