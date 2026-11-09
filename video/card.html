@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UHID card</title>
+<!-- The opening (#title) and closing (#end) cards of the demo video, recorded like any scene. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Serif:wght@600&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<style>
+  :root { --rail: #0C2B3A; --rail-ink: #A9C2CE; --brand: #0E6E8C; --brand-soft: #DDEDF3; }
+  html, body { margin: 0; height: 100%; }
+  body { background: radial-gradient(1200px 700px at 20% 15%, #12394c 0%, var(--rail) 55%, #081e29 100%);
+         color: #fff; font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; display: grid; align-content: center; padding: 0 140px; }
+  .card { display: none; max-width: 1150px; }
+  .card.on { display: block; }
+  .mark { display: flex; align-items: center; gap: 14px; margin-bottom: 46px; }
+  .mark i { width: 46px; height: 46px; border-radius: 8px; background: var(--brand); display: grid; place-items: center;
+            font: 600 24px 'IBM Plex Serif', serif; font-style: normal; }
+  .mark b { font: 600 26px 'IBM Plex Serif', serif; }
+  .eyebrow { font: 600 15px 'IBM Plex Sans'; letter-spacing: 2.4px; text-transform: uppercase; color: var(--rail-ink); }
+  h1 { font-size: 64px; line-height: 1.08; margin: 16px 0 22px; font-weight: 600; letter-spacing: -.5px; }
+  .tag { font-size: 30px; color: var(--brand-soft); margin: 0 0 54px; }
+  .meta { font-size: 21px; color: #fff; margin: 0 0 10px; }
+  .small { font-size: 17px; color: var(--rail-ink); margin: 0; }
+  .facts { font: 22px 'IBM Plex Mono', monospace; color: var(--brand-soft); margin: 0 0 14px; }
+  .fade > * { opacity: 0; transform: translateY(14px); animation: in .7s ease forwards; }
+  .fade > *:nth-child(2) { animation-delay: .15s } .fade > *:nth-child(3) { animation-delay: .3s }
+  .fade > *:nth-child(4) { animation-delay: .45s } .fade > *:nth-child(5) { animation-delay: .6s }
+  .fade > *:nth-child(6) { animation-delay: .75s } .fade > *:nth-child(7) { animation-delay: .9s }
+  @keyframes in { to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+  <section class="card fade" id="title">
+    <div class="mark"><i>U</i><b>UHID</b></div>
+    <div class="eyebrow">Database Management System course project</div>
+    <h1>UHID National Hospital<br>Management System</h1>
+    <p class="tag">One patient. One record. Every hospital.</p>
+    <p class="meta">Nobo Ishraque &middot; Department of ICT &middot; Bangladesh University of Professionals</p>
+    <p class="small">Recorded on the running system: MySQL 8.4, Node.js + Express, plain HTML, CSS and JavaScript. Sample data only.</p>
+  </section>
+  <section class="card fade" id="end">
+    <div class="mark"><i>U</i><b>UHID</b></div>
+    <div class="eyebrow">What carried every step</div>
+    <h1>The database enforces the rules.</h1>
+    <p class="tag">The pages only show what MySQL decided.</p>
+    <p class="facts">41 tables &middot; 21 triggers &middot; 84 procedures and functions &middot; 9 views</p>
+    <p class="facts">309 database tests, every one passing</p>
+  </section>
+  <script>
+    const card = document.getElementById((location.hash || '#title').slice(1));
+    if (card) card.classList.add('on');   // #none: just the background, shown before filming starts
+  </script>
+</body>
+</html>

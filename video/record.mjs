@@ -38,6 +38,7 @@ try {
     const t0 = Date.now();
     if (rec) await rec.start();
     try {
+      if (s.caption) await d.caption(s.caption[0], s.caption[1], 5500);
       await s.run(d, shot);
     } catch (e) {
       console.log('FAILED: ' + e.message);

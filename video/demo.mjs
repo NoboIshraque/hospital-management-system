@@ -84,7 +84,39 @@ const PAGE_HELPERS = String.raw`
       if (r.top < 90 || r.bottom > innerHeight - 40) { el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         await new Promise((res) => setTimeout(res, 750)); }
       return true; },
+    caption,
   };
+
+  // The part title shown at the start of each scene: a lower-third in the site's own colours
+  // (--rail, --rail-ink, --brand). It is kept in sessionStorage with an end time, so a sign-in that
+  // changes page in the middle of it shows it again on the next page until it is due to go.
+  const CAP = '__demo_caption';
+  let capEl;
+  function caption(title, sub, ms) {
+    if (title) { try { sessionStorage.setItem(CAP, JSON.stringify({ title, sub, until: Date.now() + ms })); } catch {} }
+    let c; try { c = JSON.parse(sessionStorage.getItem(CAP)); } catch {}
+    if (!c || !document.body) return;
+    const left = c.until - Date.now();
+    if (left < 300) return;
+    if (capEl) capEl.remove();
+    capEl = document.createElement('div');
+    capEl.setAttribute('aria-hidden', 'true');
+    capEl.style.cssText = 'position:fixed;left:244px;bottom:30px;z-index:2147483645;pointer-events:none;max-width:860px;' +
+      'background:rgba(12,43,58,.95);border-left:5px solid #0E6E8C;border-radius:5px;padding:13px 22px 14px 18px;' +
+      'box-shadow:0 10px 30px rgba(0,0,0,.25);font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;' +
+      'opacity:0;transform:translateY(12px);transition:opacity .45s ease, transform .45s ease';
+    const t = document.createElement('div'); t.textContent = c.title;
+    t.style.cssText = 'color:#fff;font-size:22px;font-weight:600;letter-spacing:.1px;line-height:1.25';
+    const s = document.createElement('div'); s.textContent = c.sub || '';
+    s.style.cssText = 'color:#A9C2CE;font-size:15px;margin-top:4px;line-height:1.35';
+    capEl.append(t, s);
+    document.documentElement.appendChild(capEl);
+    const el = capEl;
+    requestAnimationFrame(() => requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'none'; }));
+    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(12px)'; setTimeout(() => el.remove(), 500); }, left - 450);
+  }
+  const showPending = () => caption();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showPending); else showPending();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', make); else make();
   new MutationObserver(() => { if (cur && !cur.isConnected) document.documentElement.appendChild(cur); })
     .observe(document.documentElement, { childList: true });
@@ -209,6 +241,7 @@ export function driver(tab) {
       if (key === 'Enter') await tab.send('Input.dispatchKeyEvent', { type: 'char', key, code, text: '\r', windowsVirtualKeyCode: kc });
       await tab.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: kc });
     },
+    async caption(title, sub, ms = 5000) { await ev(`__demo.caption(${J(title)}, ${J(sub)}, ${Number(ms)}); true`); },
     async scrollBy(dy, ms = 900) { await ev(`window.scrollBy({ top: ${dy}, behavior: 'smooth' }); true`); await sleep(ms); },
     async scrollTo(spec, block = 'start', ms = 900) {
       if (typeof spec === 'string') spec = { text: spec };
