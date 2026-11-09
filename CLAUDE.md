@@ -162,6 +162,11 @@ public/       Frontend, served as static files (also works opened straight from 
                 doctors, fees, sessions, leave, wards, beds, hospitals) — 7 Nov 2026, server-only
 backups/      npm run db:backup output — git-ignored (patient data)
 logs/         request log — git-ignored
+video/        the demo video's recorder: record.mjs drives a headless Chrome over the DevTools
+              protocol and Chrome records its own tab (no desktop control); scenes-short.mjs = the
+              2-minute cut (--short), scenes.mjs = the full 8:41 cut; card.html (title/closing
+              cards), terminal.html (replays real console output); out/ is git-ignored.
+              Progress, timing sheet and how to re-record: VIDEO-PROGRESS.md
 mock/         empty — the pages read js/data.js and js/seed.js instead (see Architecture)
 prototype/    uhid-prototype.html — single-file working prototype (see below)
 ```
@@ -374,11 +379,14 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Demo script, README | Done 1 Nov 2026 — `docs/demo-script.md`; README rewritten for the running system |
 | Print stylesheet, 404 page | Done 1 Nov 2026 |
 | Shipment-ready, checklist I3–I13 | Done 7 Nov 2026 — discharge form; edit details and verify identity; *Hospital setup*; sessions in MySQL; `db:install` (no demo), `db:backup`/`db:restore`; health, request log, clean shutdown, start-up tasks; root's password out of the site's reach; review verdicts, who cancelled, referral agreement, access-log paging, lab collection. Only I14, hosting, is left (`docs/operations.md` §5) |
+| Demo video | Recorded and assembled 10 Nov 2026 — 2-minute cut (1:45.83, 12 clips) in Nobo's Clipchamp project "UHID demo video"; voice-over and export are Nobo's. `VIDEO-PROGRESS.md` |
 | Appointment lists (checklist I2) | Done 7 Nov 2026 — one screen, three lists decided by `list_appointments()`; cancel before the slot, *Did not come* after it (`mark_no_show()`) |
 | Real accounts (checklist I1) | Done 7 Nov 2026 — own passwords, admin account screens, patient portal logins, one-time passwords with a forced change, demo list only with `DEMO_MODE=1` |
 
 ## Open items — do not lose these
 
+- **Demo video: voice-over and export are left** (Nobo, in Clipchamp). Must stay at or under
+  2 minutes. Everything else, and how to re-record a part, is in `VIDEO-PROGRESS.md`.
 - **Read `handover.md` first.** Written 1 Nov 2026; items 1 (ER docs) and 2 (screens) done the
   same day. Still open there: the team's guides, and the laptop is short of memory. Update or
   delete it when those are dealt with.
