@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UHID terminal</title>
+<!--
+  A console window for the demo video. A headless browser cannot film a real console, so the
+  recorder runs the real command first (npm run race, the mysql client), saves its output, and
+  this page plays that output back, typed and printed at a readable pace. Nothing here is made up:
+  scenes.mjs reads the saved output from video/out/term/.
+-->
+<style>
+  :root { --bg: #0c1820; --win: #0f2029; --bar: #16303c; --ink: #d7e3e8; --dim: #7f98a4; --ok: #6fd39a; --err: #ff8a8a; --cmd: #9fd8ef; }
+  html, body { margin: 0; height: 100%; background: var(--bg); }
+  body { display: grid; place-items: center; font-family: 'Cascadia Mono', Consolas, 'IBM Plex Mono', monospace; }
+  .win { width: 1320px; height: 760px; background: var(--win); border-radius: 10px; overflow: hidden;
+         box-shadow: 0 30px 80px rgba(0,0,0,.5); border: 1px solid #234452; display: flex; flex-direction: column; }
+  .bar { height: 40px; background: var(--bar); display: flex; align-items: center; gap: 10px; padding: 0 16px;
+         color: var(--dim); font: 14px 'Segoe UI', system-ui, sans-serif; }
+  .bar i { width: 12px; height: 12px; border-radius: 50%; background: #2c5466; display: inline-block; }
+  .bar b { color: var(--ink); font-weight: 600; margin-left: 6px; }
+  .screen { flex: 1; padding: 20px 26px; overflow: hidden; color: var(--ink); font-size: 19px; line-height: 1.5; white-space: pre-wrap; }
+  .screen .cmd { color: var(--cmd); }
+  .screen .ok { color: var(--ok); }
+  .screen .err { color: var(--err); }
+  .screen .dim { color: var(--dim); }
+  .cursor { display: inline-block; width: .6em; height: 1.1em; background: var(--ink); vertical-align: text-bottom; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+  <div class="win">
+    <div class="bar"><i></i><i></i><i></i><b id="title">Windows PowerShell</b></div>
+    <div class="screen" id="screen"></div>
+  </div>
+<script>
+  const screen = document.getElementById('screen');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let cursor = document.createElement('span'); cursor.className = 'cursor';
+  function line(cls) { const s = document.createElement('div'); if (cls) s.className = cls; screen.append(s); return s; }
+  function keepScrolled() { while (screen.scrollHeight > screen.clientHeight && screen.firstChild) screen.firstChild.remove(); }
+  // steps: { title } | { prompt, type, cps } | { out: [lines], cls, gap } | { wait }
+  window.play = async function (steps) {
+    for (const s of steps) {
+      if (s.title) document.getElementById('title').textContent = s.title;
+      if (s.clear) screen.textContent = '';
+      if (s.wait) await sleep(s.wait);
+      if (s.prompt != null) {
+        const l = line(); const p = document.createElement('span'); p.textContent = s.prompt; l.append(p);
+        const c = document.createElement('span'); c.className = 'cmd'; l.append(c, cursor); keepScrolled();
+        await sleep(s.before || 700);
+        for (const ch of s.type || '') { c.textContent += ch; await sleep(1000 / (s.cps || 16) * (0.6 + Math.random() * 0.8)); }
+        await sleep(s.after || 450);
+        cursor.remove();
+      }
+      if (s.out) {
+        for (const text of s.out) {
+          const cls = s.cls || (/✓/.test(text) ? 'ok' : /^ERROR/.test(text) ? 'err' : /^\s*(refused|booked|admitted):/.test(text) ? '' : '');
+          line(cls).textContent = text || ' ';
+          keepScrolled();
+          await sleep(text ? (s.gap ?? 60) : (s.blank ?? 120));
+        }
+      }
+    }
+    return true;
+  };
+</script>
+</body>
+</html>

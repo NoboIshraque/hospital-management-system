@@ -46,7 +46,7 @@ export async function launch({ profileDir, headless = true, width = 1920, height
     `--window-size=${width},${height}`,
     `--force-device-scale-factor=${scale}`,
     '--auto-select-tab-capture-source-by-title=UHID',
-    '--no-first-run', '--no-default-browser-check', '--disable-extensions',
+    '--lang=en-GB', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
     '--disable-backgrounding-occluded-windows', '--hide-scrollbars', '--mute-audio',
     '--disable-features=Translate,MediaRouter,OptimizationHints',
@@ -93,23 +93,27 @@ export async function openTab(conn, url, { width, height, newWindow = true } = {
   return tab;
 }
 
-// Make the tab's viewport exactly w×h CSS pixels by resizing its window by the difference
-// (a window's outer size includes whatever frame the browser draws).
+// Make the tab's viewport w x h CSS pixels (Chrome runs at --force-device-scale-factor, so at 1.25
+// that is 1920 x 1080 device pixels). At a fractional scale the window size rounds, so a few sizes
+// round the estimate are tried, and a viewport within 3 px is accepted: the recorder scales the
+// capture to exactly 1920 x 1080, and a 2 px difference is invisible. (Emulating the viewport
+// instead does not work: tab capture records the real window, not the emulated one.)
 export async function fitViewport(conn, tab, w, h) {
-  // At a fractional scale (1.25) the window size rounds, so search a few pixels around the estimate.
   const { windowId } = await conn.send('Browser.getWindowForTarget', { targetId: tab.targetId });
-  const { bounds } = await conn.send('Browser.getWindowBounds', { windowId });
-  const [iw0, ih0] = await tab.eval('[innerWidth, innerHeight]');
-  const bw = bounds.width + (w - iw0), bh = bounds.height + (h - ih0);
-  for (const dx of [0, 1, -1, 2, -2, 3, -3]) {
-    for (const dy of [0, 1, -1, 2, -2, 3, -3]) {
-      await conn.send('Browser.setWindowBounds', { windowId, bounds: { width: bw + dx, height: bh + dy } });
-      await sleep(150);
-      const [iw, ih] = await tab.eval('[innerWidth, innerHeight]');
-      if (iw === w && ih === h) return;
-    }
+  const size = () => tab.eval('[innerWidth, innerHeight]');
+  let best = null;
+  for (let round = 0; round < 3; round++) {
+    const [iw, ih] = await size();
+    const err = Math.abs(iw - w) + Math.abs(ih - h);
+    if (!best || err < best.err) best = { err, iw, ih };
+    if (err === 0) return [iw, ih];
+    const { bounds } = await conn.send('Browser.getWindowBounds', { windowId });
+    await conn.send('Browser.setWindowBounds', { windowId, bounds: { width: bounds.width + w - iw, height: bounds.height + h - ih } });
+    await sleep(300);
   }
-  throw new Error('could not size the viewport to ' + w + 'x' + h + ', got ' + (await tab.eval('[innerWidth, innerHeight]')));
+  const [iw, ih] = await size();
+  if (Math.abs(iw - w) <= 3 && Math.abs(ih - h) <= 3) return [iw, ih];
+  throw new Error('viewport is ' + iw + 'x' + ih + ', wanted ' + w + 'x' + h);
 }
 
 // ---- the recorder: a second tab that captures the demo tab by its title ----
