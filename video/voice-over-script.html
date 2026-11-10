@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UHID demo video: voice-over script</title>
+<!-- Source of voice-over-script.pdf. Rebuild the PDF: see VIDEO-PROGRESS.md, "Voice-over script". -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Serif:wght@600&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+  :root { --ink: #0E1B22; --ink-2: #47606D; --ink-3: #78909D; --line: #D3DEE3; --brand: #0E6E8C; --brand-soft: #DDEDF3; --surface-2: #F5F8F9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); font: 10.5pt/1.45 'IBM Plex Sans', 'Segoe UI', sans-serif; }
+  header { border-bottom: 2px solid var(--brand); padding-bottom: 8px; margin-bottom: 12px; }
+  .brand { font: 600 11pt 'IBM Plex Serif', serif; color: var(--brand); }
+  h1 { font-size: 19pt; margin: 2px 0 4px; }
+  .sub { color: var(--ink-2); margin: 0; }
+  .how { background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 8px 12px; margin-bottom: 12px; }
+  .how ul { margin: 4px 0 0; padding-left: 18px; }
+  .how li { margin: 2px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-3);
+       border-bottom: 1px solid var(--line-2, #BACAD1); padding: 4px 6px; }
+  td { vertical-align: top; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+  tr { break-inside: avoid; }
+  td.t { font: 500 10.5pt 'IBM Plex Mono', monospace; white-space: nowrap; width: 62px; }
+  td.t small { display: block; font: 8.5pt 'IBM Plex Sans', sans-serif; color: var(--ink-3); }
+  td.p { width: 190px; }
+  td.p b { display: block; }
+  td.p span { color: var(--ink-2); font-size: 9pt; }
+  td.say { font-size: 12pt; line-height: 1.5; }
+  td.say .w { display: block; font-size: 8.5pt; color: var(--ink-3); margin-top: 2px; }
+  .foot { margin-top: 12px; font-size: 9pt; color: var(--ink-2); }
+  .foot h2 { font-size: 10.5pt; color: var(--ink); margin: 0 0 4px; }
+  .foot ul { margin: 0; padding-left: 18px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">UHID</div>
+  <h1>Demo video: voice-over script</h1>
+  <p class="sub">The 2-minute cut on the Clipchamp timeline (project “UHID demo video”), 1:45.83 long. Twelve parts, about 215 words.</p>
+</header>
+
+<div class="how">
+  <b>How to read it</b>
+  <ul>
+    <li>Start each line when its part starts. Watch the time in Clipchamp, or record one part at a time.</li>
+    <li>Each line is written to fit its part at a calm pace, about 2½ words a second. If you run over, drop the part in brackets.</li>
+    <li>The video already shows a title for each part in the lower left. You don’t have to read it out.</li>
+    <li>Say “UHID” as letters: U-H-I-D.</li>
+  </ul>
+</div>
+
+<table>
+  <thead><tr><th>Starts</th><th>On screen</th><th>Say</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="t">0:00<small>4.5 s</small></td>
+      <td class="p"><b>Title card</b><span>Project name, tagline, author</span></td>
+      <td class="say">This is UHID: one patient, one record, every hospital.</td>
+    </tr>
+    <tr>
+      <td class="t">0:04<small>15.5 s</small></td>
+      <td class="p"><b>Registration</b><span>“Md. Rahim” + birth date → two existing records; a new patient gets BD-2026-00001-1</span></td>
+      <td class="say">Typing a name and birth date already shows two existing records. The duplicate check runs before any UHID is issued. A new patient’s UHID comes from a locked counter, and a CHECK constraint verifies its check digit.</td>
+    </tr>
+    <tr>
+      <td class="t">0:20<small>7 s</small></td>
+      <td class="p"><b>Booking</b><span>Dr. Anisur’s slot grid; booked slots struck through; a slot booked</span></td>
+      <td class="say">Free slots are computed, never stored. The booking runs in a locked transaction.</td>
+    </tr>
+    <tr>
+      <td class="t">0:27<small>4.5 s</small></td>
+      <td class="p"><b>Race test</b><span><code>npm run race</code>: 5 of 5 rounds, exactly one booking</span></td>
+      <td class="say">Two receptionists, one slot, the same instant: exactly one booking.</td>
+    </tr>
+    <tr>
+      <td class="t">0:31<small>13.5 s</small></td>
+      <td class="p"><b>Wards</b><span>Abdul Karim admitted to GM-04, which turns red; transfer to the female ward refused</span></td>
+      <td class="say">Admitting a patient turns the bed red, and a trigger did that, not the page. A transfer to the female ward is refused, and the whole transfer is rolled back.</td>
+    </tr>
+    <tr>
+      <td class="t">0:45<small>5.5 s</small></td>
+      <td class="p"><b>National record</b><span>Rahim’s record: “active consent grant”, a referral, visits at four hospitals</span></td>
+      <td class="say">A referral granted this consent, and the read was logged first.</td>
+    </tr>
+    <tr>
+      <td class="t">0:50<small>20 s</small></td>
+      <td class="p"><b>Recording a visit</b><span>Diagnosis, Amlodipine, Amoxicillin, a test → “Nothing was saved”; Amoxicillin removed → saved</span></td>
+      <td class="say">The doctor adds a diagnosis, two medicines and a test. Amoxicillin clashes with the patient’s penicillin allergy, so a trigger refuses it, and nothing is saved, not even the lines before it. Remove it and save again: the whole visit goes through as one transaction.</td>
+    </tr>
+    <tr>
+      <td class="t">1:10<small>9 s</small></td>
+      <td class="p"><b>Break-glass</b><span>Fatema’s record refused → break-glass with a reason → red banner</span></td>
+      <td class="say">Without consent, the record is refused. Break-glass opens it in an emergency, but it needs a reason (and waits for review).</td>
+    </tr>
+    <tr>
+      <td class="t">1:19<small>5 s</small></td>
+      <td class="p"><b>Lab</b><span>Haemoglobin 10.2 → Abnormal</span></td>
+      <td class="say">A trigger marks the result abnormal from the reference range.</td>
+    </tr>
+    <tr>
+      <td class="t">1:25<small>8 s</small></td>
+      <td class="p"><b>Merge</b><span>The two Rahim records compared and merged</span></td>
+      <td class="say">A self-join found this duplicate. One transaction merges the two records into one.</td>
+    </tr>
+    <tr>
+      <td class="t">1:33<small>9 s</small></td>
+      <td class="p"><b>The database itself</b><span>mysql: bed status, access-log delete, wrong check digit, all refused</span></td>
+      <td class="say">Straight in MySQL, with no web page involved: a bed status change, a log deletion, a wrong UHID. All refused.</td>
+    </tr>
+    <tr>
+      <td class="t">1:42<small>4 s</small></td>
+      <td class="p"><b>Closing card</b><span>41 tables · 21 triggers · 84 procedures and functions · 9 views · 309 tests</span></td>
+      <td class="say">The database enforces the rules.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="foot">
+  <h2>Then</h2>
+  <ul>
+    <li>In Clipchamp: <b>Record &amp; create → Audio</b>, or import a recorded file onto the audio track under the video.</li>
+    <li>Keep the video at 1:45, under the 2-minute limit. Don’t stretch any clip to fit a line; shorten the line.</li>
+    <li><b>Export → 1080p.</b></li>
+  </ul>
+</div>
+</body>
+</html>

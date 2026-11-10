@@ -165,7 +165,8 @@ logs/         request log — git-ignored
 video/        the demo video's recorder: record.mjs drives a headless Chrome over the DevTools
               protocol and Chrome records its own tab (no desktop control); scenes-short.mjs = the
               2-minute cut (--short), scenes.mjs = the full 8:41 cut; card.html (title/closing
-              cards), terminal.html (replays real console output); out/ is git-ignored.
+              cards), terminal.html (replays real console output); voice-over-script.pdf (Nobo's
+              narration, word for word, from voice-over-script.html); out/ is git-ignored.
               Progress, timing sheet and how to re-record: VIDEO-PROGRESS.md
 mock/         empty — the pages read js/data.js and js/seed.js instead (see Architecture)
 prototype/    uhid-prototype.html — single-file working prototype (see below)

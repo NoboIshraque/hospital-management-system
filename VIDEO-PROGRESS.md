@@ -73,6 +73,12 @@ take is always the whole list on a freshly reset database. `--dry` with `--short
 Measured from the clip positions on the timeline (within half a second). Each part's title shows
 in the lower left for its first ~3 seconds.
 
+**The narration word for word is `video/voice-over-script.pdf`** (about 215 words, each line timed
+to fit its part). Its source is `video/voice-over-script.html`; after editing it, rebuild the PDF:
+`"C:\Program Files\Google\Chrome\Application\chrome.exe" --headless=new --no-pdf-header-footer
+--print-to-pdf=video\voice-over-script.pdf video\voice-over-script.html` (from the repo root,
+with a full `file:///E:/…` URL for the page).
+
 | Starts | Part | Length | On screen | Say (from docs/demo-script.md) |
 |---|---|---|---|---|
 | 0:00 | Title card | 4.5 s | Project name, tagline, author | One UHID per person; the record follows them to every hospital |
