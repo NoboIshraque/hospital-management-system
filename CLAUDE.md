@@ -393,9 +393,10 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 
 - **Report: the team should confirm Table 1** (who did what) in
   `docs/report/UHID_Project_Report.docx` — it was written from the learning guides' split. The
-  cover is complete (ICE 2204, Database Management System Laboratory; supervisors Asst. Prof.
-  Aditya Rajbongshi and Lecturer Samia Ahmed, both shown as Department of ICT, FST; submission
-  19 Nov 2026). The table of contents is typed, not a Word field: if pages move after editing,
+  cover is complete (ICE 2204, Database Management System Laboratory; supervisors Aditya
+  Rajbongshi, Chairman, Department of Educational Technology and Engineering (EdTE), University of
+  Frontier Technology Bangladesh, and Samia Ahmed, Lecturer, shown as Department of ICT, FST, BUP;
+  submission 19 Nov 2026). The table of contents is typed, not a Word field: if pages move after editing,
   correct its numbers by hand.
 
 - **Demo video: voice-over and export are left** (Nobo, in Clipchamp). Must stay at or under
