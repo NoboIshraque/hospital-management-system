@@ -385,18 +385,18 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Print stylesheet, 404 page | Done 1 Nov 2026 |
 | Shipment-ready, checklist I3–I13 | Done 7 Nov 2026 — discharge form; edit details and verify identity; *Hospital setup*; sessions in MySQL; `db:install` (no demo), `db:backup`/`db:restore`; health, request log, clean shutdown, start-up tasks; root's password out of the site's reach; review verdicts, who cancelled, referral agreement, access-log paging, lab collection. Only I14, hosting, is left (`docs/operations.md` §5) |
 | Demo video | Recorded and assembled 10 Nov 2026 — 2-minute cut (1:45.83, 12 clips) in Nobo's Clipchamp project "UHID demo video"; voice-over and export are Nobo's. `VIDEO-PROGRESS.md` |
-| Project report + speaker scripts | Written 18 Nov 2026 — `docs/report/`. 31 pages: abstract, introduction, motivation, objectives, methodology (use case, DFD 0/1, three sequence diagrams), tools, result + implementation (12 live screenshots), limitations, conclusion, future work, references. Every number re-checked that day (309/309, 145/145, race 5/5, first-day 17/17). Cover details still to fill in — see Open items |
+| Project report + speaker scripts | Written 18 Nov 2026 — `docs/report/`. 31 pages: abstract, introduction, motivation, objectives, methodology (use case, DFD 0/1, three sequence diagrams), tools, result + implementation (12 live screenshots), limitations, conclusion, future work, references. Every number re-checked that day (309/309, 145/145, race 5/5, first-day 17/17). Cover completed the same day; due 19 Nov 2026 |
 | Appointment lists (checklist I2) | Done 7 Nov 2026 — one screen, three lists decided by `list_appointments()`; cancel before the slot, *Did not come* after it (`mark_no_show()`) |
 | Real accounts (checklist I1) | Done 7 Nov 2026 — own passwords, admin account screens, patient portal logins, one-time passwords with a forced change, demo list only with `DEMO_MODE=1` |
 
 ## Open items — do not lose these
 
-- **Report cover page: four details are placeholders, highlighted yellow** in
-  `docs/report/UHID_Project_Report.docx` — the course name (guessed as "Database Management
-  System Laboratory"), the course code (ICE XXXX), the supervisor's name and designation, and the
-  date of submission. The authors must fill them in and remove the highlight. Table 1 (who did
-  what) was written from the learning guides' split; the team should confirm it. The table of
-  contents is typed, not a Word field: if pages move after editing, correct its numbers by hand.
+- **Report: the team should confirm Table 1** (who did what) in
+  `docs/report/UHID_Project_Report.docx` — it was written from the learning guides' split. The
+  cover is complete (ICE 2204, Database Management System Laboratory; supervisors Asst. Prof.
+  Aditya Rajbongshi and Lecturer Samia Ahmed, both shown as Department of ICT, FST; submission
+  19 Nov 2026). The table of contents is typed, not a Word field: if pages move after editing,
+  correct its numbers by hand.
 
 - **Demo video: voice-over and export are left** (Nobo, in Clipchamp). Must stay at or under
   2 minutes. Everything else, and how to re-record a part, is in `VIDEO-PROGRESS.md`.
