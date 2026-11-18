@@ -168,6 +168,13 @@ video/        the demo video's recorder: record.mjs drives a headless Chrome ove
               cards), terminal.html (replays real console output); voice-over-script.pdf (Nobo's
               narration, word for word, from voice-over-script.html); out/ is git-ignored.
               Progress, timing sheet and how to re-record: VIDEO-PROGRESS.md
+  captions/     make-captions.py (the captions, part labels and amber call-outs, timed to the
+                Clipchamp export) → captions.ass/.srt/.vtt; build-captioned.sh burns them in
+                (ffmpeg + libass) → video/out/UHID-demo-captioned.mp4. Exact times and screen
+                positions are in make-captions.py — re-measure them if the export changes
+presentation/ build-deck.js — the viva deck (10 slides, about 3:40 of talk plus the 1:46 video,
+              speaker notes timed per slide), built with pptxgenjs into presentation/out/
+              (git-ignored, it embeds the video). Its libraries are not in server/package.json
 mock/         empty — the pages read js/data.js and js/seed.js instead (see Architecture)
 prototype/    uhid-prototype.html — single-file working prototype (see below)
 ```
@@ -380,14 +387,16 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 | Demo script, README | Done 1 Nov 2026 — `docs/demo-script.md`; README rewritten for the running system |
 | Print stylesheet, 404 page | Done 1 Nov 2026 |
 | Shipment-ready, checklist I3–I13 | Done 7 Nov 2026 — discharge form; edit details and verify identity; *Hospital setup*; sessions in MySQL; `db:install` (no demo), `db:backup`/`db:restore`; health, request log, clean shutdown, start-up tasks; root's password out of the site's reach; review verdicts, who cancelled, referral agreement, access-log paging, lab collection. Only I14, hosting, is left (`docs/operations.md` §5) |
-| Demo video | Recorded and assembled 10 Nov 2026 — 2-minute cut (1:45.83, 12 clips) in Nobo's Clipchamp project "UHID demo video"; voice-over and export are Nobo's. `VIDEO-PROGRESS.md` |
+| Demo video | Recorded and assembled 10 Nov 2026 — 2-minute cut (1:45.83, 12 clips) in Nobo's Clipchamp project "UHID demo video". Exported without a voice-over; 18 Nov 2026 captions, part labels and call-outs burned in instead (`video/captions/`), so it explains itself silently. `VIDEO-PROGRESS.md` |
+| Presentation | Done 18 Nov 2026 — `presentation/build-deck.js`: project details, work in code, demo video embedded, limitations and remarks; about 3:40 of talk without the video |
 | Appointment lists (checklist I2) | Done 7 Nov 2026 — one screen, three lists decided by `list_appointments()`; cancel before the slot, *Did not come* after it (`mark_no_show()`) |
 | Real accounts (checklist I1) | Done 7 Nov 2026 — own passwords, admin account screens, patient portal logins, one-time passwords with a forced change, demo list only with `DEMO_MODE=1` |
 
 ## Open items — do not lose these
 
-- **Demo video: voice-over and export are left** (Nobo, in Clipchamp). Must stay at or under
-  2 minutes. Everything else, and how to re-record a part, is in `VIDEO-PROGRESS.md`.
+- **Demo video: the captioned version is the one to show** (`video/out/UHID-demo-captioned.mp4`,
+  also embedded in the deck). A voice-over is optional now; if Nobo adds one, keep it under 2
+  minutes and match the captions. How to re-record a part is in `VIDEO-PROGRESS.md`.
 - **Read `handover.md` first.** Written 1 Nov 2026; items 1 (ER docs) and 2 (screens) done the
   same day. Still open there: the team's guides, and the laptop is short of memory. Update or
   delete it when those are dealt with.
