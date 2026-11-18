@@ -67,6 +67,13 @@ take is always the whole list on a freshly reset database. `--dry` with `--short
 - [ ] 8. Nobo: voice-over in Clipchamp (Record & create → audio, or Import media → a narration file,
       dragged onto the audio track), then **Export → 1080p**. Not exported yet on purpose: export
       once, after the voice-over. Keep the narration within 1:45, or the video grows past it.
+- [x] 9. **Exported without a voice-over** (1:45.87, 1920 × 1080, silent). 18 Nov 2026: captions,
+      a part/decision label, a progress bar and amber call-outs burned in so the video explains
+      itself: `bash video/captions/build-captioned.sh <export.mp4>` →
+      `video/out/UHID-demo-captioned.mp4`. The recording is scaled to 85 % with a caption band
+      underneath, so nothing covers the app. Caption text, times and call-out positions are in
+      `video/captions/make-captions.py`; `captions.srt`/`.vtt` are written alongside. Step 8 is
+      optional from here.
 
 ## Timing sheet — the 2-minute cut (Clipchamp timeline, 1:45.83)
 
