@@ -391,8 +391,10 @@ Patient · Receptionist · Doctor · Hospital Admin · System Admin · Lab Techn
 
 ## Open items — do not lose these
 
-- **Report: the team should confirm Table 1** (who did what) in
-  `docs/report/UHID_Project_Report.docx` — it was written from the learning guides' split. The
+- **Report: Abir's row of Table 1** (who did what) in `docs/report/UHID_Project_Report.docx` still
+  comes from the learning guides' split and should be confirmed. Noria's row was set by the author
+  on 19 Nov 2026: the public landing page design (frontend) and the database tables (backend);
+  Nobo's row no longer claims the schema. The
   cover is complete (ICE 2204, Database Management System Laboratory; supervisors Aditya
   Rajbongshi, Chairman, Department of Educational Technology and Engineering (EdTE), University of
   Frontier Technology Bangladesh, and Samia Ahmed, Lecturer, shown as Department of ICT, FST, BUP;
