@@ -168,6 +168,8 @@ video/        the demo video's recorder: record.mjs drives a headless Chrome ove
               cards), terminal.html (replays real console output); voice-over-script.pdf (Nobo's
               narration, word for word, from voice-over-script.html); out/ is git-ignored.
               Progress, timing sheet and how to re-record: VIDEO-PROGRESS.md
+linkedin/     post.md (the LinkedIn post, image order and alt text) and 7 screenshots of the running
+              site (1440x900 at 2x, taken 20 Nov 2026 against the real MySQL demo data)
 mock/         empty — the pages read js/data.js and js/seed.js instead (see Architecture)
 prototype/    uhid-prototype.html — single-file working prototype (see below)
 ```
